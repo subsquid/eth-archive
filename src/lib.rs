@@ -1,8 +1,6 @@
-pub mod error;
-pub mod eth_client;
-pub mod eth_request;
-pub mod parquet;
+//pub mod error;
+//pub mod types;
+//pub mod get_blocks;
+//pub mod parquet_writer;
 
-pub use error::Error;
-pub use eth_client::EthClient;
-pub use eth_request::EthRequest;
+//pub use error::{Result, Error};

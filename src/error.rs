@@ -1,11 +1,9 @@
-#[derive(Debug)]
+use thiserror::Error as ThisError;
+use std::result::Result as StdResult;
+
+#[derive(Debug, ThisError)]
 pub enum Error {
-    HttpRequest(reqwest::Error),
-    RpcResponseStatus(u16),
-    RpcResponseParse(reqwest::Error),
-    RpcResultParse(serde_json::Error),
-    RpcResponseInvalid,
-    BuildHttpClient(reqwest::Error),
-    GetTxBatch(Box<Error>),
-    CreateParquetWriter(Box<parquet::errors::ParquetError>),
+
 }
+
+pub type Result<T> = StdResult<T, Error>;
