@@ -23,29 +23,37 @@ async fn main() {
     for block_num in (block_start..block_end).step_by(BATCH_SIZE * STEP) {
         let futs = (0..STEP).map(|step_idx| {
             let client = client.clone();
-            async move {
-                let block_futs = (0..BATCH_SIZE)
-                    .map(|batch_idx| {
-                        let block_num = step_idx * BATCH_SIZE + batch_idx;
-                        client
-                            .clone()
-                            .eth()
-                            .block_with_txs(web3::types::U64::from(block_num).into())
-                    })
-                    .collect::<Vec<_>>();
 
-                client.transport().submit_batch().await.unwrap();
+            eth_archive::retry::retry(move || {
+                let client = client.clone();
 
-                block_futs.into_iter()
-            }
+                async move {
+                    #[allow(clippy::needless_collect)]
+                    let block_futs = (0..BATCH_SIZE)
+                        .map(|batch_idx| {
+                            let block_num = step_idx * BATCH_SIZE + batch_idx;
+                            client
+                                .clone()
+                                .eth()
+                                .block_with_txs(web3::types::U64::from(block_num).into())
+                        })
+                        .collect::<Vec<_>>();
+
+                    client.transport().submit_batch().await?;
+
+                    Ok(block_futs.into_iter())
+                }
+            })
         });
 
-        let batch = futures::future::join_all(futs).await.into_iter().flatten();
+        let batches = futures::future::join_all(futs).await.into_iter();
 
-        for block in batch {
-        	let block = block.await.unwrap();
-
-        	info!("{:?}", block);
+        for batch in batches {
+            let batch = batch.unwrap();
+            for block in batch {
+                let block = block.await.unwrap();
+                //info!("{:?}", block);
+            }
         }
 
         let blocks_processed = block_num - block_start;
