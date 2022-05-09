@@ -21,7 +21,7 @@ pub fn block_schema() -> TypePtr {
                     .unwrap(),
             ),
             Arc::new(
-                Type::primitive_type_builder("hash", BasicType::FIXED_LEN_BYTE_ARRAY)
+                Type::primitive_type_builder("parent_hash", BasicType::FIXED_LEN_BYTE_ARRAY)
                     .with_repetition(Repetition::REQUIRED)
                     .with_length(32)
                     .build()

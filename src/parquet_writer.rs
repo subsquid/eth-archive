@@ -1,4 +1,4 @@
-use crate::types::BlockData;
+use crate::types::WriteToParquet;
 use crate::{Error, Result};
 use parquet::basic::Repetition;
 use parquet::basic::Type as BasicType;
@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-pub struct ParquetWriter {
-    tx: mpsc::UnboundedSender<BlockData>,
+pub struct ParquetWriter<T: WriteToParquet> {
+    tx: mpsc::UnboundedSender<T>,
 }
 
-impl ParquetWriter {
+impl<T: WriteToParquet> ParquetWriter<T> {
     pub fn new<P: AsRef<Path>, S: Into<String>>(name: S, path: P, schema: TypePtr) -> Result<Self> {
         let (tx, rx) = mpsc::unbounded_channel();
 
@@ -25,25 +25,25 @@ impl ParquetWriter {
         Ok(Self { tx })
     }
 
-    pub fn write(&self, block: BlockData) {
-        self.tx.send(block).unwrap();
+    pub fn write(&self, val: T) {
+        self.tx.send(val).unwrap();
     }
 }
 
-struct WriteTask {
+struct WriteTask<T: WriteToParquet> {
     path: PathBuf,
     file: File,
-    rx: mpsc::UnboundedReceiver<BlockData>,
+    rx: mpsc::UnboundedReceiver<T>,
     next_file_idx: usize,
     name: String,
     schema: TypePtr,
 }
 
-impl WriteTask {
+impl<T: WriteToParquet> WriteTask<T> {
     fn new(
         name: String,
         path: &Path,
-        rx: mpsc::UnboundedReceiver<BlockData>,
+        rx: mpsc::UnboundedReceiver<T>,
         schema: TypePtr,
     ) -> Result<Self> {
         let mut path = path.to_path_buf();
