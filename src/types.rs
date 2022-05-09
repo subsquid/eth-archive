@@ -1,3 +1,2 @@
-pub struct BlockData {
-
-}
+#[derive(Debug)]
+pub struct BlockData {}

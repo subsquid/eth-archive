@@ -1,5 +1,5 @@
 pub mod error;
-//pub mod types;
+pub mod types;
 //pub mod get_blocks;
 pub mod parquet_writer;
 
