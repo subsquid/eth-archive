@@ -13,10 +13,10 @@ pub struct ParquetWriter<T: WriteToParquet> {
 }
 
 impl<T: WriteToParquet> ParquetWriter<T> {
-    pub fn new<P: AsRef<Path>, S: Into<String>>(name: S, path: P, schema: TypePtr) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(path: P, schema: TypePtr) -> Result<Self> {
         let (tx, rx) = mpsc::unbounded_channel();
 
-        let task = WriteTask::new(name.into(), path.as_ref(), rx, schema)?;
+        let task = WriteTask::new(path.as_ref(), rx, schema)?;
 
         tokio::task::spawn_blocking(|| async move {
             task.run().await;
@@ -35,19 +35,13 @@ struct WriteTask<T: WriteToParquet> {
     file: File,
     rx: mpsc::UnboundedReceiver<T>,
     next_file_idx: usize,
-    name: String,
     schema: TypePtr,
 }
 
 impl<T: WriteToParquet> WriteTask<T> {
-    fn new(
-        name: String,
-        path: &Path,
-        rx: mpsc::UnboundedReceiver<T>,
-        schema: TypePtr,
-    ) -> Result<Self> {
+    fn new(path: &Path, rx: mpsc::UnboundedReceiver<T>, schema: TypePtr) -> Result<Self> {
         let mut path = path.to_path_buf();
-        path.push(format!("{}{}.parquet", &name, 0));
+        path.push(format!("{}{}.parquet", schema.name(), 0));
         let file = File::create(path.as_path()).map_err(Error::CreateParquetFile)?;
         path.pop();
 
@@ -55,13 +49,14 @@ impl<T: WriteToParquet> WriteTask<T> {
             path,
             file,
             next_file_idx: 1,
-            name,
             schema,
             rx,
         })
     }
 
     async fn run(mut self) {
-        while let Some(block) = self.rx.recv().await {}
+        while let Some(block) = self.rx.recv().await {
+            
+        }
     }
 }

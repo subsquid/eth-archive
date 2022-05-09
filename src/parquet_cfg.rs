@@ -162,6 +162,19 @@ pub fn log_schema() -> TypePtr {
                     .unwrap(),
             ),
             Arc::new(
+                Type::primitive_type_builder("topics", BasicType::FIXED_LEN_BYTE_ARRAY)
+                    .with_repetition(Repetition::REPEATED)
+                    .with_length(32)
+                    .build()
+                    .unwrap(),
+            ),
+            Arc::new(
+                Type::primitive_type_builder("data", BasicType::BYTE_ARRAY)
+                    .with_repetition(Repetition::REQUIRED)
+                    .build()
+                    .unwrap(),
+            ),
+            Arc::new(
                 Type::primitive_type_builder("block_hash", BasicType::FIXED_LEN_BYTE_ARRAY)
                     .with_repetition(Repetition::OPTIONAL)
                     .with_length(32)
@@ -199,7 +212,7 @@ pub fn log_schema() -> TypePtr {
                 .unwrap(),
             ),
             Arc::new(
-                Type::primitive_type_builder("transaction_log_index", BasicType::BYTE_ARRAY)
+                Type::primitive_type_builder("log_type", BasicType::BYTE_ARRAY)
                     .with_repetition(Repetition::OPTIONAL)
                     .with_converted_type(ConvertedType::UTF8)
                     .build()
