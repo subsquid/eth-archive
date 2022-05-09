@@ -13,13 +13,13 @@ pub struct ParquetWriter {
 }
 
 impl ParquetWriter {
-    pub fn new<P: AsRef<Path>, S: Into<String>>(name: S, path: P) -> Result<Self> {
+    pub fn new<P: AsRef<Path>, S: Into<String>>(name: S, path: P, schema: TypePtr) -> Result<Self> {
         let (tx, rx) = mpsc::unbounded_channel();
 
-        let task = WriteTask::new(name.into(), path.as_ref(), rx)?;
+        let task = WriteTask::new(name.into(), path.as_ref(), rx, schema)?;
 
         tokio::task::spawn_blocking(|| async move {
-            task.run();
+            task.run().await;
         });
 
         Ok(Self { tx })
@@ -40,125 +40,16 @@ struct WriteTask {
 }
 
 impl WriteTask {
-    fn new(name: String, path: &Path, rx: mpsc::UnboundedReceiver<BlockData>) -> Result<Self> {
+    fn new(
+        name: String,
+        path: &Path,
+        rx: mpsc::UnboundedReceiver<BlockData>,
+        schema: TypePtr,
+    ) -> Result<Self> {
         let mut path = path.to_path_buf();
         path.push(format!("{}{}.parquet", &name, 0));
         let file = File::create(path.as_path()).map_err(Error::CreateParquetFile)?;
         path.pop();
-
-        let schema = Type::group_type_builder(&name)
-            .with_fields(&mut vec![
-                Arc::new(
-                    Type::primitive_type_builder("hash", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::REQUIRED)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("nonce", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::REQUIRED)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("block_hash", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("block_number", BasicType::INT64)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("transaction_index", BasicType::INT64)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("from", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .with_length(20)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("to", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .with_length(20)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("value", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::REQUIRED)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("gas_price", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("gas", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::REQUIRED)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("input", BasicType::BYTE_ARRAY)
-                        .with_repetition(Repetition::REQUIRED)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("v", BasicType::INT64)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("r", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("s", BasicType::FIXED_LEN_BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .with_length(32)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("raw", BasicType::BYTE_ARRAY)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .build()
-                        .unwrap(),
-                ),
-                Arc::new(
-                    Type::primitive_type_builder("transaction_type", BasicType::INT64)
-                        .with_repetition(Repetition::OPTIONAL)
-                        .build()
-                        .unwrap(),
-                ),
-            ])
-            .build()
-            .unwrap();
-
-        let schema = Arc::new(schema);
 
         Ok(Self {
             path,

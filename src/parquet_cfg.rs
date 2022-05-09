@@ -1,5 +1,6 @@
 use parquet::basic::Type as BasicType;
-use parquet::basic::{ConvertedType, Repetition};
+use parquet::basic::{Compression, ConvertedType, Repetition};
+use parquet::file::properties::{WriterProperties, WriterPropertiesPtr, WriterVersion};
 use parquet::schema::types::{Type, TypePtr};
 use std::sync::Arc;
 
@@ -198,21 +199,26 @@ pub fn log_schema() -> TypePtr {
                 .unwrap(),
             ),
             Arc::new(
-                Type::primitive_type_builder(
-                    "transaction_log_index",
-                    BasicType::FIXED_LEN_BYTE_ARRAY,
-                )
-                .with_repetition(Repetition::OPTIONAL)
-                .with_length(32)
-                .with_converted_type(ConvertedType::UTF8)
-                .build()
-                .unwrap(),
+                Type::primitive_type_builder("transaction_log_index", BasicType::BYTE_ARRAY)
+                    .with_repetition(Repetition::OPTIONAL)
+                    .with_converted_type(ConvertedType::UTF8)
+                    .build()
+                    .unwrap(),
             ),
         ])
         .build()
         .unwrap();
 
     Arc::new(schema)
+}
+
+pub fn writer_properties() -> WriterPropertiesPtr {
+    let props = WriterProperties::builder()
+        .set_writer_version(WriterVersion::PARQUET_2_0)
+        .set_compression(Compression::LZ4)
+        .build();
+
+    Arc::new(props)
 }
 
 #[cfg(test)]
@@ -232,5 +238,10 @@ mod tests {
     #[test]
     fn test_log_schema() {
         log_schema();
+    }
+
+    #[test]
+    fn test_writer_properties() {
+        writer_properties();
     }
 }
