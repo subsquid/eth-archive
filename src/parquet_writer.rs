@@ -19,7 +19,7 @@ impl<T: WriteToParquet> ParquetWriter<T> {
         let task = WriteTask::new(path.as_ref(), rx, schema)?;
 
         std::thread::spawn(|| async move {
-            task.run().await;
+            task.run();
         });
 
         Ok(Self { tx })
@@ -54,7 +54,7 @@ impl<T: WriteToParquet> WriteTask<T> {
         })
     }
 
-    async fn run(mut self) {
+    fn run(mut self) {
         while let Ok(chunk) = self.rx.recv() {}
     }
 }
