@@ -1431,7 +1431,6 @@ dependencies = [
  "byteorder",
  "chrono",
  "flate2",
- "futures",
  "lz4",
  "num",
  "num-bigint",
@@ -1439,7 +1438,6 @@ dependencies = [
  "rand",
  "snap",
  "thrift",
- "tokio",
  "zstd",
 ]
 

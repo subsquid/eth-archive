@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.18.0", features = ["full"] }
-parquet = { version = "9.0.0", features = ["async"] }
+parquet = "9.0.0"
 datafusion = "7.1.0"
 thiserror = "1.0.31"
 tracing = "0.1.34"
