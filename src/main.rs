@@ -25,7 +25,7 @@ async fn main() {
     }
     .into_row_groups();
 
-    let file = fs::File::create("anan.parquet").unwrap();
+    let file = fs::File::create("data/test.parquet").unwrap();
     let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
     writer.start().unwrap();
