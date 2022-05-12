@@ -1,4 +1,5 @@
 use crate::{Error, Result};
+use parquet::column::writer::ColumnWriter;
 use parquet::file::writer::RowGroupWriter;
 use web3::types::{Address, Block, Bytes, Index, Log, Transaction, H160, H256, H64, U256, U64};
 
@@ -41,23 +42,44 @@ pub struct Logs {
     transaction_log_index: Vec<Option<U256>>,
 }
 
-pub trait WriteToParquet: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
+struct ToColumnContext {
+    def: i16,
+    rep: i16,
+}
+
+struct ToColumnOutput<T> {
+    def: i16,
+    rep: i16,
+    val: T,
+}
+
+pub trait ToColumn: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
+    type Output;
+    fn write_to_column_group(&self, ctx: &ToColumnContext) -> ToColumnOutput<T>;
+}
+
+pub trait WriteToRowGroup: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
     fn write_to_row_group(&self, writer: &mut Box<dyn RowGroupWriter>) -> Result<()>;
 }
 
-impl WriteToParquet for Blocks {
+impl WriteToRowGroup for Blocks {
+    fn write_to_row_group(&self, writer: &mut Box<dyn RowGroupWriter>) -> Result<()> {
+        let mut num_writer = match writer.next_column().unwrap().unwrap() {
+            ColumnWriter::Int64ColumnWriter(w) => w,
+            _ => unreachable!(),
+        };
+
+        Ok(())
+    }
+}
+
+impl WriteToRowGroup for Transactions {
     fn write_to_row_group(&self, writer: &mut Box<dyn RowGroupWriter>) -> Result<()> {
         unimplemented!();
     }
 }
 
-impl WriteToParquet for Transactions {
-    fn write_to_row_group(&self, writer: &mut Box<dyn RowGroupWriter>) -> Result<()> {
-        unimplemented!();
-    }
-}
-
-impl WriteToParquet for Logs {
+impl WriteToRowGroup for Logs {
     fn write_to_row_group(&self, writer: &mut Box<dyn RowGroupWriter>) -> Result<()> {
         unimplemented!();
     }

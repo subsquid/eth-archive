@@ -1,4 +1,4 @@
-use crate::types::WriteToParquet;
+use crate::types::WriteToRowGroup;
 use crate::{Error, Result};
 use crossbeam::channel;
 use parquet::basic::Repetition;
@@ -8,11 +8,11 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-pub struct ParquetWriter<T: WriteToParquet> {
+pub struct ParquetWriter<T: WriteToRowGroup> {
     tx: channel::Sender<Vec<T>>,
 }
 
-impl<T: WriteToParquet> ParquetWriter<T> {
+impl<T: WriteToRowGroup> ParquetWriter<T> {
     pub fn new<P: AsRef<Path>>(path: P, schema: TypePtr) -> Result<Self> {
         let (tx, rx) = channel::unbounded();
 
@@ -30,7 +30,7 @@ impl<T: WriteToParquet> ParquetWriter<T> {
     }
 }
 
-struct WriteTask<T: WriteToParquet> {
+struct WriteTask<T: WriteToRowGroup> {
     path: PathBuf,
     file: File,
     rx: channel::Receiver<Vec<T>>,
@@ -38,7 +38,7 @@ struct WriteTask<T: WriteToParquet> {
     schema: TypePtr,
 }
 
-impl<T: WriteToParquet> WriteTask<T> {
+impl<T: WriteToRowGroup> WriteTask<T> {
     fn new(path: &Path, rx: channel::Receiver<Vec<T>>, schema: TypePtr) -> Result<Self> {
         let mut path = path.to_path_buf();
         path.push(format!("{}{}.parquet", schema.name(), 0));
