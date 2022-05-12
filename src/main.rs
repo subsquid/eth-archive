@@ -1,6 +1,6 @@
 use arrow2::array::*;
 use arrow2::io::parquet::write::*;
-use eth_archive::schema::Blocks;
+use eth_archive::schema::{Blocks, IntoRowGroups};
 use std::fs;
 
 fn main() {

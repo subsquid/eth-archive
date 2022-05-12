@@ -70,8 +70,8 @@ pub struct Blocks {
 type RowGroups =
     RowGroupIterator<Arc<dyn Array>, std::vec::IntoIter<Result<Chunk<Arc<dyn Array>>, ArrowError>>>;
 
-impl Blocks {
-    pub fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+impl IntoRowGroups for Blocks {
+    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
             Arc::new(UInt64Array::from_vec(self.number)) as Arc<dyn Array>,
             Arc::new(UInt64Array::from_vec(self.timestamp)) as Arc<dyn Array>,
@@ -114,8 +114,8 @@ pub struct Transactions {
     pub chain_id: MutableUtf8Array<i64>,
 }
 
-impl Transactions {
-    pub fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+impl IntoRowGroups for Transactions {
+    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
             self.hash.into_arc(),
             self.nonce.into_arc(),
@@ -172,8 +172,8 @@ pub struct Logs {
     pub topics: MutableUtf8Array<i64>,
 }
 
-impl Logs {
-    pub fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+impl IntoRowGroups for Logs {
+    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
             Arc::new(BooleanArray::from_slice(self.removed.as_slice())) as Arc<dyn Array>,
             self.log_index.into_arc(),
@@ -208,4 +208,8 @@ impl Logs {
 
         (row_groups, schema, options())
     }
+}
+
+pub trait IntoRowGroups {
+    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions);
 }
