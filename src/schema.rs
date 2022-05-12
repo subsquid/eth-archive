@@ -67,11 +67,11 @@ pub struct Blocks {
     pub size: MutableUtf8Array<i64>,
 }
 
-type RowGroup =
+type RowGroups =
     RowGroupIterator<Arc<dyn Array>, std::vec::IntoIter<Result<Chunk<Arc<dyn Array>>, ArrowError>>>;
 
 impl Blocks {
-    pub fn into_row_group(self) -> Result<RowGroup, ArrowError> {
+    pub fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
             Arc::new(UInt64Array::from_vec(self.number)) as Arc<dyn Array>,
             Arc::new(UInt64Array::from_vec(self.timestamp)) as Arc<dyn Array>,
@@ -79,9 +79,11 @@ impl Blocks {
             self.size.into_arc(),
         ]);
 
-        RowGroupIterator::try_new(
+        let schema = block_schema();
+
+        let row_groups = RowGroupIterator::try_new(
             vec![Ok(chunk)].into_iter(),
-            &block_schema(),
+            &schema,
             options(),
             vec![
                 Encoding::Plain,
@@ -90,6 +92,9 @@ impl Blocks {
                 Encoding::DeltaLengthByteArray,
             ],
         )
+        .unwrap();
+
+        (row_groups, schema, options())
     }
 }
 
