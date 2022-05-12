@@ -35,7 +35,7 @@ async fn main() {
     writer.end(None).unwrap();
 
     let mut ctx = ExecutionContext::new();
-    ctx.register_parquet("log", "file://anan.parquet")
+    ctx.register_parquet("log", "file://data/test.parquet")
         .await
         .unwrap();
     let df = ctx.sql("SELECT * FROM log;").await.unwrap();
