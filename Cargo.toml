@@ -5,13 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.18.0", features = ["full"] }
-datafusion = "7.1.0"
 
 [dependencies.arrow2]
 version = "0.11.2"
-features = [ "io_parquet" ]
-
-[dependencies.parquet2]
-version = "0.12"
-default_features = false
-features = [ "snappy" ]
+features = [ "io_parquet", "io_parquet_compression" ]
