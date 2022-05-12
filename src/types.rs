@@ -1,5 +1,6 @@
 use crate::{Error, Result};
 use parquet::column::writer::ColumnWriter;
+use parquet::data_type::FixedLenByteArray;
 use parquet::file::writer::RowGroupWriter;
 use web3::types::{Address, Block, Bytes, Index, Log, Transaction, H160, H256, H64, U256, U64};
 
@@ -70,6 +71,28 @@ impl ToColumn for Option<U64> {
                 rep: ctx.rep,
                 val: Some(unsafe { std::mem::transmute(v) }),
             },
+            None => ToColumnOutput {
+                def: ctx.def,
+                rep: ctx.rep,
+                val: None,
+            },
+        }
+    }
+}
+
+impl<T: ToColumn> ToColumn for Option<T> {
+    type Output = Option<T::Output>;
+
+    fn write_to_column_group(&self, ctx: &ToColumnContext) -> ToColumnOutput<Self::Output> {
+        match self {
+            Some(ref v) => {
+                let res = v.write_to_column_group(ctx);
+                ToColumnOutput {
+                    def: res.def,
+                    rep: res.rep,
+                    val: Some(res.val),
+                }
+            }
             None => ToColumnOutput {
                 def: ctx.def,
                 rep: ctx.rep,
