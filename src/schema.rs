@@ -60,6 +60,7 @@ fn options() -> WriteOptions {
     }
 }
 
+#[derive(Debug)]
 pub struct Blocks {
     pub number: Vec<u64>,
     pub timestamp: Vec<u64>,
@@ -98,6 +99,7 @@ impl IntoRowGroups for Blocks {
     }
 }
 
+#[derive(Debug)]
 pub struct Transactions {
     pub hash: MutableUtf8Array<i64>,
     pub nonce: MutableUtf8Array<i64>,
@@ -160,6 +162,7 @@ impl IntoRowGroups for Transactions {
     }
 }
 
+#[derive(Debug)]
 pub struct Logs {
     pub removed: Vec<bool>,
     pub log_index: MutableUtf8Array<i64>,
@@ -210,6 +213,6 @@ impl IntoRowGroups for Logs {
     }
 }
 
-pub trait IntoRowGroups {
+pub trait IntoRowGroups: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions);
 }
