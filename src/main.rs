@@ -1,10 +1,7 @@
 use arrow2::array::*;
-use arrow2::chunk::Chunk;
-use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::io::parquet::write::*;
 use eth_archive::schema::Blocks;
 use std::fs;
-use std::sync::Arc;
 
 fn main() {
     let mut nonce = MutableUtf8Array::new();

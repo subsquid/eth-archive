@@ -1,4 +1,4 @@
-use arrow2::array::{Array, MutableUtf8Array, UInt64Array, Utf8Array};
+use arrow2::array::{Array, BooleanArray, MutableUtf8Array, UInt64Array};
 use arrow2::chunk::Chunk;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::error::ArrowError;
@@ -114,6 +114,52 @@ pub struct Transactions {
     pub chain_id: MutableUtf8Array<i64>,
 }
 
+impl Transactions {
+    pub fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+        let chunk = Chunk::new(vec![
+            self.hash.into_arc(),
+            self.nonce.into_arc(),
+            self.block_hash.into_arc(),
+            Arc::new(UInt64Array::from(self.block_number.as_slice())) as Arc<dyn Array>,
+            self.transaction_index.into_arc(),
+            self.from.into_arc(),
+            self.to.into_arc(),
+            self.value.into_arc(),
+            self.gas_price.into_arc(),
+            self.gas.into_arc(),
+            self.input.into_arc(),
+            self.public_key.into_arc(),
+            self.chain_id.into_arc(),
+        ]);
+
+        let schema = transaction_schema();
+
+        let row_groups = RowGroupIterator::try_new(
+            vec![Ok(chunk)].into_iter(),
+            &schema,
+            options(),
+            vec![
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+            ],
+        )
+        .unwrap();
+
+        (row_groups, schema, options())
+    }
+}
+
 pub struct Logs {
     pub removed: Vec<bool>,
     pub log_index: MutableUtf8Array<i64>,
@@ -124,4 +170,42 @@ pub struct Logs {
     pub address: MutableUtf8Array<i64>,
     pub data: MutableUtf8Array<i64>,
     pub topics: MutableUtf8Array<i64>,
+}
+
+impl Logs {
+    pub fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+        let chunk = Chunk::new(vec![
+            Arc::new(BooleanArray::from_slice(self.removed.as_slice())) as Arc<dyn Array>,
+            self.log_index.into_arc(),
+            self.transaction_index.into_arc(),
+            self.transaction_hash.into_arc(),
+            self.block_hash.into_arc(),
+            Arc::new(UInt64Array::from(self.block_number.as_slice())) as Arc<dyn Array>,
+            self.address.into_arc(),
+            self.data.into_arc(),
+            self.topics.into_arc(),
+        ]);
+
+        let schema = log_schema();
+
+        let row_groups = RowGroupIterator::try_new(
+            vec![Ok(chunk)].into_iter(),
+            &schema,
+            options(),
+            vec![
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+            ],
+        )
+        .unwrap();
+
+        (row_groups, schema, options())
+    }
 }
