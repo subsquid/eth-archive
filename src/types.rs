@@ -42,20 +42,41 @@ pub struct Logs {
     transaction_log_index: Vec<Option<U256>>,
 }
 
+#[derive(Debug, Clone, Copy)]
 struct ToColumnContext {
     def: i16,
     rep: i16,
 }
 
+#[derive(Debug, Clone)]
 struct ToColumnOutput<T> {
     def: i16,
     rep: i16,
     val: T,
 }
 
-pub trait ToColumn: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
+trait ToColumn: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
     type Output;
-    fn write_to_column_group(&self, ctx: &ToColumnContext) -> ToColumnOutput<T>;
+    fn write_to_column_group(&self, ctx: &ToColumnContext) -> ToColumnOutput<Self::Output>;
+}
+
+impl ToColumn for Option<U64> {
+    type Output = Option<i64>;
+
+    fn write_to_column_group(&self, ctx: &ToColumnContext) -> ToColumnOutput<Self::Output> {
+        match self {
+            Some(ref v) => ToColumnOutput {
+                def: ctx.def + 1,
+                rep: ctx.rep,
+                val: Some(unsafe { std::mem::transmute(v) }),
+            },
+            None => ToColumnOutput {
+                def: ctx.def,
+                rep: ctx.rep,
+                val: None,
+            },
+        }
+    }
 }
 
 pub trait WriteToRowGroup: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized {
@@ -64,12 +85,7 @@ pub trait WriteToRowGroup: Send + Sync + std::fmt::Debug + 'static + std::marker
 
 impl WriteToRowGroup for Blocks {
     fn write_to_row_group(&self, writer: &mut Box<dyn RowGroupWriter>) -> Result<()> {
-        let mut num_writer = match writer.next_column().unwrap().unwrap() {
-            ColumnWriter::Int64ColumnWriter(w) => w,
-            _ => unreachable!(),
-        };
-
-        Ok(())
+        unimplemented!();
     }
 }
 
