@@ -1,9 +1,9 @@
-use arrow2::array::{Array, UInt64Array, Utf8Array};
+use arrow2::array::{Array, MutableUtf8Array, UInt64Array, Utf8Array};
 use arrow2::chunk::Chunk;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
-    CompressionOptions, Encoding, RowGroupIter, RowGroupIterator, Version, WriteOptions,
+    CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
 use std::sync::Arc;
 
@@ -63,25 +63,20 @@ fn options() -> WriteOptions {
 pub struct Blocks {
     pub number: Vec<u64>,
     pub timestamp: Vec<u64>,
-    pub nonce: Vec<String>,
-    pub size: Vec<String>,
+    pub nonce: MutableUtf8Array<i64>,
+    pub size: MutableUtf8Array<i64>,
 }
 
+type RowGroup =
+    RowGroupIterator<Arc<dyn Array>, std::vec::IntoIter<Result<Chunk<Arc<dyn Array>>, ArrowError>>>;
+
 impl Blocks {
-    pub fn into_row_group(
-        self,
-    ) -> Result<
-        RowGroupIterator<
-            Arc<dyn Array>,
-            std::vec::IntoIter<Result<Chunk<Arc<dyn Array>>, ArrowError>>,
-        >,
-        ArrowError,
-    > {
+    pub fn into_row_group(self) -> Result<RowGroup, ArrowError> {
         let chunk = Chunk::new(vec![
             Arc::new(UInt64Array::from_vec(self.number)) as Arc<dyn Array>,
             Arc::new(UInt64Array::from_vec(self.timestamp)) as Arc<dyn Array>,
-            Arc::new(Utf8Array::<i64>::from_slice(self.nonce.as_slice())) as Arc<dyn Array>,
-            Arc::new(Utf8Array::<i64>::from_slice(self.size.as_slice())) as Arc<dyn Array>,
+            self.nonce.into_arc(),
+            self.size.into_arc(),
         ]);
 
         RowGroupIterator::try_new(
@@ -91,8 +86,8 @@ impl Blocks {
             vec![
                 Encoding::Plain,
                 Encoding::Plain,
-                Encoding::Plain,
-                Encoding::Plain,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
             ],
         )
     }
