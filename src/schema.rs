@@ -5,6 +5,7 @@ use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 fn block_schema() -> Schema {
@@ -68,12 +69,28 @@ pub struct Blocks {
     pub size: MutableUtf8Array<i64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Block {
-    pub number: u64,
-    pub timestamp: u64,
+    #[serde(deserialize_with = "hex::serde::deserialize")]
+    pub number: Num,
+    #[serde(deserialize_with = "hex::serde::deserialize")]
+    pub timestamp: Num,
     pub nonce: String,
     pub size: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Num(u64);
+
+impl hex::FromHex for Num {
+    type Error = hex::FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        let arr = <[u8; 8]>::from_hex(hex)?;
+
+        Ok(Self(u64::from_le_bytes(arr)))
+    }
 }
 
 type RowGroups =
@@ -109,8 +126,8 @@ impl IntoRowGroups for Blocks {
     }
 
     fn push(&mut self, elem: Self::Elem) {
-        self.number.push(elem.number);
-        self.timestamp.push(elem.timestamp);
+        self.number.push(elem.number.0);
+        self.timestamp.push(elem.timestamp.0);
         self.nonce.push(Some(elem.nonce));
         self.size.push(Some(elem.size));
     }

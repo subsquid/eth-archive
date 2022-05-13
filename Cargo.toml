@@ -5,7 +5,14 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.18.0", features = ["full"] }
+serde = { version = "1.0.137", features = ["derive"] }
+hex = { version = "0.4.3", features = ["serde"] }
 
 [dependencies.arrow2]
 version = "0.11.2"
 features = [ "io_parquet", "io_parquet_compression" ]
+
+[dependencies.reqwest]
+version = "0.11.10"
+default-features = false
+features = ["json", "rustls-tls", "gzip"]
