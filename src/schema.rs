@@ -1,11 +1,16 @@
-use arrow2::array::{Array, BooleanArray, MutableListArray, MutableUtf8Array, UInt64Array};
+use crate::{Error, Result};
+use arrow2::array::{
+    Array, MutableBooleanArray, MutableListArray, MutableUtf8Array, TryPush, UInt64Vec,
+};
 use arrow2::chunk::Chunk;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
+use hex::FromHex;
 use serde::{Deserialize, Serialize};
+use std::result::Result as StdResult;
 use std::sync::Arc;
 
 fn block_schema() -> Schema {
@@ -61,10 +66,10 @@ fn options() -> WriteOptions {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Blocks {
-    pub number: Vec<u64>,
-    pub timestamp: Vec<u64>,
+    pub number: UInt64Vec,
+    pub timestamp: UInt64Vec,
     pub nonce: MutableUtf8Array<i64>,
     pub size: MutableUtf8Array<i64>,
 }
@@ -86,23 +91,25 @@ pub struct Num(u64);
 impl hex::FromHex for Num {
     type Error = hex::FromHexError;
 
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> StdResult<Self, Self::Error> {
         let arr = <[u8; 8]>::from_hex(hex)?;
 
         Ok(Self(u64::from_le_bytes(arr)))
     }
 }
 
-type RowGroups =
-    RowGroupIterator<Arc<dyn Array>, std::vec::IntoIter<Result<Chunk<Arc<dyn Array>>, ArrowError>>>;
+type RowGroups = RowGroupIterator<
+    Arc<dyn Array>,
+    std::vec::IntoIter<StdResult<Chunk<Arc<dyn Array>>, ArrowError>>,
+>;
 
 impl IntoRowGroups for Blocks {
     type Elem = Block;
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
-            Arc::new(UInt64Array::from_vec(self.number)) as Arc<dyn Array>,
-            Arc::new(UInt64Array::from_vec(self.timestamp)) as Arc<dyn Array>,
+            self.number.into_arc(),
+            self.timestamp.into_arc(),
             self.nonce.into_arc(),
             self.size.into_arc(),
         ]);
@@ -125,20 +132,22 @@ impl IntoRowGroups for Blocks {
         (row_groups, schema, options())
     }
 
-    fn push(&mut self, elem: Self::Elem) {
-        self.number.push(elem.number.0);
-        self.timestamp.push(elem.timestamp.0);
+    fn push(&mut self, elem: Self::Elem) -> Result<()> {
+        self.number.push(Some(elem.number.0));
+        self.timestamp.push(Some(elem.timestamp.0));
         self.nonce.push(Some(elem.nonce));
         self.size.push(Some(elem.size));
+
+        Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Transactions {
     pub hash: MutableUtf8Array<i64>,
     pub nonce: MutableUtf8Array<i64>,
     pub block_hash: MutableUtf8Array<i64>,
-    pub block_number: Vec<Option<u64>>,
+    pub block_number: UInt64Vec,
     pub transaction_index: MutableUtf8Array<i64>,
     pub from: MutableUtf8Array<i64>,
     pub to: MutableUtf8Array<i64>,
@@ -150,15 +159,33 @@ pub struct Transactions {
     pub chain_id: MutableUtf8Array<i64>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Transaction {
+    pub hash: String,
+    pub nonce: String,
+    pub block_hash: Option<String>,
+    pub block_number: Option<String>,
+    pub transaction_index: Option<String>,
+    pub from: String,
+    pub to: Option<String>,
+    pub value: String,
+    pub gas_price: String,
+    pub gas: String,
+    pub input: String,
+    pub public_key: String,
+    pub chain_id: Option<String>,
+}
+
 impl IntoRowGroups for Transactions {
-    type Elem = String;
+    type Elem = Transaction;
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
             self.hash.into_arc(),
             self.nonce.into_arc(),
             self.block_hash.into_arc(),
-            Arc::new(UInt64Array::from(self.block_number.as_slice())) as Arc<dyn Array>,
+            self.block_number.into_arc(),
             self.transaction_index.into_arc(),
             self.from.into_arc(),
             self.to.into_arc(),
@@ -197,35 +224,69 @@ impl IntoRowGroups for Transactions {
         (row_groups, schema, options())
     }
 
-    fn push(&mut self, elem: Self::Elem) {
-        unimplemented!();
+    fn push(&mut self, elem: Self::Elem) -> Result<()> {
+        self.hash.push(Some(elem.hash));
+        self.nonce.push(Some(elem.nonce));
+        self.block_hash.push(elem.block_hash);
+        self.block_number.push(match elem.block_number {
+            Some(block_number) => {
+                let block_number = <[u8; 8]>::from_hex(block_number).map_err(Error::Hex)?;
+                Some(u64::from_le_bytes(block_number))
+            }
+            None => None,
+        });
+        self.transaction_index.push(elem.transaction_index);
+        self.from.push(Some(elem.from));
+        self.to.push(elem.to);
+        self.value.push(Some(elem.value));
+        self.gas_price.push(Some(elem.gas_price));
+        self.gas.push(Some(elem.gas));
+        self.input.push(Some(elem.input));
+        self.public_key.push(Some(elem.public_key));
+        self.chain_id.push(elem.chain_id);
+
+        Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Logs {
-    pub removed: Vec<bool>,
+    pub removed: MutableBooleanArray,
     pub log_index: MutableUtf8Array<i64>,
     pub transaction_index: MutableUtf8Array<i64>,
     pub transaction_hash: MutableUtf8Array<i64>,
     pub block_hash: MutableUtf8Array<i64>,
-    pub block_number: Vec<Option<u64>>,
+    pub block_number: UInt64Vec,
     pub address: MutableUtf8Array<i64>,
     pub data: MutableUtf8Array<i64>,
     pub topics: MutableListArray<i64, MutableUtf8Array<i32>>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Log {
+    pub removed: bool,
+    pub log_index: Option<String>,
+    pub transaction_index: Option<String>,
+    pub transaction_hash: Option<String>,
+    pub block_hash: Option<String>,
+    pub block_number: Option<String>,
+    pub address: String,
+    pub data: String,
+    pub topics: Vec<String>,
+}
+
 impl IntoRowGroups for Logs {
-    type Elem = String;
+    type Elem = Log;
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
-            Arc::new(BooleanArray::from_slice(self.removed.as_slice())) as Arc<dyn Array>,
+            self.removed.into_arc(),
             self.log_index.into_arc(),
             self.transaction_index.into_arc(),
             self.transaction_hash.into_arc(),
             self.block_hash.into_arc(),
-            Arc::new(UInt64Array::from(self.block_number.as_slice())) as Arc<dyn Array>,
+            self.block_number.into_arc(),
             self.address.into_arc(),
             self.data.into_arc(),
             self.topics.into_arc(),
@@ -254,8 +315,26 @@ impl IntoRowGroups for Logs {
         (row_groups, schema, options())
     }
 
-    fn push(&mut self, elem: Self::Elem) {
-        unimplemented!();
+    fn push(&mut self, elem: Self::Elem) -> Result<()> {
+        self.removed.push(Some(elem.removed));
+        self.log_index.push(elem.log_index);
+        self.transaction_index.push(elem.transaction_index);
+        self.transaction_hash.push(elem.transaction_hash);
+        self.block_hash.push(elem.block_hash);
+        self.block_number.push(match elem.block_number {
+            Some(block_number) => {
+                let block_number = <[u8; 8]>::from_hex(block_number).map_err(Error::Hex)?;
+                Some(u64::from_le_bytes(block_number))
+            }
+            None => None,
+        });
+        self.address.push(Some(elem.address));
+        self.data.push(Some(elem.data));
+        self.topics
+            .try_push(Some(elem.topics.into_iter().map(Some)))
+            .map_err(Error::PushRow)?;
+
+        Ok(())
     }
 }
 
@@ -263,5 +342,5 @@ pub trait IntoRowGroups {
     type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized;
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions);
-    fn push(&mut self, elem: Self::Elem);
+    fn push(&mut self, elem: Self::Elem) -> Result<()>;
 }
