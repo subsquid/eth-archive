@@ -8,7 +8,6 @@ use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
-use hex::FromHex;
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use std::sync::Arc;
@@ -72,30 +71,17 @@ pub struct Blocks {
     pub timestamp: UInt64Vec,
     pub nonce: MutableUtf8Array<i64>,
     pub size: MutableUtf8Array<i64>,
+    pub len: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
-    #[serde(deserialize_with = "hex::serde::deserialize")]
-    pub number: Num,
-    #[serde(deserialize_with = "hex::serde::deserialize")]
-    pub timestamp: Num,
+    pub number: String,
+    pub timestamp: String,
     pub nonce: String,
     pub size: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Num(u64);
-
-impl hex::FromHex for Num {
-    type Error = hex::FromHexError;
-
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> StdResult<Self, Self::Error> {
-        let arr = <[u8; 8]>::from_hex(hex)?;
-
-        Ok(Self(u64::from_le_bytes(arr)))
-    }
+    pub transactions: Vec<Transaction>,
 }
 
 type RowGroups = RowGroupIterator<
@@ -133,12 +119,17 @@ impl IntoRowGroups for Blocks {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.number.push(Some(elem.number.0));
-        self.timestamp.push(Some(elem.timestamp.0));
+        self.number.push(Some(get_u64_from_hex(&elem.number)));
+        self.timestamp.push(Some(get_u64_from_hex(&elem.timestamp)));
         self.nonce.push(Some(elem.nonce));
         self.size.push(Some(elem.size));
+        self.len += 1;
 
         Ok(())
+    }
+
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -157,9 +148,10 @@ pub struct Transactions {
     pub input: MutableUtf8Array<i64>,
     pub public_key: MutableUtf8Array<i64>,
     pub chain_id: MutableUtf8Array<i64>,
+    pub len: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub hash: String,
@@ -228,13 +220,8 @@ impl IntoRowGroups for Transactions {
         self.hash.push(Some(elem.hash));
         self.nonce.push(Some(elem.nonce));
         self.block_hash.push(elem.block_hash);
-        self.block_number.push(match elem.block_number {
-            Some(block_number) => {
-                let block_number = <[u8; 8]>::from_hex(block_number).map_err(Error::Hex)?;
-                Some(u64::from_le_bytes(block_number))
-            }
-            None => None,
-        });
+        self.block_number
+            .push(elem.block_number.map(|hex| get_u64_from_hex(&hex)));
         self.transaction_index.push(elem.transaction_index);
         self.from.push(Some(elem.from));
         self.to.push(elem.to);
@@ -244,8 +231,13 @@ impl IntoRowGroups for Transactions {
         self.input.push(Some(elem.input));
         self.public_key.push(Some(elem.public_key));
         self.chain_id.push(elem.chain_id);
+        self.len += 1;
 
         Ok(())
+    }
+
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -260,9 +252,10 @@ pub struct Logs {
     pub address: MutableUtf8Array<i64>,
     pub data: MutableUtf8Array<i64>,
     pub topics: MutableListArray<i64, MutableUtf8Array<i32>>,
+    pub len: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Log {
     pub removed: bool,
@@ -299,7 +292,7 @@ impl IntoRowGroups for Logs {
             &schema,
             options(),
             vec![
-                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
                 Encoding::DeltaLengthByteArray,
                 Encoding::DeltaLengthByteArray,
                 Encoding::DeltaLengthByteArray,
@@ -307,7 +300,7 @@ impl IntoRowGroups for Logs {
                 Encoding::Plain,
                 Encoding::DeltaLengthByteArray,
                 Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
             ],
         )
         .unwrap();
@@ -321,26 +314,32 @@ impl IntoRowGroups for Logs {
         self.transaction_index.push(elem.transaction_index);
         self.transaction_hash.push(elem.transaction_hash);
         self.block_hash.push(elem.block_hash);
-        self.block_number.push(match elem.block_number {
-            Some(block_number) => {
-                let block_number = <[u8; 8]>::from_hex(block_number).map_err(Error::Hex)?;
-                Some(u64::from_le_bytes(block_number))
-            }
-            None => None,
-        });
+        self.block_number
+            .push(elem.block_number.map(|hex| get_u64_from_hex(&hex)));
         self.address.push(Some(elem.address));
         self.data.push(Some(elem.data));
         self.topics
             .try_push(Some(elem.topics.into_iter().map(Some)))
             .map_err(Error::PushRow)?;
+        self.len += 1;
 
         Ok(())
     }
+
+    fn len(&self) -> usize {
+        self.len
+    }
 }
 
-pub trait IntoRowGroups {
+pub trait IntoRowGroups: Default {
     type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized;
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions);
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
+    fn len(&self) -> usize;
+}
+
+fn get_u64_from_hex(hex: &str) -> u64 {
+    let without_prefix = hex.trim_start_matches("0x");
+    u64::from_str_radix(without_prefix, 16).unwrap()
 }
