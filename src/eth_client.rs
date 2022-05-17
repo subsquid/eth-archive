@@ -1,12 +1,6 @@
 use crate::error::Error;
-use crate::eth_request::{EthRequest, GetBlockByNumber};
-use crate::schema::{Block, Transaction};
+use crate::eth_request::EthRequest;
 use serde_json::Value as JsonValue;
-use std::cmp;
-use std::future::Future;
-use std::iter::Iterator;
-use std::pin::Pin;
-use std::sync::Arc;
 
 pub struct EthClient {
     http_client: reqwest::Client,
@@ -44,14 +38,15 @@ impl EthClient {
 
         let mut rpc_result = match rpc_result {
             JsonValue::Object(rpc_result) => rpc_result,
-            _ => unreachable!(),
+            _ => return Err(Error::InvalidRpcResponse),
         };
 
-        println!("{}", serde_json::to_string_pretty(&rpc_result).unwrap());
+        let rpc_result = rpc_result
+            .remove("result")
+            .ok_or(Error::InvalidRpcResponse)?;
 
-        let rpc_result = rpc_result.remove("result").unwrap();
-
-        let rpc_result = serde_json::from_value(rpc_result).unwrap();
+        let rpc_result =
+            serde_json::from_value(rpc_result).map_err(|_| Error::InvalidRpcResponse)?;
 
         Ok(rpc_result)
     }
@@ -103,65 +98,5 @@ impl EthClient {
             .collect();
 
         Ok(rpc_results)
-    }
-
-    pub fn get_txs_in_range(
-        self: Arc<Self>,
-        start: usize,
-        end: usize,
-        batch_size: usize,
-    ) -> TxsInRange {
-        TxsInRange {
-            client: self,
-            block_num: start,
-            end,
-            batch_size,
-        }
-    }
-}
-
-pub struct TxsInRange {
-    client: Arc<EthClient>,
-    block_num: usize,
-    end: usize,
-    batch_size: usize,
-}
-
-type TxsFuture = Pin<Box<dyn Future<Output = Result<Vec<Transaction>, Error>> + Send + Sync>>;
-
-impl Iterator for TxsInRange {
-    type Item = TxsFuture;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.block_num >= self.end {
-            return None;
-        }
-
-        let end = cmp::min(self.end, self.block_num + self.batch_size);
-
-        let client = self.client.clone();
-        let block_num = self.block_num;
-
-        let fut = async move {
-            let blocks = client
-                .send_batch(
-                    (block_num..end)
-                        .map(|block_number| GetBlockByNumber { block_number })
-                        .collect(),
-                )
-                .await?;
-
-            let mut txs = Vec::new();
-
-            for block in blocks {
-                txs.extend_from_slice(&block.transactions);
-            }
-
-            Ok(txs)
-        };
-
-        self.block_num += self.batch_size;
-
-        Some(Box::pin(fut))
     }
 }

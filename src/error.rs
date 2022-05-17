@@ -10,6 +10,7 @@ pub enum Error {
     RpcResponseInvalid,
     BuildHttpClient(reqwest::Error),
     GetTxBatch(Box<Error>),
+    InvalidRpcResponse,
 }
 
 pub type Result<T> = StdResult<T, Error>;

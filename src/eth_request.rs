@@ -1,6 +1,5 @@
 use crate::schema::{Block, Log};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 pub trait EthRequest {

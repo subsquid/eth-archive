@@ -337,6 +337,9 @@ pub trait IntoRowGroups: Default {
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions);
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 fn get_u64_from_hex(hex: &str) -> u64 {

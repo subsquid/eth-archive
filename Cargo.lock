@@ -244,6 +244,7 @@ name = "eth-archive"
 version = "0.0.1"
 dependencies = [
  "arrow2",
+ "futures",
  "reqwest",
  "serde",
  "serde_json",

@@ -4,25 +4,29 @@ use std::sync::mpsc;
 use std::{fs, mem};
 
 pub struct ParquetWriter<T: IntoRowGroups> {
-    tx: mpsc::Sender<T::Elem>,
+    tx: mpsc::Sender<Vec<T::Elem>>,
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new(path: String, threshold: usize) -> Self {
+    pub fn new<S: Into<String>>(path: S, threshold: usize) -> Self {
         let (tx, rx) = mpsc::channel();
 
+        let path = path.into();
+
         std::thread::spawn(move || {
-            let mut elems = T::default();
+            let mut row_group = T::default();
             let mut file_idx = 0;
 
-            while let Ok(elem) = rx.recv() {
-                elems.push(elem);
+            while let Ok(elems) = rx.recv() {
+                for elem in elems {
+                    row_group.push(elem).unwrap();
+                }
 
-                if elems.len() > threshold {
-                    let elems = mem::take(&mut elems);
-                    let (row_groups, schema, options) = elems.into_row_groups();
+                if row_group.len() > threshold {
+                    let row_group = mem::take(&mut row_group);
+                    let (row_groups, schema, options) = row_group.into_row_groups();
 
-                    let file = fs::File::create(&format!("{}{}", path, file_idx,)).unwrap();
+                    let file = fs::File::create(&format!("{}{}.parquet", path, file_idx,)).unwrap();
                     let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
                     writer.start().unwrap();
@@ -39,7 +43,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         Self { tx }
     }
 
-    pub fn send(&self, elem: T::Elem) {
-        self.tx.send(elem).unwrap();
+    pub fn send(&self, elems: Vec<T::Elem>) {
+        self.tx.send(elems).unwrap();
     }
 }
