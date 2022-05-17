@@ -1,31 +1,32 @@
 use eth_archive::eth_client::EthClient;
 use eth_archive::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive::parquet_writer::ParquetWriter;
-use eth_archive::schema::{Block, Blocks, Logs, Transactions};
-use eth_archive::Result;
+use eth_archive::schema::{Blocks, Logs, Transactions};
 use std::mem;
 use std::sync::Arc;
+use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
     let client =
-        EthClient::new("https://eth-mainnet.alchemyapi.io/v2/DPijdCeN4cXDxSQT8eFfGETr2xhMegT0")
+        EthClient::new("https://eth-mainnet.gateway.pokt.network/v1/lb/6283c72c25a687003a700e61")
             .unwrap();
     let client = Arc::new(client);
 
-    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new("data/block/block", 5000);
-    let tx_writer: ParquetWriter<Transactions> = ParquetWriter::new("data/tx/tx", 5000);
-    let log_writer: ParquetWriter<Logs> = ParquetWriter::new("data/log/log", 5000);
+    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new("data/block/block", 1_000_000);
+    let tx_writer: ParquetWriter<Transactions> = ParquetWriter::new("data/tx/tx", 5_000_000);
+    let log_writer: ParquetWriter<Logs> = ParquetWriter::new("data/log/log", 5_000_000);
 
     let block_range = 10_000_000..14_000_000;
 
     let block_tx_job = tokio::spawn({
         let client = client.clone();
         async move {
-            const BATCH_SIZE: usize = 100;
-            const STEP: usize = 16;
+            const BATCH_SIZE: usize = 200;
+            const STEP: usize = 100;
 
             for block_num in block_range.step_by(STEP * BATCH_SIZE) {
+                let start = Instant::now();
                 let group = (0..STEP)
                     .map(|step| {
                         let start = block_num + step * BATCH_SIZE;
@@ -38,7 +39,7 @@ async fn main() {
                         async move { client.send_batch(batch).await }
                     })
                     .collect::<Vec<_>>();
-                
+
                 let group = futures::future::join_all(group).await;
 
                 for batch in group {
@@ -54,6 +55,11 @@ async fn main() {
                     }
                     block_writer.send(batch);
                 }
+                println!(
+                    "processed {} blocks in {} ms",
+                    STEP * BATCH_SIZE,
+                    start.elapsed().as_millis()
+                )
             }
         }
     });

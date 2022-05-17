@@ -34,7 +34,7 @@ fn transaction_schema() -> Schema {
         Field::new("gas_price", DataType::Utf8, false),
         Field::new("gas", DataType::Utf8, false),
         Field::new("input", DataType::Utf8, false),
-        Field::new("public_key", DataType::Utf8, false),
+        Field::new("public_key", DataType::Utf8, true),
         Field::new("chain_id", DataType::Utf8, true),
     ])
 }
@@ -109,8 +109,8 @@ impl IntoRowGroups for Blocks {
             vec![
                 Encoding::Plain,
                 Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
+                Encoding::Plain,
             ],
         )
         .unwrap();
@@ -165,7 +165,7 @@ pub struct Transaction {
     pub gas_price: String,
     pub gas: String,
     pub input: String,
-    pub public_key: String,
+    pub public_key: Option<String>,
     pub chain_id: Option<String>,
 }
 
@@ -196,19 +196,19 @@ impl IntoRowGroups for Transactions {
             &schema,
             options(),
             vec![
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
                 Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
             ],
         )
         .unwrap();
@@ -229,7 +229,7 @@ impl IntoRowGroups for Transactions {
         self.gas_price.push(Some(elem.gas_price));
         self.gas.push(Some(elem.gas));
         self.input.push(Some(elem.input));
-        self.public_key.push(Some(elem.public_key));
+        self.public_key.push(elem.public_key);
         self.chain_id.push(elem.chain_id);
         self.len += 1;
 
@@ -293,13 +293,13 @@ impl IntoRowGroups for Logs {
             options(),
             vec![
                 Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
                 Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
                 Encoding::Plain,
             ],
         )
