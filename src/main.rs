@@ -9,7 +9,7 @@ use std::time::Instant;
 #[tokio::main]
 async fn main() {
     let client =
-        EthClient::new("https://eth-mainnet.gateway.pokt.network/v1/lb/6283c72c25a687003a700e61")
+        EthClient::new("https://eth-mainnet.alchemyapi.io/v2/DPijdCeN4cXDxSQT8eFfGETr2xhMegT0")
             .unwrap();
     let client = Arc::new(client);
 
@@ -22,7 +22,7 @@ async fn main() {
     let block_tx_job = tokio::spawn({
         let client = client.clone();
         async move {
-            const BATCH_SIZE: usize = 200;
+            const BATCH_SIZE: usize = 100;
             const STEP: usize = 100;
 
             for block_num in block_range.step_by(STEP * BATCH_SIZE) {
@@ -97,7 +97,7 @@ async fn main() {
                     let batch = match batch {
                         Ok(batch) => batch,
                         Err(e) => {
-                            eprintln!("failed batch block req: {:#?}", e);
+                            eprintln!("failed batch log req: {:#?}", e);
                             continue;
                         }
                     };
