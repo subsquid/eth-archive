@@ -18,7 +18,6 @@ fn block_schema() -> Schema {
         Field::new("hash", DataType::Utf8, true),
         Field::new("parent_hash", DataType::Utf8, false),
         Field::new("nonce", DataType::Utf8, false),
-        Field::new("timestamp", DataType::Utf8, false),
         Field::new("sha3_uncles", DataType::Utf8, false),
         Field::new("logs_bloom", DataType::Utf8, false),
         Field::new("transactions_root", DataType::Utf8, false),
@@ -66,7 +65,7 @@ fn log_schema() -> Schema {
         Field::new("block_number", DataType::Utf8, false),
         Field::new("data", DataType::Utf8, false),
         Field::new("log_index", DataType::Utf8, false),
-        Field::new("removed", DataType::Bool, false),
+        Field::new("removed", DataType::Boolean, false),
         Field::new(
             "topics",
             DataType::List(Box::new(Field::new("topic", DataType::Utf8, false))),
@@ -91,7 +90,6 @@ pub struct Blocks {
     pub hash: MutableUtf8Array<i64>,
     pub parent_hash: MutableUtf8Array<i64>,
     pub nonce: MutableUtf8Array<i64>,
-    pub timestamp: MutableUtf8Array<i64>,
     pub sha3_uncles: MutableUtf8Array<i64>,
     pub logs_bloom: MutableUtf8Array<i64>,
     pub transactions_root: MutableUtf8Array<i64>,
@@ -116,7 +114,6 @@ pub struct Block {
     pub hash: Option<String>,
     pub parent_hash: String,
     pub nonce: String,
-    pub timestamp: String,
     pub sha3_uncles: String,
     pub logs_bloom: String,
     pub transactions_root: String,
@@ -161,7 +158,6 @@ impl IntoRowGroups for Blocks {
             self.size.into_arc(),
             self.gas_limit.into_arc(),
             self.gas_used.into_arc(),
-            self.timestamp.into_arc(),
             self.uncles.into_arc(),
         ]);
 
@@ -200,24 +196,23 @@ impl IntoRowGroups for Blocks {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.number.push(elem.number),
-        self.hash.push(elem.hash),
-        self.parent_hash.push(Some(elem.parent_hash)),
-        self.nonce.push(Some(elem.nonce)),
-        self.timestamp.push(Some(elem.timestamp)),
-        self.sha3_uncles.push(Some(elem.sha3_uncles)),
-        self.logs_bloom.push(Some(elem.logs_bloom)),
-        self.transactions_root.push(Some(elem.transactions_root)),
-        self.state_root.push(Some(elem.state_root)),
-        self.receipts_root.push(Some(elem.receipts_root)),
-        self.miner.push(elem.miner),
-        self.difficulty.push(Some(elem.difficulty)),
-        self.total_difficulty.push(elem.total_difficulty),
-        self.extra_data.push(Some(elem.extra_data)),
-        self.size.push(Some(elem.size)),
-        self.gas_limit.push(Some(elem.gas_limit)),
-        self.gas_used.push(Some(elem.gas_used)),
-        self.timestamp.push(Some(elem.timestamp)),
+        self.number.push(elem.number.map(|s| get_u64_from_hex(&s)));
+        self.hash.push(elem.hash);
+        self.parent_hash.push(Some(elem.parent_hash));
+        self.nonce.push(Some(elem.nonce));
+        self.sha3_uncles.push(Some(elem.sha3_uncles));
+        self.logs_bloom.push(Some(elem.logs_bloom));
+        self.transactions_root.push(Some(elem.transactions_root));
+        self.state_root.push(Some(elem.state_root));
+        self.receipts_root.push(Some(elem.receipts_root));
+        self.miner.push(elem.miner);
+        self.difficulty.push(Some(elem.difficulty));
+        self.total_difficulty.push(elem.total_difficulty);
+        self.extra_data.push(Some(elem.extra_data));
+        self.size.push(Some(elem.size));
+        self.gas_limit.push(Some(elem.gas_limit));
+        self.gas_used.push(Some(elem.gas_used));
+        self.timestamp.push(Some(elem.timestamp));
         self.uncles
             .try_push(Some(elem.uncles.into_iter().map(Some)))
             .map_err(Error::PushRow)?;
@@ -235,7 +230,7 @@ impl IntoRowGroups for Blocks {
 #[derive(Debug, Default)]
 pub struct Transactions {
     pub block_hash: MutableUtf8Array<i64>,
-    pub block_number: MutableUtf8Array<i64>,
+    pub block_number: UInt64Vec,
     pub from: MutableUtf8Array<i64>,
     pub gas: MutableUtf8Array<i64>,
     pub gas_price: MutableUtf8Array<i64>,
@@ -320,20 +315,21 @@ impl IntoRowGroups for Transactions {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.block_hash.push(elem.block_hash),
-        self.block_number.push(elem.block_number),
-        self.from.push(Some(elem.from)),
-        self.gas.push(Some(elem.gas)),
-        self.gas_price.push(Some(elem.gas_price)),
-        self.hash.push(Some(elem.hash)),
-        self.input.push(Some(elem.input)),
-        self.nonce.push(Some(elem.nonce)),
-        self.to.push(elem.to),
-        self.transaction_index.push(elem.transaction_index),
-        self.value.push(Some(elem.value)),
-        self.v.push(Some(elem.v)),
-        self.r.push(Some(elem.r)),
-        self.s.push(Some(elem.s)),
+        self.block_hash.push(elem.block_hash);
+        self.block_number
+            .push(elem.block_number.map(|s| get_u64_from_hex(&s)));
+        self.from.push(Some(elem.from));
+        self.gas.push(Some(elem.gas));
+        self.gas_price.push(Some(elem.gas_price));
+        self.hash.push(Some(elem.hash));
+        self.input.push(Some(elem.input));
+        self.nonce.push(Some(elem.nonce));
+        self.to.push(elem.to);
+        self.transaction_index.push(elem.transaction_index);
+        self.value.push(Some(elem.value));
+        self.v.push(Some(elem.v));
+        self.r.push(Some(elem.r));
+        self.s.push(Some(elem.s));
 
         self.len += 1;
 
@@ -349,13 +345,14 @@ impl IntoRowGroups for Transactions {
 pub struct Logs {
     pub address: MutableUtf8Array<i64>,
     pub block_hash: MutableUtf8Array<i64>,
-    pub block_number: MutableUtf8Array<i64>,
+    pub block_number: UInt64Vec,
     pub data: MutableUtf8Array<i64>,
     pub log_index: MutableUtf8Array<i64>,
     pub removed: MutableBooleanArray,
     pub topics: MutableListArray<i64, MutableUtf8Array<i32>>,
     pub transaction_hash: MutableUtf8Array<i64>,
     pub transaction_index: MutableUtf8Array<i64>,
+    pub len: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -412,18 +409,19 @@ impl IntoRowGroups for Logs {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.address.push(Some(elem.address)),
-        self.block_hash.push(Some(elem.block_hash)),
-        self.block_number.push(Some(elem.block_number)),
-        self.data.push(Some(elem.data)),
-        self.log_index.push(Some(elem.log_index)),
-        self.removed.push(Some(elem.removed)),
+        self.address.push(Some(elem.address));
+        self.block_hash.push(Some(elem.block_hash));
+        self.block_number
+            .push(Some(get_u64_from_hex(&elem.block_number)));
+        self.data.push(Some(elem.data));
+        self.log_index.push(Some(elem.log_index));
+        self.removed.push(Some(elem.removed));
         self.topics
             .try_push(Some(elem.topics.into_iter().map(Some)))
             .map_err(Error::PushRow)?;
-        self.transaction_hash.push(Some(elem.transaction_hash)),
-        self.transaction_index.push(elem.transaction_index),
-        
+        self.transaction_hash.push(Some(elem.transaction_hash));
+        self.transaction_index.push(elem.transaction_index);
+
         self.len += 1;
 
         Ok(())
