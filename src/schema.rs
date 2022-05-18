@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 fn block_schema() -> Schema {
     Schema::from(vec![
-        Field::new("number", DataType::UInt64, false),
-        Field::new("timestamp", DataType::UInt64, false),
+        Field::new("number", DataType::UInt64, true),
+        Field::new("hash", DataType::UInt64, true),
         Field::new("nonce", DataType::Utf8, false),
         Field::new("size", DataType::Utf8, false),
     ])
@@ -23,7 +23,6 @@ fn block_schema() -> Schema {
 
 fn transaction_schema() -> Schema {
     Schema::from(vec![
-        Field::new("hash", DataType::Utf8, false),
         Field::new("nonce", DataType::Utf8, false),
         Field::new("block_hash", DataType::Utf8, true),
         Field::new("block_number", DataType::UInt64, true),
@@ -77,11 +76,26 @@ pub struct Blocks {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
-    pub number: String,
-    pub timestamp: String,
+    pub number: Option<String>,
+    pub hash: Option<String>,
+    pub parent_hash: String,
     pub nonce: String,
+    pub timestamp: String,
+    pub sha3_uncles: String,
+    pub logs_bloom: String,
+    pub transactions_root: String,
+    pub state_root: String,
+    pub receipts_root: String,
+    pub miner: Option<String>,
+    pub difficulty: String,
+    pub total_difficulty: Option<String>,
+    pub extra_data: String,
     pub size: String,
+    pub gas_limit: String,
+    pub gas_used: String,
+    pub timestamp: String,
     pub transactions: Vec<Transaction>,
+    pub uncles: Vec<String>,
 }
 
 type RowGroups = RowGroupIterator<
@@ -154,19 +168,20 @@ pub struct Transactions {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
-    pub hash: String,
-    pub nonce: String,
     pub block_hash: Option<String>,
     pub block_number: Option<String>,
-    pub transaction_index: Option<String>,
     pub from: String,
-    pub to: Option<String>,
-    pub value: String,
-    pub gas_price: String,
     pub gas: String,
+    pub gas_price: String,
+    pub hash: String,
     pub input: String,
-    pub public_key: Option<String>,
-    pub chain_id: Option<String>,
+    pub nonce: String,
+    pub to: Option<String>,
+    pub transaction_index: Option<String>,
+    pub value: String,
+    pub v: String,
+    pub r: String,
+    pub s: String,
 }
 
 impl IntoRowGroups for Transactions {
@@ -258,15 +273,15 @@ pub struct Logs {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Log {
-    pub removed: bool,
-    pub log_index: Option<String>,
-    pub transaction_index: Option<String>,
-    pub transaction_hash: Option<String>,
-    pub block_hash: Option<String>,
-    pub block_number: Option<String>,
     pub address: String,
+    pub block_hash: String,
+    pub block_number: String,
     pub data: String,
+    pub log_index: String,
+    pub removed: bool,
     pub topics: Vec<String>,
+    pub transaction_hash: String,
+    pub transaction_index: Option<String>,
 }
 
 impl IntoRowGroups for Logs {
