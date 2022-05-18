@@ -9,7 +9,7 @@ use std::time::Instant;
 #[tokio::main]
 async fn main() {
     let client =
-        EthClient::new("https://eth-mainnet.alchemyapi.io/v2/DPijdCeN4cXDxSQT8eFfGETr2xhMegT0")
+        EthClient::new("https://rpc.ankr.com/eth")
             .unwrap();
     let client = Arc::new(client);
 

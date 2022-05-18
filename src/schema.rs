@@ -42,7 +42,7 @@ fn block_schema() -> Schema {
 fn transaction_schema() -> Schema {
     Schema::from(vec![
         Field::new("block_hash", DataType::Utf8, true),
-        Field::new("block_number", DataType::Utf8, true),
+        Field::new("block_number", DataType::UInt64, true),
         Field::new("from", DataType::Utf8, false),
         Field::new("gas", DataType::Utf8, false),
         Field::new("gas_price", DataType::Utf8, false),
@@ -62,7 +62,7 @@ fn log_schema() -> Schema {
     Schema::from(vec![
         Field::new("address", DataType::Utf8, false),
         Field::new("block_hash", DataType::Utf8, false),
-        Field::new("block_number", DataType::Utf8, false),
+        Field::new("block_number", DataType::UInt64, false),
         Field::new("data", DataType::Utf8, false),
         Field::new("log_index", DataType::Utf8, false),
         Field::new("removed", DataType::Boolean, false),
