@@ -88,9 +88,24 @@ fn options() -> WriteOptions {
 #[derive(Debug, Default)]
 pub struct Blocks {
     pub number: UInt64Vec,
-    pub timestamp: UInt64Vec,
+    pub hash: MutableUtf8Array<i64>,
+    pub parent_hash: MutableUtf8Array<i64>,
     pub nonce: MutableUtf8Array<i64>,
+    pub timestamp: MutableUtf8Array<i64>,
+    pub sha3_uncles: MutableUtf8Array<i64>,
+    pub logs_bloom: MutableUtf8Array<i64>,
+    pub transactions_root: MutableUtf8Array<i64>,
+    pub state_root: MutableUtf8Array<i64>,
+    pub receipts_root: MutableUtf8Array<i64>,
+    pub miner: MutableUtf8Array<i64>,
+    pub difficulty: MutableUtf8Array<i64>,
+    pub total_difficulty: MutableUtf8Array<i64>,
+    pub extra_data: MutableUtf8Array<i64>,
     pub size: MutableUtf8Array<i64>,
+    pub gas_limit: MutableUtf8Array<i64>,
+    pub gas_used: MutableUtf8Array<i64>,
+    pub timestamp: MutableUtf8Array<i64>,
+    pub uncles: MutableListArray<i64, MutableUtf8Array<i32>>,
     pub len: usize,
 }
 
@@ -170,19 +185,20 @@ impl IntoRowGroups for Blocks {
 
 #[derive(Debug, Default)]
 pub struct Transactions {
-    pub hash: MutableUtf8Array<i64>,
-    pub nonce: MutableUtf8Array<i64>,
     pub block_hash: MutableUtf8Array<i64>,
-    pub block_number: UInt64Vec,
-    pub transaction_index: MutableUtf8Array<i64>,
+    pub block_number: MutableUtf8Array<i64>,
     pub from: MutableUtf8Array<i64>,
-    pub to: MutableUtf8Array<i64>,
-    pub value: MutableUtf8Array<i64>,
-    pub gas_price: MutableUtf8Array<i64>,
     pub gas: MutableUtf8Array<i64>,
+    pub gas_price: MutableUtf8Array<i64>,
+    pub hash: MutableUtf8Array<i64>,
     pub input: MutableUtf8Array<i64>,
-    pub public_key: MutableUtf8Array<i64>,
-    pub chain_id: MutableUtf8Array<i64>,
+    pub nonce: MutableUtf8Array<i64>,
+    pub to: MutableUtf8Array<i64>,
+    pub transaction_index: MutableUtf8Array<i64>,
+    pub value: MutableUtf8Array<i64>,
+    pub v: MutableUtf8Array<i64>,
+    pub r: MutableUtf8Array<i64>,
+    pub s: MutableUtf8Array<i64>,
     pub len: usize,
 }
 
@@ -279,16 +295,15 @@ impl IntoRowGroups for Transactions {
 
 #[derive(Debug, Default)]
 pub struct Logs {
-    pub removed: MutableBooleanArray,
-    pub log_index: MutableUtf8Array<i64>,
-    pub transaction_index: MutableUtf8Array<i64>,
-    pub transaction_hash: MutableUtf8Array<i64>,
-    pub block_hash: MutableUtf8Array<i64>,
-    pub block_number: UInt64Vec,
     pub address: MutableUtf8Array<i64>,
+    pub block_hash: MutableUtf8Array<i64>,
+    pub block_number: MutableUtf8Array<i64>,
     pub data: MutableUtf8Array<i64>,
+    pub log_index: MutableUtf8Array<i64>,
+    pub removed: MutableBooleanArray,
     pub topics: MutableListArray<i64, MutableUtf8Array<i32>>,
-    pub len: usize,
+    pub transaction_hash: MutableUtf8Array<i64>,
+    pub transaction_index: MutableUtf8Array<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
