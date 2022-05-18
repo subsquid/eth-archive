@@ -15,44 +15,65 @@ use std::sync::Arc;
 fn block_schema() -> Schema {
     Schema::from(vec![
         Field::new("number", DataType::UInt64, true),
-        Field::new("hash", DataType::UInt64, true),
+        Field::new("hash", DataType::Utf8, true),
+        Field::new("parent_hash", DataType::Utf8, false),
         Field::new("nonce", DataType::Utf8, false),
+        Field::new("timestamp", DataType::Utf8, false),
+        Field::new("sha3_uncles", DataType::Utf8, false),
+        Field::new("logs_bloom", DataType::Utf8, false),
+        Field::new("transactions_root", DataType::Utf8, false),
+        Field::new("state_root", DataType::Utf8, false),
+        Field::new("receipts_root", DataType::Utf8, false),
+        Field::new("miner", DataType::Utf8, true),
+        Field::new("difficulty", DataType::Utf8, false),
+        Field::new("total_difficulty", DataType::Utf8, true),
+        Field::new("extra_data", DataType::Utf8, false),
         Field::new("size", DataType::Utf8, false),
+        Field::new("gas_limit", DataType::Utf8, false),
+        Field::new("gas_used", DataType::Utf8, false),
+        Field::new("timestamp", DataType::Utf8, false),
+        Field::new(
+            "uncles",
+            DataType::List(Box::new(Field::new("uncle", DataType::Utf8, false))),
+            false,
+        ),
     ])
 }
 
 fn transaction_schema() -> Schema {
     Schema::from(vec![
-        Field::new("nonce", DataType::Utf8, false),
         Field::new("block_hash", DataType::Utf8, true),
-        Field::new("block_number", DataType::UInt64, true),
-        Field::new("transaction_index", DataType::Utf8, true),
+        Field::new("block_number", DataType::Utf8, true),
         Field::new("from", DataType::Utf8, false),
-        Field::new("to", DataType::Utf8, true),
-        Field::new("value", DataType::Utf8, false),
-        Field::new("gas_price", DataType::Utf8, false),
         Field::new("gas", DataType::Utf8, false),
+        Field::new("gas_price", DataType::Utf8, false),
+        Field::new("hash", DataType::Utf8, false),
         Field::new("input", DataType::Utf8, false),
-        Field::new("public_key", DataType::Utf8, true),
-        Field::new("chain_id", DataType::Utf8, true),
+        Field::new("nonce", DataType::Utf8, false),
+        Field::new("to", DataType::Utf8, true),
+        Field::new("transaction_index", DataType::Utf8, true),
+        Field::new("value", DataType::Utf8, false),
+        Field::new("v", DataType::Utf8, false),
+        Field::new("r", DataType::Utf8, false),
+        Field::new("s", DataType::Utf8, false),
     ])
 }
 
 fn log_schema() -> Schema {
     Schema::from(vec![
-        Field::new("removed", DataType::Boolean, false),
-        Field::new("log_index", DataType::Utf8, false),
-        Field::new("transaction_index", DataType::Utf8, true),
-        Field::new("transaction_hash", DataType::Utf8, true),
-        Field::new("block_hash", DataType::Utf8, true),
-        Field::new("block_number", DataType::UInt64, true),
         Field::new("address", DataType::Utf8, false),
+        Field::new("block_hash", DataType::Utf8, false),
+        Field::new("block_number", DataType::Utf8, false),
         Field::new("data", DataType::Utf8, false),
+        Field::new("log_index", DataType::Utf8, false),
+        Field::new("removed", DataType::Bool, false),
         Field::new(
             "topics",
             DataType::List(Box::new(Field::new("topic", DataType::Utf8, false))),
             false,
         ),
+        Field::new("transaction_hash", DataType::Utf8, false),
+        Field::new("transaction_index", DataType::Utf8, true),
     ])
 }
 
