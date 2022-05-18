@@ -56,7 +56,7 @@ async fn main() {
                     block_writer.send(batch);
                 }
                 println!(
-                    "processed {} blocks in {} ms",
+                    "TX/BLOCK WRITER: processed {} blocks in {} ms",
                     STEP * BATCH_SIZE,
                     start.elapsed().as_millis()
                 )
@@ -64,9 +64,53 @@ async fn main() {
         }
     });
 
+    let block_range = 10_000_000..14_000_000;
+
     let log_job = tokio::spawn({
         let client = client.clone();
-        async move {}
+        async move {
+            const BATCH_SIZE: usize = 200;
+            const STEP: usize = 100;
+
+            for block_num in block_range.step_by(STEP * BATCH_SIZE) {
+                let start = Instant::now();
+                let group = (0..STEP)
+                    .map(|step| {
+                        let start = block_num + step * BATCH_SIZE;
+                        let end = start + BATCH_SIZE;
+
+                        let client = client.clone();
+                        async move {
+                            client
+                                .send(GetLogs {
+                                    from_block: start,
+                                    to_block: end,
+                                })
+                                .await
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let group = futures::future::join_all(group).await;
+
+                for batch in group {
+                    let batch = match batch {
+                        Ok(batch) => batch,
+                        Err(e) => {
+                            eprintln!("failed batch block req: {:#?}", e);
+                            continue;
+                        }
+                    };
+
+                    log_writer.send(batch);
+                }
+                println!(
+                    "LOG WRITER: processed {} blocks in {} ms",
+                    STEP * BATCH_SIZE,
+                    start.elapsed().as_millis()
+                )
+            }
+        }
     });
 
     block_tx_job.await.unwrap();
