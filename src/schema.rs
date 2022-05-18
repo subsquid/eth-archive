@@ -145,9 +145,24 @@ impl IntoRowGroups for Blocks {
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
             self.number.into_arc(),
-            self.timestamp.into_arc(),
+            self.hash.into_arc(),
+            self.parent_hash.into_arc(),
             self.nonce.into_arc(),
+            self.timestamp.into_arc(),
+            self.sha3_uncles.into_arc(),
+            self.logs_bloom.into_arc(),
+            self.transactions_root.into_arc(),
+            self.state_root.into_arc(),
+            self.receipts_root.into_arc(),
+            self.miner.into_arc(),
+            self.difficulty.into_arc(),
+            self.total_difficulty.into_arc(),
+            self.extra_data.into_arc(),
             self.size.into_arc(),
+            self.gas_limit.into_arc(),
+            self.gas_used.into_arc(),
+            self.timestamp.into_arc(),
+            self.uncles.into_arc(),
         ]);
 
         let schema = block_schema();
@@ -161,6 +176,22 @@ impl IntoRowGroups for Blocks {
                 Encoding::Plain,
                 Encoding::Plain,
                 Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
+                Encoding::Plain,
             ],
         )
         .unwrap();
@@ -169,10 +200,28 @@ impl IntoRowGroups for Blocks {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.number.push(Some(get_u64_from_hex(&elem.number)));
-        self.timestamp.push(Some(get_u64_from_hex(&elem.timestamp)));
-        self.nonce.push(Some(elem.nonce));
-        self.size.push(Some(elem.size));
+        self.number.push(elem.number),
+        self.hash.push(elem.hash),
+        self.parent_hash.push(Some(elem.parent_hash)),
+        self.nonce.push(Some(elem.nonce)),
+        self.timestamp.push(Some(elem.timestamp)),
+        self.sha3_uncles.push(Some(elem.sha3_uncles)),
+        self.logs_bloom.push(Some(elem.logs_bloom)),
+        self.transactions_root.push(Some(elem.transactions_root)),
+        self.state_root.push(Some(elem.state_root)),
+        self.receipts_root.push(Some(elem.receipts_root)),
+        self.miner.push(elem.miner),
+        self.difficulty.push(Some(elem.difficulty)),
+        self.total_difficulty.push(elem.total_difficulty),
+        self.extra_data.push(Some(elem.extra_data)),
+        self.size.push(Some(elem.size)),
+        self.gas_limit.push(Some(elem.gas_limit)),
+        self.gas_used.push(Some(elem.gas_used)),
+        self.timestamp.push(Some(elem.timestamp)),
+        self.uncles
+            .try_push(Some(elem.uncles.into_iter().map(Some)))
+            .map_err(Error::PushRow)?;
+
         self.len += 1;
 
         Ok(())
@@ -226,19 +275,20 @@ impl IntoRowGroups for Transactions {
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
-            self.hash.into_arc(),
-            self.nonce.into_arc(),
             self.block_hash.into_arc(),
             self.block_number.into_arc(),
-            self.transaction_index.into_arc(),
             self.from.into_arc(),
-            self.to.into_arc(),
-            self.value.into_arc(),
-            self.gas_price.into_arc(),
             self.gas.into_arc(),
+            self.gas_price.into_arc(),
+            self.hash.into_arc(),
             self.input.into_arc(),
-            self.public_key.into_arc(),
-            self.chain_id.into_arc(),
+            self.nonce.into_arc(),
+            self.to.into_arc(),
+            self.transaction_index.into_arc(),
+            self.value.into_arc(),
+            self.v.into_arc(),
+            self.r.into_arc(),
+            self.s.into_arc(),
         ]);
 
         let schema = transaction_schema();
@@ -261,6 +311,7 @@ impl IntoRowGroups for Transactions {
                 Encoding::Plain,
                 Encoding::Plain,
                 Encoding::Plain,
+                Encoding::Plain,
             ],
         )
         .unwrap();
@@ -269,20 +320,21 @@ impl IntoRowGroups for Transactions {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.hash.push(Some(elem.hash));
-        self.nonce.push(Some(elem.nonce));
-        self.block_hash.push(elem.block_hash);
-        self.block_number
-            .push(elem.block_number.map(|hex| get_u64_from_hex(&hex)));
-        self.transaction_index.push(elem.transaction_index);
-        self.from.push(Some(elem.from));
-        self.to.push(elem.to);
-        self.value.push(Some(elem.value));
-        self.gas_price.push(Some(elem.gas_price));
-        self.gas.push(Some(elem.gas));
-        self.input.push(Some(elem.input));
-        self.public_key.push(elem.public_key);
-        self.chain_id.push(elem.chain_id);
+        self.block_hash.push(elem.block_hash),
+        self.block_number.push(elem.block_number),
+        self.from.push(Some(elem.from)),
+        self.gas.push(Some(elem.gas)),
+        self.gas_price.push(Some(elem.gas_price)),
+        self.hash.push(Some(elem.hash)),
+        self.input.push(Some(elem.input)),
+        self.nonce.push(Some(elem.nonce)),
+        self.to.push(elem.to),
+        self.transaction_index.push(elem.transaction_index),
+        self.value.push(Some(elem.value)),
+        self.v.push(Some(elem.v)),
+        self.r.push(Some(elem.r)),
+        self.s.push(Some(elem.s)),
+
         self.len += 1;
 
         Ok(())
@@ -325,15 +377,15 @@ impl IntoRowGroups for Logs {
 
     fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
         let chunk = Chunk::new(vec![
-            self.removed.into_arc(),
-            self.log_index.into_arc(),
-            self.transaction_index.into_arc(),
-            self.transaction_hash.into_arc(),
+            self.address.into_arc(),
             self.block_hash.into_arc(),
             self.block_number.into_arc(),
-            self.address.into_arc(),
             self.data.into_arc(),
+            self.log_index.into_arc(),
+            self.removed.into_arc(),
             self.topics.into_arc(),
+            self.transaction_hash.into_arc(),
+            self.transaction_index.into_arc(),
         ]);
 
         let schema = log_schema();
@@ -360,18 +412,18 @@ impl IntoRowGroups for Logs {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.removed.push(Some(elem.removed));
-        self.log_index.push(elem.log_index);
-        self.transaction_index.push(elem.transaction_index);
-        self.transaction_hash.push(elem.transaction_hash);
-        self.block_hash.push(elem.block_hash);
-        self.block_number
-            .push(elem.block_number.map(|hex| get_u64_from_hex(&hex)));
-        self.address.push(Some(elem.address));
-        self.data.push(Some(elem.data));
+        self.address.push(Some(elem.address)),
+        self.block_hash.push(Some(elem.block_hash)),
+        self.block_number.push(Some(elem.block_number)),
+        self.data.push(Some(elem.data)),
+        self.log_index.push(Some(elem.log_index)),
+        self.removed.push(Some(elem.removed)),
         self.topics
             .try_push(Some(elem.topics.into_iter().map(Some)))
             .map_err(Error::PushRow)?;
+        self.transaction_hash.push(Some(elem.transaction_hash)),
+        self.transaction_index.push(elem.transaction_index),
+        
         self.len += 1;
 
         Ok(())
