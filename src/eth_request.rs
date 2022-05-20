@@ -42,8 +42,8 @@ impl EthRequest for GetLogs {
             "method": "eth_getLogs",
             "params": [
                 {
-                    "from_block": block_number_to_hex(self.from_block),
-                    "to_block": block_number_to_hex(self.to_block),
+                    "fromBlock": block_number_to_hex(self.from_block),
+                    "toBlock": block_number_to_hex(self.to_block),
                 }
             ],
             "id": id,

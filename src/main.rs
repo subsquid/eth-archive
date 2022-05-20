@@ -6,16 +6,16 @@ use std::mem;
 use std::sync::Arc;
 use std::time::Instant;
 
+use eth_archive::retry::retry;
+
 #[tokio::main]
 async fn main() {
-    let client =
-        EthClient::new("https://rpc.ankr.com/eth")
-            .unwrap();
+    let client = EthClient::new("https://rpc.ankr.com/eth").unwrap();
     let client = Arc::new(client);
 
     let block_writer: ParquetWriter<Blocks> = ParquetWriter::new("data/block/block", 1_000_000);
-    let tx_writer: ParquetWriter<Transactions> = ParquetWriter::new("data/tx/tx", 5_000_000);
-    let log_writer: ParquetWriter<Logs> = ParquetWriter::new("data/log/log", 5_000_000);
+    let tx_writer: ParquetWriter<Transactions> = ParquetWriter::new("data/tx/tx", 3_300_000);
+    let log_writer: ParquetWriter<Logs> = ParquetWriter::new("data/log/log", 3_300_000);
 
     let block_range = 10_000_000..14_000_000;
 
@@ -29,14 +29,17 @@ async fn main() {
                 let start = Instant::now();
                 let group = (0..STEP)
                     .map(|step| {
-                        let start = block_num + step * BATCH_SIZE;
-                        let end = start + BATCH_SIZE;
-
-                        let batch = (start..end)
-                            .map(|i| GetBlockByNumber { block_number: i })
-                            .collect();
                         let client = client.clone();
-                        async move { client.send_batch(batch).await }
+                        retry(move || {
+                            let client = client.clone();
+                            let start = block_num + step * BATCH_SIZE;
+                            let end = start + BATCH_SIZE;
+
+                            let batch = (start..end)
+                                .map(|i| GetBlockByNumber { block_number: i })
+                                .collect::<Vec<_>>();
+                            async move { client.send_batch(&batch).await }
+                        })
                     })
                     .collect::<Vec<_>>();
 
@@ -69,7 +72,7 @@ async fn main() {
     let log_job = tokio::spawn({
         let client = client.clone();
         async move {
-            const BATCH_SIZE: usize = 200;
+            const BATCH_SIZE: usize = 5;
             const STEP: usize = 100;
 
             for block_num in block_range.step_by(STEP * BATCH_SIZE) {

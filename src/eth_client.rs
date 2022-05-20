@@ -51,7 +51,7 @@ impl EthClient {
         Ok(rpc_result)
     }
 
-    pub async fn send_batch<R: EthRequest>(&self, requests: Vec<R>) -> Result<Vec<R::Resp>, Error> {
+    pub async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>, Error> {
         let req_body = requests
             .iter()
             .enumerate()

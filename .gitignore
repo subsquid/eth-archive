@@ -1,3 +1,4 @@
 /target
 *.parquet
 /data/
+/log.txt

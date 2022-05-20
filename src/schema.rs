@@ -31,11 +31,6 @@ fn block_schema() -> Schema {
         Field::new("gas_limit", DataType::Utf8, false),
         Field::new("gas_used", DataType::Utf8, false),
         Field::new("timestamp", DataType::Utf8, false),
-        Field::new(
-            "uncles",
-            DataType::List(Box::new(Field::new("uncle", DataType::Utf8, false))),
-            false,
-        ),
     ])
 }
 
@@ -128,7 +123,6 @@ pub struct Block {
     pub gas_used: String,
     pub timestamp: String,
     pub transactions: Vec<Transaction>,
-    pub uncles: Vec<String>,
 }
 
 type RowGroups = RowGroupIterator<
@@ -158,7 +152,6 @@ impl IntoRowGroups for Blocks {
             self.size.into_arc(),
             self.gas_limit.into_arc(),
             self.gas_used.into_arc(),
-            self.uncles.into_arc(),
         ]);
 
         let schema = block_schema();
@@ -168,7 +161,6 @@ impl IntoRowGroups for Blocks {
             &schema,
             options(),
             vec![
-                Encoding::Plain,
                 Encoding::Plain,
                 Encoding::Plain,
                 Encoding::Plain,
@@ -213,9 +205,6 @@ impl IntoRowGroups for Blocks {
         self.gas_limit.push(Some(elem.gas_limit));
         self.gas_used.push(Some(elem.gas_used));
         self.timestamp.push(Some(elem.timestamp));
-        self.uncles
-            .try_push(Some(elem.uncles.into_iter().map(Some)))
-            .map_err(Error::PushRow)?;
 
         self.len += 1;
 

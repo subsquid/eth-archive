@@ -17,27 +17,33 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             let mut row_group = T::default();
             let mut file_idx = 0;
 
+            let mut write_group = |row_group: &mut T| {
+                let row_group = mem::take(row_group);
+                let (row_groups, schema, options) = row_group.into_row_groups();
+
+                let file = fs::File::create(&format!("{}{}.parquet", path, file_idx,)).unwrap();
+                let mut writer = FileWriter::try_new(file, schema, options).unwrap();
+
+                writer.start().unwrap();
+                for group in row_groups {
+                    writer.write(group.unwrap()).unwrap();
+                }
+                writer.end(None).unwrap();
+
+                file_idx += 1;
+            };
+
             while let Ok(elems) = rx.recv() {
                 for elem in elems {
                     row_group.push(elem).unwrap();
                 }
 
                 if row_group.len() > threshold {
-                    let row_group = mem::take(&mut row_group);
-                    let (row_groups, schema, options) = row_group.into_row_groups();
-
-                    let file = fs::File::create(&format!("{}{}.parquet", path, file_idx,)).unwrap();
-                    let mut writer = FileWriter::try_new(file, schema, options).unwrap();
-
-                    writer.start().unwrap();
-                    for group in row_groups {
-                        writer.write(group.unwrap()).unwrap();
-                    }
-                    writer.end(None).unwrap();
-
-                    file_idx += 1;
+                    write_group(&mut row_group);
                 }
             }
+
+            write_group(&mut row_group);
         });
 
         Self { tx }
