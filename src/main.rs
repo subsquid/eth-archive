@@ -1,13 +1,13 @@
 use eth_archive::eth_client::EthClient;
 use eth_archive::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive::parquet_writer::ParquetWriter;
+use eth_archive::retry::retry;
 use eth_archive::schema::{Blocks, Logs, Transactions};
-use std::{fs, mem};
+use serde::Deserialize;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
-use serde::Deserialize;
-use eth_archive::retry::retry;
-use std::path::{Path, PathBuf};
+use std::{fs, mem};
 
 #[tokio::main]
 async fn main() {
@@ -15,6 +15,7 @@ async fn main() {
     let config: Config = toml::de::from_str(&config).unwrap();
 
     let db = rocksdb::DB::open_default(config.database_path()).unwrap();
+    let db = Arc::new(db);
 
     let client = EthClient::new(config.eth_rpc_url().clone()).unwrap();
     let client = Arc::new(client);
@@ -27,6 +28,7 @@ async fn main() {
 
     let block_tx_job = tokio::spawn({
         let client = client.clone();
+        let db = db.clone();
         async move {
             const BATCH_SIZE: usize = 100;
             const STEP: usize = 100;
@@ -35,8 +37,10 @@ async fn main() {
                 let start = Instant::now();
                 let group = (0..STEP)
                     .map(|step| {
+                        let db = db.clone();
                         let client = client.clone();
                         retry(move || {
+                            let db = db.clone();
                             let client = client.clone();
                             let start = block_num + step * BATCH_SIZE;
                             let end = start + BATCH_SIZE;
@@ -44,7 +48,18 @@ async fn main() {
                             let batch = (start..end)
                                 .map(|i| GetBlockByNumber { block_number: i })
                                 .collect::<Vec<_>>();
-                            async move { client.send_batch(&batch).await }
+                            async move {
+                                match client.send_batch(&batch).await {
+                                    Ok(res) => Ok(res),
+                                    Err(e) => {
+                                        let cf_handle = db.cf_handle("block").unwrap();
+                                        let mut key = start.to_le_bytes().to_vec();
+                                        key.extend_from_slice(end.to_le_bytes().as_slice());
+                                        db.put_cf(cf_handle, key, &[]).unwrap();
+                                        Err(e)
+                                    }
+                                }
+                            }
                         })
                     })
                     .collect::<Vec<_>>();
@@ -77,6 +92,7 @@ async fn main() {
 
     let log_job = tokio::spawn({
         let client = client.clone();
+        let db = db.clone();
         async move {
             const BATCH_SIZE: usize = 5;
             const STEP: usize = 100;
@@ -89,13 +105,24 @@ async fn main() {
                         let end = start + BATCH_SIZE;
 
                         let client = client.clone();
+                        let db = db.clone();
                         async move {
-                            client
+                            let res = client
                                 .send(GetLogs {
                                     from_block: start,
                                     to_block: end,
                                 })
-                                .await
+                                .await;
+                            match res {
+                                Ok(res) => Ok(res),
+                                Err(e) => {
+                                    let cf_handle = db.cf_handle("log").unwrap();
+                                    let mut key = start.to_le_bytes().to_vec();
+                                    key.extend_from_slice(end.to_le_bytes().as_slice());
+                                    db.put_cf(cf_handle, key, &[]).unwrap();
+                                    Err(e)
+                                }
+                            }
                         }
                     })
                     .collect::<Vec<_>>();
