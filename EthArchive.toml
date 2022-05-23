@@ -1,3 +1,2 @@
 eth_rpc_url = "https://rpc.ankr.com/eth"
 parquet_path = "data"
-database_path = "data/db"

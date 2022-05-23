@@ -5,6 +5,7 @@ use eth_archive::retry::retry;
 use eth_archive::schema::{Blocks, Logs, Transactions};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{fs, mem};
@@ -13,9 +14,6 @@ use std::{fs, mem};
 async fn main() {
     let config = fs::read_to_string("EthArchive.toml").unwrap();
     let config: Config = toml::de::from_str(&config).unwrap();
-
-    let db = rocksdb::DB::open_default(config.database_path()).unwrap();
-    let db = Arc::new(db);
 
     let client = EthClient::new(config.eth_rpc_url().clone()).unwrap();
     let client = Arc::new(client);
@@ -26,9 +24,12 @@ async fn main() {
 
     let block_range = 10_000_000..14_000_000;
 
+    let (failed_block_sender, _failed_block_receiver) = mpsc::channel();
+    let (failed_log_sender, _failed_log_receiver) = mpsc::channel();
+
     let block_tx_job = tokio::spawn({
         let client = client.clone();
-        let db = db.clone();
+        let failed_block_sender = failed_block_sender.clone();
         async move {
             const BATCH_SIZE: usize = 100;
             const STEP: usize = 100;
@@ -37,11 +38,11 @@ async fn main() {
                 let start = Instant::now();
                 let group = (0..STEP)
                     .map(|step| {
-                        let db = db.clone();
                         let client = client.clone();
+                        let failed_block_sender = failed_block_sender.clone();
                         retry(move || {
-                            let db = db.clone();
                             let client = client.clone();
+                            let failed_block_sender = failed_block_sender.clone();
                             let start = block_num + step * BATCH_SIZE;
                             let end = start + BATCH_SIZE;
 
@@ -52,10 +53,7 @@ async fn main() {
                                 match client.send_batch(&batch).await {
                                     Ok(res) => Ok(res),
                                     Err(e) => {
-                                        let cf_handle = db.cf_handle("block").unwrap();
-                                        let mut key = start.to_le_bytes().to_vec();
-                                        key.extend_from_slice(end.to_le_bytes().as_slice());
-                                        db.put_cf(cf_handle, key, &[]).unwrap();
+                                        failed_block_sender.send((start, end)).unwrap();
                                         Err(e)
                                     }
                                 }
@@ -92,7 +90,7 @@ async fn main() {
 
     let log_job = tokio::spawn({
         let client = client.clone();
-        let db = db.clone();
+        let failed_log_sender = failed_log_sender.clone();
         async move {
             const BATCH_SIZE: usize = 5;
             const STEP: usize = 100;
@@ -101,29 +99,31 @@ async fn main() {
                 let start = Instant::now();
                 let group = (0..STEP)
                     .map(|step| {
-                        let start = block_num + step * BATCH_SIZE;
-                        let end = start + BATCH_SIZE;
-
                         let client = client.clone();
-                        let db = db.clone();
-                        async move {
-                            let res = client
-                                .send(GetLogs {
-                                    from_block: start,
-                                    to_block: end,
-                                })
-                                .await;
-                            match res {
-                                Ok(res) => Ok(res),
-                                Err(e) => {
-                                    let cf_handle = db.cf_handle("log").unwrap();
-                                    let mut key = start.to_le_bytes().to_vec();
-                                    key.extend_from_slice(end.to_le_bytes().as_slice());
-                                    db.put_cf(cf_handle, key, &[]).unwrap();
-                                    Err(e)
+                        let failed_log_sender = failed_log_sender.clone();
+                        retry(move || {
+                            let client = client.clone();
+                            let failed_log_sender = failed_log_sender.clone();
+
+                            let start = block_num + step * BATCH_SIZE;
+                            let end = start + BATCH_SIZE;
+
+                            async move {
+                                let res = client
+                                    .send(GetLogs {
+                                        from_block: start,
+                                        to_block: end,
+                                    })
+                                    .await;
+                                match res {
+                                    Ok(res) => Ok(res),
+                                    Err(e) => {
+                                        failed_log_sender.send((start, end)).unwrap();
+                                        Err(e)
+                                    }
                                 }
                             }
-                        }
+                        })
                     })
                     .collect::<Vec<_>>();
 
