@@ -4,11 +4,11 @@ use serde_json::Value as JsonValue;
 
 pub struct EthClient {
     http_client: reqwest::Client,
-    rpc_url: String,
+    rpc_url: url::Url,
 }
 
 impl EthClient {
-    pub fn new<S: Into<String>>(rpc_url: S) -> Result<EthClient, Error> {
+    pub fn new(rpc_url: url::Url) -> Result<EthClient, Error> {
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)
             .build()
@@ -16,14 +16,14 @@ impl EthClient {
 
         Ok(EthClient {
             http_client,
-            rpc_url: rpc_url.into(),
+            rpc_url,
         })
     }
 
     pub async fn send<R: EthRequest>(&self, req: R) -> Result<R::Resp, Error> {
         let resp = self
             .http_client
-            .post(&self.rpc_url)
+            .post(self.rpc_url.clone())
             .json(&req.to_body(1))
             .send()
             .await
@@ -61,7 +61,7 @@ impl EthClient {
 
         let resp = self
             .http_client
-            .post(&self.rpc_url)
+            .post(self.rpc_url.clone())
             .json(&req_body)
             .send()
             .await
