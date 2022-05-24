@@ -6,7 +6,7 @@ use eth_archive::retry::retry;
 use eth_archive::schema::{Blocks, Logs, Transactions};
 use std::sync::Arc;
 use std::time::Instant;
-use std::{fs, mem};
+use std::{cmp, fs, mem};
 
 const NEXT_BLOCK_NUM_MARKER: &str = "0d535da7-73c7-4991-b16f-80d2904f569e";
 const BLOCK: &str = "block";
@@ -42,6 +42,7 @@ async fn main() {
         Some(bytes) => usize::from_le_bytes(bytes.try_into().unwrap()),
         None => 0,
     };
+    let next_block_num = cmp::max(next_block_num, config.start_block);
     let block_range = next_block_num..config.end_block;
 
     let block_tx_job = tokio::spawn({
@@ -122,6 +123,7 @@ async fn main() {
         Ok(Some(bytes)) => usize::from_le_bytes(bytes.try_into().unwrap()),
         _ => 0,
     };
+    let next_block_num = cmp::max(next_block_num, config.start_block);
     let block_range = next_block_num..config.end_block;
 
     let log_job = tokio::spawn({
