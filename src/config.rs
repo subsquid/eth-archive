@@ -10,6 +10,7 @@ pub struct Config {
     pub end_block: usize,
     pub block: BlockConfig,
     pub log: LogConfig,
+    pub retry: RetryConfig,
 }
 
 #[derive(Deserialize)]
@@ -25,4 +26,10 @@ pub struct LogConfig {
     pub log_write_threshold: usize,
     pub batch_size: usize,
     pub concurrency: usize,
+}
+
+#[derive(Deserialize)]
+pub struct RetryConfig {
+    pub num_tries: usize,
+    pub secs_between_tries: u64,
 }

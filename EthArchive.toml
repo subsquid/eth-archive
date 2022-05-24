@@ -14,3 +14,7 @@ concurrency = 100
 log_write_threshold = 3_300_000
 batch_size = 5
 concurrency = 100
+
+[retry]
+num_tries = 3
+secs_between_tries = 5

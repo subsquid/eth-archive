@@ -20,9 +20,8 @@ async fn main() {
 
     let mut database_path = config.data_path.clone();
     database_path.push(&config.database_path);
-    let mut db = rocksdb::DB::open_default(&database_path).unwrap();
-    db.create_cf(BLOCK, &rocksdb::Options::default()).unwrap();
-    db.create_cf(LOG, &rocksdb::Options::default()).unwrap();
+    let db =
+        rocksdb::DB::open_cf(&rocksdb::Options::default(), &database_path, [BLOCK, LOG]).unwrap();
     let db = Arc::new(db);
 
     let client = EthClient::new(config.eth_rpc_url).unwrap();
@@ -65,28 +64,32 @@ async fn main() {
                     .map(|step| {
                         let db = db.clone();
                         let client = client.clone();
-                        retry(move || {
-                            let db = db.clone();
-                            let client = client.clone();
-                            let start = block_num + step * batch_size;
-                            let end = start + batch_size;
+                        retry(
+                            config.retry.num_tries,
+                            config.retry.secs_between_tries,
+                            move || {
+                                let db = db.clone();
+                                let client = client.clone();
+                                let start = block_num + step * batch_size;
+                                let end = start + batch_size;
 
-                            let batch = (start..end)
-                                .map(|i| GetBlockByNumber { block_number: i })
-                                .collect::<Vec<_>>();
-                            async move {
-                                match client.send_batch(&batch).await {
-                                    Ok(res) => Ok(res),
-                                    Err(e) => {
-                                        let cf_handle = db.cf_handle(BLOCK).unwrap();
-                                        let mut key = start.to_le_bytes().to_vec();
-                                        key.extend_from_slice(end.to_le_bytes().as_slice());
-                                        db.put_cf(cf_handle, key, &[]).unwrap();
-                                        Err(e)
+                                let batch = (start..end)
+                                    .map(|i| GetBlockByNumber { block_number: i })
+                                    .collect::<Vec<_>>();
+                                async move {
+                                    match client.send_batch(&batch).await {
+                                        Ok(res) => Ok(res),
+                                        Err(e) => {
+                                            let cf_handle = db.cf_handle(BLOCK).unwrap();
+                                            let mut key = start.to_le_bytes().to_vec();
+                                            key.extend_from_slice(end.to_le_bytes().as_slice());
+                                            db.put_cf(cf_handle, key, &[]).unwrap();
+                                            Err(e)
+                                        }
                                     }
                                 }
-                            }
-                        })
+                            },
+                        )
                     })
                     .collect::<Vec<_>>();
 
@@ -141,32 +144,36 @@ async fn main() {
                     .map(|step| {
                         let db = db.clone();
                         let client = client.clone();
-                        retry(move || {
-                            let db = db.clone();
-                            let client = client.clone();
+                        retry(
+                            config.retry.num_tries,
+                            config.retry.secs_between_tries,
+                            move || {
+                                let db = db.clone();
+                                let client = client.clone();
 
-                            let start = block_num + step * batch_size;
-                            let end = start + batch_size;
+                                let start = block_num + step * batch_size;
+                                let end = start + batch_size;
 
-                            async move {
-                                let res = client
-                                    .send(GetLogs {
-                                        from_block: start,
-                                        to_block: end,
-                                    })
-                                    .await;
-                                match res {
-                                    Ok(res) => Ok(res),
-                                    Err(e) => {
-                                        let cf_handle = db.cf_handle(LOG).unwrap();
-                                        let mut key = start.to_le_bytes().to_vec();
-                                        key.extend_from_slice(end.to_le_bytes().as_slice());
-                                        db.put_cf(cf_handle, key, &[]).unwrap();
-                                        Err(e)
+                                async move {
+                                    let res = client
+                                        .send(GetLogs {
+                                            from_block: start,
+                                            to_block: end,
+                                        })
+                                        .await;
+                                    match res {
+                                        Ok(res) => Ok(res),
+                                        Err(e) => {
+                                            let cf_handle = db.cf_handle(LOG).unwrap();
+                                            let mut key = start.to_le_bytes().to_vec();
+                                            key.extend_from_slice(end.to_le_bytes().as_slice());
+                                            db.put_cf(cf_handle, key, &[]).unwrap();
+                                            Err(e)
+                                        }
                                     }
                                 }
-                            }
-                        })
+                            },
+                        )
                     })
                     .collect::<Vec<_>>();
 
