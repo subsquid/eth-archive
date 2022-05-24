@@ -8,6 +8,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fs, mem};
 
+const NEXT_BLOCK_NUM_MARKER: &str = "0d535da7-73c7-4991-b16f-80d2904f569e";
+const BLOCK: &str = "block";
+const TX: &str = "tx";
+const LOG: &str = "log";
+
 #[tokio::main]
 async fn main() {
     let config = fs::read_to_string("EthArchive.toml").unwrap();
@@ -20,16 +25,24 @@ async fn main() {
     let client = Arc::new(client);
 
     let block_writer: ParquetWriter<Blocks> = ParquetWriter::new(
-        "block",
+        BLOCK,
         &config.parquet_path,
         config.block.block_write_threshold,
     );
     let tx_writer: ParquetWriter<Transactions> =
-        ParquetWriter::new("tx", &config.parquet_path, config.block.tx_write_threshold);
+        ParquetWriter::new(TX, &config.parquet_path, config.block.tx_write_threshold);
     let log_writer: ParquetWriter<Logs> =
-        ParquetWriter::new("log", &config.parquet_path, config.log.log_write_threshold);
+        ParquetWriter::new(LOG, &config.parquet_path, config.log.log_write_threshold);
 
-    let block_range = config.start_block..config.end_block;
+    let cf_handle = db.cf_handle(BLOCK).unwrap();
+    let next_block_num = match db
+        .get_cf(cf_handle, NEXT_BLOCK_NUM_MARKER.as_bytes())
+        .unwrap()
+    {
+        Some(bytes) => usize::from_le_bytes(bytes.try_into().unwrap()),
+        None => 0,
+    };
+    let block_range = next_block_num..config.end_block;
 
     let block_tx_job = tokio::spawn({
         let db = db.clone();
@@ -39,6 +52,13 @@ async fn main() {
             let concurrency = config.block.concurrency;
 
             for block_num in block_range.step_by(concurrency * batch_size) {
+                db.put_cf(
+                    db.cf_handle(BLOCK).unwrap(),
+                    NEXT_BLOCK_NUM_MARKER.as_bytes(),
+                    block_num.to_le_bytes(),
+                )
+                .unwrap();
+
                 let start = Instant::now();
                 let group = (0..concurrency)
                     .map(|step| {
@@ -93,7 +113,12 @@ async fn main() {
         }
     });
 
-    let block_range = config.start_block..config.end_block;
+    let cf_handle = db.cf_handle(LOG).unwrap();
+    let next_block_num = match db.get_cf(cf_handle, NEXT_BLOCK_NUM_MARKER.as_bytes()) {
+        Ok(Some(bytes)) => usize::from_le_bytes(bytes.try_into().unwrap()),
+        _ => 0,
+    };
+    let block_range = next_block_num..config.end_block;
 
     let log_job = tokio::spawn({
         let db = db.clone();
@@ -103,6 +128,13 @@ async fn main() {
             let concurrency = config.log.concurrency;
 
             for block_num in block_range.step_by(concurrency * batch_size) {
+                db.put_cf(
+                    db.cf_handle(LOG).unwrap(),
+                    NEXT_BLOCK_NUM_MARKER.as_bytes(),
+                    block_num.to_le_bytes(),
+                )
+                .unwrap();
+
                 let start = Instant::now();
                 let group = (0..concurrency)
                     .map(|step| {
