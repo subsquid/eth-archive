@@ -20,8 +20,10 @@ async fn main() {
 
     let mut database_path = config.data_path.clone();
     database_path.push(&config.database_path);
-    let db =
-        rocksdb::DB::open_cf(&rocksdb::Options::default(), &database_path, [BLOCK, LOG]).unwrap();
+
+    let mut db_options = rocksdb::Options::default();
+    db_options.create_if_missing(true);
+    let db = rocksdb::DB::open_cf(&db_options, &database_path, [BLOCK, LOG]).unwrap();
     let db = Arc::new(db);
 
     let client = EthClient::new(config.eth_rpc_url).unwrap();

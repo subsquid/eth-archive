@@ -5,7 +5,7 @@ start_block = 10000000
 end_block = 14000000
 
 [block]
-block_write_threshold = 1000000
+block_write_threshold = 100000
 tx_write_threshold = 3_300_000
 batch_size = 100
 concurrency = 100
