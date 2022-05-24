@@ -19,30 +19,36 @@ async fn main() {
     let client = EthClient::new(config.eth_rpc_url).unwrap();
     let client = Arc::new(client);
 
-    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new("data/block/block", 1_000_000);
-    let tx_writer: ParquetWriter<Transactions> = ParquetWriter::new("data/tx/tx", 3_300_000);
-    let log_writer: ParquetWriter<Logs> = ParquetWriter::new("data/log/log", 3_300_000);
+    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new(
+        "block",
+        &config.parquet_path,
+        config.block.block_write_threshold,
+    );
+    let tx_writer: ParquetWriter<Transactions> =
+        ParquetWriter::new("tx", &config.parquet_path, config.block.tx_write_threshold);
+    let log_writer: ParquetWriter<Logs> =
+        ParquetWriter::new("log", &config.parquet_path, config.log.log_write_threshold);
 
-    let block_range = 10_000_000..14_000_000;
+    let block_range = config.start_block..config.end_block;
 
     let block_tx_job = tokio::spawn({
         let db = db.clone();
         let client = client.clone();
         async move {
-            const BATCH_SIZE: usize = 100;
-            const STEP: usize = 100;
+            let batch_size = config.block.batch_size;
+            let concurrency = config.block.concurrency;
 
-            for block_num in block_range.step_by(STEP * BATCH_SIZE) {
+            for block_num in block_range.step_by(concurrency * batch_size) {
                 let start = Instant::now();
-                let group = (0..STEP)
+                let group = (0..concurrency)
                     .map(|step| {
                         let db = db.clone();
                         let client = client.clone();
                         retry(move || {
                             let db = db.clone();
                             let client = client.clone();
-                            let start = block_num + step * BATCH_SIZE;
-                            let end = start + BATCH_SIZE;
+                            let start = block_num + step * batch_size;
+                            let end = start + batch_size;
 
                             let batch = (start..end)
                                 .map(|i| GetBlockByNumber { block_number: i })
@@ -80,25 +86,25 @@ async fn main() {
                 }
                 println!(
                     "TX/BLOCK WRITER: processed {} blocks in {} ms",
-                    STEP * BATCH_SIZE,
+                    concurrency * batch_size,
                     start.elapsed().as_millis()
                 )
             }
         }
     });
 
-    let block_range = 10_000_000..14_000_000;
+    let block_range = config.start_block..config.end_block;
 
     let log_job = tokio::spawn({
         let db = db.clone();
         let client = client.clone();
         async move {
-            const BATCH_SIZE: usize = 5;
-            const STEP: usize = 100;
+            let batch_size = config.log.batch_size;
+            let concurrency = config.log.concurrency;
 
-            for block_num in block_range.step_by(STEP * BATCH_SIZE) {
+            for block_num in block_range.step_by(concurrency * batch_size) {
                 let start = Instant::now();
-                let group = (0..STEP)
+                let group = (0..concurrency)
                     .map(|step| {
                         let db = db.clone();
                         let client = client.clone();
@@ -106,8 +112,8 @@ async fn main() {
                             let db = db.clone();
                             let client = client.clone();
 
-                            let start = block_num + step * BATCH_SIZE;
-                            let end = start + BATCH_SIZE;
+                            let start = block_num + step * batch_size;
+                            let end = start + batch_size;
 
                             async move {
                                 let res = client
@@ -146,7 +152,7 @@ async fn main() {
                 }
                 println!(
                     "LOG WRITER: processed {} blocks in {} ms",
-                    STEP * BATCH_SIZE,
+                    concurrency * batch_size,
                     start.elapsed().as_millis()
                 )
             }
