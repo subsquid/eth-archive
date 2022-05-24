@@ -21,6 +21,8 @@ async fn main() {
     let mut database_path = config.data_path.clone();
     database_path.push(&config.database_path);
 
+    fs::create_dir_all(&database_path).unwrap();
+
     let mut db_options = rocksdb::Options::default();
     db_options.create_if_missing(true);
     db_options.create_missing_column_families(true);

@@ -18,6 +18,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         path.push(&name);
         let path = path;
 
+        fs::create_dir_all(&path).unwrap();
+
         std::thread::spawn(move || {
             let mut row_group = T::default();
             let mut file_idx = 0;
@@ -27,9 +29,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let (row_groups, schema, options) = row_group.into_row_groups();
 
                 let mut path = path.clone();
-                path.push(&name);
-                path.push(file_idx.to_string());
+                path.push(format!("{}{}", &name, file_idx));
                 path.push(".parquet");
+
                 let file = fs::File::create(&path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
