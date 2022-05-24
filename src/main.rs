@@ -1,10 +1,9 @@
+use eth_archive::config::Config;
 use eth_archive::eth_client::EthClient;
 use eth_archive::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive::parquet_writer::ParquetWriter;
 use eth_archive::retry::retry;
 use eth_archive::schema::{Blocks, Logs, Transactions};
-use serde::Deserialize;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{fs, mem};
@@ -14,10 +13,10 @@ async fn main() {
     let config = fs::read_to_string("EthArchive.toml").unwrap();
     let config: Config = toml::de::from_str(&config).unwrap();
 
-    let db = rocksdb::DB::open_default(config.database_path()).unwrap();
+    let db = rocksdb::DB::open_default(&config.database_path).unwrap();
     let db = Arc::new(db);
 
-    let client = EthClient::new(config.eth_rpc_url().clone()).unwrap();
+    let client = EthClient::new(config.eth_rpc_url).unwrap();
     let client = Arc::new(client);
 
     let block_writer: ParquetWriter<Blocks> = ParquetWriter::new("data/block/block", 1_000_000);
@@ -156,25 +155,4 @@ async fn main() {
 
     block_tx_job.await.unwrap();
     log_job.await.unwrap();
-}
-
-#[derive(Deserialize)]
-pub struct Config {
-    eth_rpc_url: url::Url,
-    parquet_path: PathBuf,
-    database_path: PathBuf,
-}
-
-impl Config {
-    pub fn eth_rpc_url(&self) -> &reqwest::Url {
-        &self.eth_rpc_url
-    }
-
-    pub fn parquet_path(&self) -> &Path {
-        self.parquet_path.as_path()
-    }
-
-    pub fn database_path(&self) -> &Path {
-        self.database_path.as_path()
-    }
 }

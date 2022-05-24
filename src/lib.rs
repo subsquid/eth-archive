@@ -1,3 +1,4 @@
+pub mod config;
 pub mod error;
 pub mod eth_client;
 pub mod eth_request;
