@@ -178,8 +178,6 @@ impl IntoRowGroups for Blocks {
                 Encoding::Plain,
                 Encoding::Plain,
                 Encoding::Plain,
-                Encoding::Plain,
-                Encoding::Plain,
             ],
         )
         .unwrap();

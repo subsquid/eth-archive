@@ -29,9 +29,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let (row_groups, schema, options) = row_group.into_row_groups();
 
                 let mut path = path.clone();
-                path.push(format!("{}{}", &name, file_idx));
-                path.push(".parquet");
-
+                path.push(format!("{}{}.parquet", &name, file_idx));
                 let file = fs::File::create(&path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
