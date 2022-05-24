@@ -23,6 +23,7 @@ async fn main() {
 
     let mut db_options = rocksdb::Options::default();
     db_options.create_if_missing(true);
+    db_options.create_missing_column_families(true);
     let db = rocksdb::DB::open_cf(&db_options, &database_path, [BLOCK, LOG]).unwrap();
     let db = Arc::new(db);
 
