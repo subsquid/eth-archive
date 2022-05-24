@@ -1,3 +1,16 @@
 eth_rpc_url = "https://rpc.ankr.com/eth"
-parquet_path = "data"
-database_path = "data/db"
+data_path = "data"
+database_path = "db"
+start_block = 10000000
+end_block = 14000000
+
+[block]
+block_write_threshold = 1000000
+tx_write_threshold = 3_300_000
+batch_size = 100
+concurrency = 100
+
+[log]
+log_write_threshold = 3_300_000
+batch_size = 5
+concurrency = 100

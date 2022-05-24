@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Deserialize)]
 pub struct Config {
     pub eth_rpc_url: url::Url,
-    pub parquet_path: PathBuf,
+    pub data_path: PathBuf,
     pub database_path: PathBuf,
     pub start_block: usize,
     pub end_block: usize,

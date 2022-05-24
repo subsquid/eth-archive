@@ -18,21 +18,22 @@ async fn main() {
     let config = fs::read_to_string("EthArchive.toml").unwrap();
     let config: Config = toml::de::from_str(&config).unwrap();
 
-    let db = rocksdb::DB::open_default(&config.database_path).unwrap();
+    let mut database_path = config.data_path.clone();
+    database_path.push(&config.database_path);
+    let mut db = rocksdb::DB::open_default(&database_path).unwrap();
+    db.create_cf(BLOCK, &rocksdb::Options::default()).unwrap();
+    db.create_cf(LOG, &rocksdb::Options::default()).unwrap();
     let db = Arc::new(db);
 
     let client = EthClient::new(config.eth_rpc_url).unwrap();
     let client = Arc::new(client);
 
-    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new(
-        BLOCK,
-        &config.parquet_path,
-        config.block.block_write_threshold,
-    );
+    let block_writer: ParquetWriter<Blocks> =
+        ParquetWriter::new(BLOCK, &config.data_path, config.block.block_write_threshold);
     let tx_writer: ParquetWriter<Transactions> =
-        ParquetWriter::new(TX, &config.parquet_path, config.block.tx_write_threshold);
+        ParquetWriter::new(TX, &config.data_path, config.block.tx_write_threshold);
     let log_writer: ParquetWriter<Logs> =
-        ParquetWriter::new(LOG, &config.parquet_path, config.log.log_write_threshold);
+        ParquetWriter::new(LOG, &config.data_path, config.log.log_write_threshold);
 
     let cf_handle = db.cf_handle(BLOCK).unwrap();
     let next_block_num = match db
@@ -77,7 +78,7 @@ async fn main() {
                                 match client.send_batch(&batch).await {
                                     Ok(res) => Ok(res),
                                     Err(e) => {
-                                        let cf_handle = db.cf_handle("block").unwrap();
+                                        let cf_handle = db.cf_handle(BLOCK).unwrap();
                                         let mut key = start.to_le_bytes().to_vec();
                                         key.extend_from_slice(end.to_le_bytes().as_slice());
                                         db.put_cf(cf_handle, key, &[]).unwrap();
@@ -157,7 +158,7 @@ async fn main() {
                                 match res {
                                     Ok(res) => Ok(res),
                                     Err(e) => {
-                                        let cf_handle = db.cf_handle("log").unwrap();
+                                        let cf_handle = db.cf_handle(LOG).unwrap();
                                         let mut key = start.to_le_bytes().to_vec();
                                         key.extend_from_slice(end.to_le_bytes().as_slice());
                                         db.put_cf(cf_handle, key, &[]).unwrap();
