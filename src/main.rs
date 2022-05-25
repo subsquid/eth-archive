@@ -58,6 +58,8 @@ async fn main() {
             let concurrency = config.block.concurrency;
 
             for block_num in block_range.step_by(concurrency * batch_size) {
+                println!("BLOCK/TX WRITER: block no={}", block_num);
+
                 db.put_cf(
                     db.cf_handle(BLOCK).unwrap(),
                     NEXT_BLOCK_NUM_MARKER.as_bytes(),
@@ -70,32 +72,36 @@ async fn main() {
                     .map(|step| {
                         let db = db.clone();
                         let client = client.clone();
-                        retry(
-                            config.retry.num_tries,
-                            config.retry.secs_between_tries,
-                            move || {
-                                let db = db.clone();
-                                let client = client.clone();
-                                let start = block_num + step * batch_size;
-                                let end = start + batch_size;
 
-                                let batch = (start..end)
-                                    .map(|i| GetBlockByNumber { block_number: i })
-                                    .collect::<Vec<_>>();
-                                async move {
-                                    match client.send_batch(&batch).await {
-                                        Ok(res) => Ok(res),
-                                        Err(e) => {
-                                            let cf_handle = db.cf_handle(BLOCK).unwrap();
-                                            let mut key = start.to_le_bytes().to_vec();
-                                            key.extend_from_slice(end.to_le_bytes().as_slice());
-                                            db.put_cf(cf_handle, key, &[]).unwrap();
-                                            Err(e)
-                                        }
+                        let start = block_num + step * batch_size;
+                        let end = start + batch_size;
+
+                        async move {
+                            let fut = retry(
+                                config.retry.num_tries,
+                                config.retry.secs_between_tries,
+                                move || {
+                                    let client = client.clone();
+                                    async move {
+                                        let batch = (start..end)
+                                            .map(|i| GetBlockByNumber { block_number: i })
+                                            .collect::<Vec<_>>();
+                                        client.send_batch(&batch).await
                                     }
+                                },
+                            );
+
+                            match fut.await {
+                                Ok(res) => Ok(res),
+                                Err(e) => {
+                                    let cf_handle = db.cf_handle(BLOCK).unwrap();
+                                    let mut key = start.to_le_bytes().to_vec();
+                                    key.extend_from_slice(end.to_le_bytes().as_slice());
+                                    db.put_cf(cf_handle, key, &[]).unwrap();
+                                    Err(e)
                                 }
-                            },
-                        )
+                            }
+                        }
                     })
                     .collect::<Vec<_>>();
 
@@ -139,6 +145,8 @@ async fn main() {
             let concurrency = config.log.concurrency;
 
             for block_num in block_range.step_by(concurrency * batch_size) {
+                println!("LOG WRITER: block no={}", block_num);
+
                 db.put_cf(
                     db.cf_handle(LOG).unwrap(),
                     NEXT_BLOCK_NUM_MARKER.as_bytes(),
@@ -151,36 +159,40 @@ async fn main() {
                     .map(|step| {
                         let db = db.clone();
                         let client = client.clone();
-                        retry(
-                            config.retry.num_tries,
-                            config.retry.secs_between_tries,
-                            move || {
-                                let db = db.clone();
-                                let client = client.clone();
 
-                                let start = block_num + step * batch_size;
-                                let end = start + batch_size;
+                        let start = block_num + step * batch_size;
+                        let end = start + batch_size;
 
-                                async move {
-                                    let res = client
-                                        .send(GetLogs {
-                                            from_block: start,
-                                            to_block: end,
-                                        })
-                                        .await;
-                                    match res {
-                                        Ok(res) => Ok(res),
-                                        Err(e) => {
-                                            let cf_handle = db.cf_handle(LOG).unwrap();
-                                            let mut key = start.to_le_bytes().to_vec();
-                                            key.extend_from_slice(end.to_le_bytes().as_slice());
-                                            db.put_cf(cf_handle, key, &[]).unwrap();
-                                            Err(e)
-                                        }
+                        async move {
+                            let client = client.clone();
+
+                            let fut = retry(
+                                config.retry.num_tries,
+                                config.retry.secs_between_tries,
+                                move || {
+                                    let client = client.clone();
+                                    async move {
+                                        client
+                                            .send(GetLogs {
+                                                from_block: start,
+                                                to_block: end,
+                                            })
+                                            .await
                                     }
+                                },
+                            );
+
+                            match fut.await {
+                                Ok(res) => Ok(res),
+                                Err(e) => {
+                                    let cf_handle = db.cf_handle(LOG).unwrap();
+                                    let mut key = start.to_le_bytes().to_vec();
+                                    key.extend_from_slice(end.to_le_bytes().as_slice());
+                                    db.put_cf(cf_handle, key, &[]).unwrap();
+                                    Err(e)
                                 }
-                            },
-                        )
+                            }
+                        }
                     })
                     .collect::<Vec<_>>();
 

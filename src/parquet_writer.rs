@@ -6,6 +6,7 @@ use std::{fs, mem};
 
 pub struct ParquetWriter<T: IntoRowGroups> {
     tx: mpsc::Sender<Vec<T::Elem>>,
+    join_handle: std::thread::JoinHandle<()>,
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
@@ -20,7 +21,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
         fs::create_dir_all(&path).unwrap();
 
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let mut row_group = T::default();
             let mut file_idx = 0;
 
@@ -55,10 +56,14 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             write_group(&mut row_group);
         });
 
-        Self { tx }
+        Self { tx, join_handle }
     }
 
     pub fn send(&self, elems: Vec<T::Elem>) {
         self.tx.send(elems).unwrap();
+    }
+
+    pub fn join(self) {
+        self.join_handle.join().unwrap();
     }
 }
