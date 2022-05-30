@@ -125,6 +125,8 @@ async fn main() {
                     start.elapsed().as_millis()
                 )
             }
+
+            block_writer.join();
         }
     });
 
@@ -213,6 +215,8 @@ async fn main() {
                     start.elapsed().as_millis()
                 )
             }
+
+            log_writer.join();
         }
     });
 
