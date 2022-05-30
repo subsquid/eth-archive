@@ -1,8 +1,11 @@
 use crate::{Error, Result};
 use arrow2::array::{
-    Array, MutableBooleanArray, MutableListArray, MutableUtf8Array, TryPush, UInt64Vec,
+    Array, MutableArray, MutableBooleanArray, MutableListArray, MutableUtf8Array, TryPush,
+    UInt64Vec,
 };
 use arrow2::chunk::Chunk;
+use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
+use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
@@ -10,7 +13,6 @@ use arrow2::io::parquet::write::{
 };
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
-use std::sync::Arc;
 
 fn block_schema() -> Schema {
     Schema::from(vec![
@@ -98,7 +100,6 @@ pub struct Blocks {
     pub gas_limit: MutableUtf8Array<i64>,
     pub gas_used: MutableUtf8Array<i64>,
     pub timestamp: MutableUtf8Array<i64>,
-    pub uncles: MutableListArray<i64, MutableUtf8Array<i32>>,
     pub len: usize,
 }
 
@@ -126,32 +127,43 @@ pub struct Block {
 }
 
 type RowGroups = RowGroupIterator<
-    Arc<dyn Array>,
-    std::vec::IntoIter<StdResult<Chunk<Arc<dyn Array>>, ArrowError>>,
+    Box<dyn Array>,
+    std::vec::IntoIter<StdResult<Chunk<Box<dyn Array>>, ArrowError>>,
 >;
 
 impl IntoRowGroups for Blocks {
     type Elem = Block;
 
-    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+    fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+        let indices = sort_to_indices::<i64>(
+            self.number.as_box().as_ref(),
+            &SortOptions {
+                descending: false,
+                nulls_first: false,
+            },
+            None,
+        )
+        .map_err(Error::SortRowGroup)
+        .unwrap();
+
         let chunk = Chunk::new(vec![
-            self.number.into_arc(),
-            self.hash.into_arc(),
-            self.parent_hash.into_arc(),
-            self.nonce.into_arc(),
-            self.timestamp.into_arc(),
-            self.sha3_uncles.into_arc(),
-            self.logs_bloom.into_arc(),
-            self.transactions_root.into_arc(),
-            self.state_root.into_arc(),
-            self.receipts_root.into_arc(),
-            self.miner.into_arc(),
-            self.difficulty.into_arc(),
-            self.total_difficulty.into_arc(),
-            self.extra_data.into_arc(),
-            self.size.into_arc(),
-            self.gas_limit.into_arc(),
-            self.gas_used.into_arc(),
+            arrow_take(self.number.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.miner.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.difficulty.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
         ]);
 
         let schema = block_schema();
@@ -255,22 +267,51 @@ pub struct Transaction {
 impl IntoRowGroups for Transactions {
     type Elem = Transaction;
 
-    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+    fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+        let indices = lexsort_to_indices::<i64>(
+            &[
+                SortColumn {
+                    values: self.block_number.as_box().as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+                SortColumn {
+                    values: self.transaction_index.as_box().as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+                SortColumn {
+                    values: self.from.as_box().as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+            ],
+            None,
+        )
+        .map_err(Error::SortRowGroup)
+        .unwrap();
+
         let chunk = Chunk::new(vec![
-            self.block_hash.into_arc(),
-            self.block_number.into_arc(),
-            self.from.into_arc(),
-            self.gas.into_arc(),
-            self.gas_price.into_arc(),
-            self.hash.into_arc(),
-            self.input.into_arc(),
-            self.nonce.into_arc(),
-            self.to.into_arc(),
-            self.transaction_index.into_arc(),
-            self.value.into_arc(),
-            self.v.into_arc(),
-            self.r.into_arc(),
-            self.s.into_arc(),
+            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.block_number.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.from.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.to.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transaction_index.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
         ]);
 
         let schema = transaction_schema();
@@ -359,17 +400,46 @@ pub struct Log {
 impl IntoRowGroups for Logs {
     type Elem = Log;
 
-    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions) {
+    fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+        let indices = lexsort_to_indices::<i64>(
+            &[
+                SortColumn {
+                    values: self.block_number.as_box().as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+                SortColumn {
+                    values: self.transaction_index.as_box().as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+                SortColumn {
+                    values: self.address.as_box().as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+            ],
+            None,
+        )
+        .map_err(Error::SortRowGroup)
+        .unwrap();
+
         let chunk = Chunk::new(vec![
-            self.address.into_arc(),
-            self.block_hash.into_arc(),
-            self.block_number.into_arc(),
-            self.data.into_arc(),
-            self.log_index.into_arc(),
-            self.removed.into_arc(),
-            self.topics.into_arc(),
-            self.transaction_hash.into_arc(),
-            self.transaction_index.into_arc(),
+            arrow_take(self.address.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.block_number.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topics.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transaction_index.as_box().as_ref(), &indices).unwrap(),
         ]);
 
         let schema = log_schema();

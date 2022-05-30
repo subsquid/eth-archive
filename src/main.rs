@@ -95,7 +95,8 @@ async fn main() {
                                 Ok(res) => Ok(res),
                                 Err(e) => {
                                     let cf_handle = db.cf_handle(BLOCK).unwrap();
-                                    db.put_cf(cf_handle, &start.to_be_bytes(), &end.to_be_bytes()).unwrap();
+                                    db.put_cf(cf_handle, &start.to_be_bytes(), &end.to_be_bytes())
+                                        .unwrap();
                                     Err(e)
                                 }
                             }
@@ -184,7 +185,8 @@ async fn main() {
                                 Ok(res) => Ok(res),
                                 Err(e) => {
                                     let cf_handle = db.cf_handle(LOG).unwrap();
-                                    db.put_cf(cf_handle, &start.to_be_bytes(), &end.to_be_bytes()).unwrap();
+                                    db.put_cf(cf_handle, &start.to_be_bytes(), &end.to_be_bytes())
+                                        .unwrap();
                                     Err(e)
                                 }
                             }

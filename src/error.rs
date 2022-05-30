@@ -11,6 +11,7 @@ pub enum Error {
     BuildHttpClient(reqwest::Error),
     GetTxBatch(Box<Error>),
     InvalidRpcResponse,
+    SortRowGroup(arrow2::error::ArrowError),
 }
 
 pub type Result<T> = StdResult<T, Error>;
