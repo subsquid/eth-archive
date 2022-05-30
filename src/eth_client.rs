@@ -31,6 +31,9 @@ impl EthClient {
 
         let resp_status = resp.status();
         if !resp_status.is_success() {
+            if let Ok(body) = resp.text().await {
+                eprintln!("rpc response error: {}", body);
+            }
             return Err(Error::RpcResponseStatus(resp_status.as_u16()));
         }
 

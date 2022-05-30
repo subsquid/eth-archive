@@ -95,9 +95,7 @@ async fn main() {
                                 Ok(res) => Ok(res),
                                 Err(e) => {
                                     let cf_handle = db.cf_handle(BLOCK).unwrap();
-                                    let mut key = start.to_le_bytes().to_vec();
-                                    key.extend_from_slice(end.to_le_bytes().as_slice());
-                                    db.put_cf(cf_handle, key, &[]).unwrap();
+                                    db.put_cf(cf_handle, &start.to_be_bytes(), &end.to_be_bytes()).unwrap();
                                     Err(e)
                                 }
                             }
@@ -186,9 +184,7 @@ async fn main() {
                                 Ok(res) => Ok(res),
                                 Err(e) => {
                                     let cf_handle = db.cf_handle(LOG).unwrap();
-                                    let mut key = start.to_le_bytes().to_vec();
-                                    key.extend_from_slice(end.to_le_bytes().as_slice());
-                                    db.put_cf(cf_handle, key, &[]).unwrap();
+                                    db.put_cf(cf_handle, &start.to_be_bytes(), &end.to_be_bytes()).unwrap();
                                     Err(e)
                                 }
                             }

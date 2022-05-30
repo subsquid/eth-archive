@@ -1,4 +1,4 @@
-eth_rpc_url = "https://rpc.ankr.com/eth"
+eth_rpc_url = "http://195.201.56.33:8545"
 data_path = "data"
 database_path = "db"
 start_block = 10000000
