@@ -53,7 +53,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 }
             }
 
-            write_group(&mut row_group);
+            if row_group.len() > 0 {
+                write_group(&mut row_group);
+            }
         });
 
         Self { tx, join_handle }
