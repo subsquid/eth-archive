@@ -46,10 +46,10 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             while let Ok(elems) = rx.recv() {
                 for elem in elems {
                     row_group.push(elem).unwrap();
-                }
 
-                if row_group.len() > threshold {
-                    write_group(&mut row_group);
+                    if row_group.len() > threshold {
+                        write_group(&mut row_group);
+                    }
                 }
             }
 
