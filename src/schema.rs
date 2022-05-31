@@ -135,8 +135,10 @@ impl IntoRowGroups for Blocks {
     type Elem = Block;
 
     fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+        let number = self.number.as_box();
+
         let indices = sort_to_indices::<i64>(
-            self.number.as_box().as_ref(),
+            number.as_ref(),
             &SortOptions {
                 descending: false,
                 nulls_first: false,
@@ -146,8 +148,9 @@ impl IntoRowGroups for Blocks {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
+        println!("BLOCKS LEN: {}", self.len());
         let chunk = Chunk::new(vec![
-            arrow_take(self.number.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(number.as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
@@ -268,24 +271,28 @@ impl IntoRowGroups for Transactions {
     type Elem = Transaction;
 
     fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+        let block_number = self.block_number.as_box();
+        let transaction_index = self.transaction_index.as_box();
+        let from = self.from.as_box();
+
         let indices = lexsort_to_indices::<i64>(
             &[
                 SortColumn {
-                    values: self.block_number.as_box().as_ref(),
+                    values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
                     }),
                 },
                 SortColumn {
-                    values: self.transaction_index.as_box().as_ref(),
+                    values: transaction_index.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
                     }),
                 },
                 SortColumn {
-                    values: self.from.as_box().as_ref(),
+                    values: from.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
@@ -299,15 +306,15 @@ impl IntoRowGroups for Transactions {
 
         let chunk = Chunk::new(vec![
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.block_number.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.from.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(block_number.as_ref(), &indices).unwrap(),
+            arrow_take(from.as_ref(), &indices).unwrap(),
             arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.to.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.transaction_index.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
             arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
@@ -401,24 +408,28 @@ impl IntoRowGroups for Logs {
     type Elem = Log;
 
     fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+        let block_number = self.block_number.as_box();
+        let transaction_index = self.transaction_index.as_box();
+        let address = self.address.as_box();
+
         let indices = lexsort_to_indices::<i64>(
             &[
                 SortColumn {
-                    values: self.block_number.as_box().as_ref(),
+                    values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
                     }),
                 },
                 SortColumn {
-                    values: self.transaction_index.as_box().as_ref(),
+                    values: transaction_index.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
                     }),
                 },
                 SortColumn {
-                    values: self.address.as_box().as_ref(),
+                    values: address.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
@@ -431,15 +442,15 @@ impl IntoRowGroups for Logs {
         .unwrap();
 
         let chunk = Chunk::new(vec![
-            arrow_take(self.address.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(address.as_ref(), &indices).unwrap(),
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.block_number.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(block_number.as_ref(), &indices).unwrap(),
             arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.topics.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.transaction_index.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
         ]);
 
         let schema = log_schema();

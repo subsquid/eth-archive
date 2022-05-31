@@ -66,6 +66,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
     }
 
     pub fn join(self) {
+        mem::drop(self.tx);
         self.join_handle.join().unwrap();
     }
 }

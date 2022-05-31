@@ -120,7 +120,7 @@ async fn main() {
                     block_writer.send(batch);
                 }
                 println!(
-                    "TX/BLOCK WRITER: processed {} blocks in {} ms",
+                    "BLOCK/TX WRITER: processed {} blocks in {} ms",
                     concurrency * batch_size,
                     start.elapsed().as_millis()
                 )
@@ -138,6 +138,7 @@ async fn main() {
     let next_block_num = cmp::max(next_block_num, config.start_block);
     let block_range = next_block_num..config.end_block;
 
+    /*
     let log_job = tokio::spawn({
         let db = db.clone();
         let client = client.clone();
@@ -219,7 +220,8 @@ async fn main() {
             log_writer.join();
         }
     });
+    */
 
     block_tx_job.await.unwrap();
-    log_job.await.unwrap();
+    //log_job.await.unwrap();
 }
