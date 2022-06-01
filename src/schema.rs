@@ -406,13 +406,29 @@ impl IntoRowGroups for Logs {
         let address = self.address.as_box();
 
         let indices = lexsort_to_indices::<i64>(
-            &[SortColumn {
-                values: address.as_ref(),
-                options: Some(SortOptions {
-                    descending: false,
-                    nulls_first: false,
-                }),
-            }],
+            &[
+                SortColumn {
+                    values: address.as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+                SortColumn {
+                    values: block_number.as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+                SortColumn {
+                    values: transaction_index.as_ref(),
+                    options: Some(SortOptions {
+                        descending: false,
+                        nulls_first: false,
+                    }),
+                },
+            ],
             None,
         )
         .map_err(Error::SortRowGroup)
