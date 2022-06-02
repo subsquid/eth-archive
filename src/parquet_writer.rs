@@ -52,7 +52,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let row = row_group.last_mut().unwrap();
 
                 let row = if row.len() == row_group_size {
-                    if row_group.len() * row_group_size == threshold {
+                    if row_group.len() * row_group_size >= threshold {
                         write_group(&mut row_group);
                     }
                     row_group.push(T::default());
