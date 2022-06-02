@@ -10,7 +10,12 @@ pub struct ParquetWriter<T: IntoRowGroups> {
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new<P: AsRef<Path>, S: Into<String>>(name: S, path: P, threshold: usize) -> Self {
+    pub fn new<P: AsRef<Path>, S: Into<String>>(
+        name: S,
+        path: P,
+        row_group_size: usize,
+        threshold: usize,
+    ) -> Self {
         let (tx, rx) = mpsc::channel();
 
         let name = name.into();
@@ -22,12 +27,12 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         fs::create_dir_all(&path).unwrap();
 
         let join_handle = std::thread::spawn(move || {
-            let mut row_group = T::default();
+            let mut row_group = vec![T::default()];
             let mut file_idx = 0;
 
-            let mut write_group = |row_group: &mut T| {
+            let mut write_group = |row_group: &mut Vec<T>| {
                 let row_group = mem::take(row_group);
-                let (row_groups, schema, options) = row_group.into_row_groups();
+                let (row_groups, schema, options) = T::into_row_groups(row_group);
 
                 let mut path = path.clone();
                 path.push(format!("{}{}.parquet", &name, file_idx));
@@ -44,16 +49,24 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             };
 
             while let Ok(elems) = rx.recv() {
-                for elem in elems {
-                    row_group.push(elem).unwrap();
-                }
+                let row = row_group.last_mut().unwrap();
 
-                if row_group.len() > threshold {
-                    write_group(&mut row_group);
+                let row = if row.len() == row_group_size {
+                    if row_group.len() * row_group_size == threshold {
+                        write_group(&mut row_group);
+                    }
+                    row_group.push(T::default());
+                    row_group.last_mut().unwrap()
+                } else {
+                    row
+                };
+
+                for elem in elems {
+                    row.push(elem).unwrap();
                 }
             }
 
-            if row_group.len() > 0 {
+            if row_group.last_mut().unwrap().len() > 0 {
                 write_group(&mut row_group);
             }
         });

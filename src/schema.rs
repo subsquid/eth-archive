@@ -1,6 +1,6 @@
 use crate::{Error, Result};
 use arrow2::array::{Array, MutableArray, MutableBooleanArray, MutableUtf8Array, UInt64Vec};
-use arrow2::chunk::Chunk;
+use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
@@ -10,6 +10,8 @@ use arrow2::io::parquet::write::{
 };
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
+
+type Chunk = ArrowChunk<Box<dyn Array>>;
 
 fn block_schema() -> Schema {
     Schema::from(vec![
@@ -122,15 +124,12 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
 }
 
-type RowGroups = RowGroupIterator<
-    Box<dyn Array>,
-    std::vec::IntoIter<StdResult<Chunk<Box<dyn Array>>, ArrowError>>,
->;
+type RowGroups = RowGroupIterator<Box<dyn Array>, std::vec::IntoIter<StdResult<Chunk, ArrowError>>>;
 
 impl IntoRowGroups for Blocks {
     type Elem = Block;
 
-    fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+    fn into_chunk(mut self) -> Chunk {
         let number = self.number.as_box();
 
         let indices = sort_to_indices::<i64>(
@@ -144,7 +143,7 @@ impl IntoRowGroups for Blocks {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        let cols = vec![
+        let chunk = Chunk::new(vec![
             arrow_take(number.as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
@@ -162,51 +161,9 @@ impl IntoRowGroups for Blocks {
             arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
-        ];
-        let chunks = (0..self.len())
-            .step_by(500)
-            .map(|start| {
-                let cols = cols
-                    .iter()
-                    .map(|arr| {
-                        let end = std::cmp::min(arr.len(), start + 500);
-                        arr.slice(start, end)
-                    })
-                    .collect();
+        ]);
 
-                Ok(Chunk::new(cols))
-            })
-            .collect::<Vec<_>>();
-
-        let schema = block_schema();
-
-        let row_groups = RowGroupIterator::try_new(
-            chunks.into_iter(),
-            &schema,
-            options(),
-            vec![
-                Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-            ],
-        )
-        .unwrap();
-
-        (row_groups, schema, options())
+        chunk
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
@@ -235,6 +192,32 @@ impl IntoRowGroups for Blocks {
 
     fn len(&self) -> usize {
         self.len
+    }
+
+    fn encoding() -> Vec<Encoding> {
+        vec![
+            Encoding::Plain,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+        ]
+    }
+
+    fn schema() -> Schema {
+        block_schema()
     }
 }
 
@@ -279,7 +262,7 @@ pub struct Transaction {
 impl IntoRowGroups for Transactions {
     type Elem = Transaction;
 
-    fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+    fn into_chunk(mut self) -> Chunk {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
         let from = self.from.as_box();
@@ -306,7 +289,7 @@ impl IntoRowGroups for Transactions {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        let cols = vec![
+        let chunk = Chunk::new(vec![
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(block_number.as_ref(), &indices).unwrap(),
             arrow_take(from.as_ref(), &indices).unwrap(),
@@ -321,49 +304,9 @@ impl IntoRowGroups for Transactions {
             arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
-        ];
+        ]);
 
-        let chunks = (0..self.len())
-            .step_by(50000)
-            .map(|start| {
-                let cols = cols
-                    .iter()
-                    .map(|arr| {
-                        let end = std::cmp::min(arr.len(), start + 500);
-                        arr.slice(start, end)
-                    })
-                    .collect();
-
-                Ok(Chunk::new(cols))
-            })
-            .collect::<Vec<_>>();
-
-        let schema = transaction_schema();
-
-        let row_groups = RowGroupIterator::try_new(
-            chunks.into_iter(),
-            &schema,
-            options(),
-            vec![
-                Encoding::DeltaLengthByteArray,
-                Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-            ],
-        )
-        .unwrap();
-
-        (row_groups, schema, options())
+        chunk
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
@@ -390,6 +333,29 @@ impl IntoRowGroups for Transactions {
 
     fn len(&self) -> usize {
         self.len
+    }
+
+    fn encoding() -> Vec<Encoding> {
+        vec![
+            Encoding::DeltaLengthByteArray,
+            Encoding::Plain,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+        ]
+    }
+
+    fn schema() -> Schema {
+        transaction_schema()
     }
 }
 
@@ -427,7 +393,7 @@ pub struct Log {
 impl IntoRowGroups for Logs {
     type Elem = Log;
 
-    fn into_row_groups(mut self) -> (RowGroups, Schema, WriteOptions) {
+    fn into_chunk(mut self) -> Chunk {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
         let address = self.address.as_box();
@@ -461,7 +427,7 @@ impl IntoRowGroups for Logs {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        let cols = vec![
+        let chunk = Chunk::new(vec![
             arrow_take(address.as_ref(), &indices).unwrap(),
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(block_number.as_ref(), &indices).unwrap(),
@@ -474,46 +440,9 @@ impl IntoRowGroups for Logs {
             arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
-        ];
-        let chunks = (0..self.len())
-            .step_by(50000)
-            .map(|start| {
-                let cols = cols
-                    .iter()
-                    .map(|arr| {
-                        let end = std::cmp::min(arr.len(), start + 500);
-                        arr.slice(start, end)
-                    })
-                    .collect();
+        ]);
 
-                Ok(Chunk::new(cols))
-            })
-            .collect::<Vec<_>>();
-
-        let schema = log_schema();
-
-        let row_groups = RowGroupIterator::try_new(
-            chunks.into_iter(),
-            &schema,
-            options(),
-            vec![
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::Plain,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-                Encoding::DeltaLengthByteArray,
-            ],
-        )
-        .unwrap();
-
-        (row_groups, schema, options())
+        chunk
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
@@ -539,12 +468,50 @@ impl IntoRowGroups for Logs {
     fn len(&self) -> usize {
         self.len
     }
+
+    fn encoding() -> Vec<Encoding> {
+        vec![
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::Plain,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::Plain,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+            Encoding::DeltaLengthByteArray,
+        ]
+    }
+
+    fn schema() -> Schema {
+        log_schema()
+    }
 }
 
 pub trait IntoRowGroups: Default {
     type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized;
 
-    fn into_row_groups(self) -> (RowGroups, Schema, WriteOptions);
+    fn encoding() -> Vec<Encoding>;
+    fn schema() -> Schema;
+    fn into_chunk(self) -> Chunk;
+    fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
+        let row_groups = RowGroupIterator::try_new(
+            elems
+                .into_iter()
+                .map(|elem| Ok(Self::into_chunk(elem)))
+                .collect::<Vec<_>>()
+                .into_iter(),
+            &Self::schema(),
+            options(),
+            Self::encoding(),
+        )
+        .unwrap();
+
+        (row_groups, Self::schema(), options())
+    }
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {

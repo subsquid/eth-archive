@@ -32,12 +32,24 @@ async fn main() {
     let client = EthClient::new(config.eth_rpc_url).unwrap();
     let client = Arc::new(client);
 
-    let block_writer: ParquetWriter<Blocks> =
-        ParquetWriter::new(BLOCK, &config.data_path, config.block.block_write_threshold);
-    let tx_writer: ParquetWriter<Transactions> =
-        ParquetWriter::new(TX, &config.data_path, config.block.tx_write_threshold);
-    let log_writer: ParquetWriter<Logs> =
-        ParquetWriter::new(LOG, &config.data_path, config.log.log_write_threshold);
+    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new(
+        BLOCK,
+        &config.data_path,
+        config.block.block_row_group_size,
+        config.block.block_write_threshold,
+    );
+    let tx_writer: ParquetWriter<Transactions> = ParquetWriter::new(
+        TX,
+        &config.data_path,
+        config.block.tx_row_group_size,
+        config.block.tx_write_threshold,
+    );
+    let log_writer: ParquetWriter<Logs> = ParquetWriter::new(
+        LOG,
+        &config.data_path,
+        config.log.log_row_group_size,
+        config.log.log_write_threshold,
+    );
 
     let cf_handle = db.cf_handle(BLOCK).unwrap();
     let next_block_num = match db
