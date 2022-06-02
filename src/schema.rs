@@ -144,41 +144,35 @@ impl IntoRowGroups for Blocks {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        const ROW_GROUP_SIZE: usize = 500;
-        let self_len = self.len();
-        let chunks = (0..self_len)
-            .step_by(ROW_GROUP_SIZE)
+        let cols = vec![
+            arrow_take(number.as_ref(), &indices).unwrap(),
+            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.miner.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.difficulty.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
+        ];
+        let chunks = (0..self.len())
+            .step_by(500)
             .map(|start| {
-                let slice = |arr: Box<dyn Array>| {
-                    let len = if start + ROW_GROUP_SIZE > self_len {
-                        self_len - start
-                    } else {
-                        ROW_GROUP_SIZE
-                    };
-                    arr.slice(start, len)
-                };
-
-                let cols = vec![
-                    arrow_take(number.as_ref(), &indices).unwrap(),
-                    arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.miner.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.difficulty.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
-                ];
-
-                let cols = cols.into_iter().map(slice).collect();
+                let cols = cols
+                    .iter()
+                    .map(|arr| {
+                        let end = std::cmp::min(arr.len(), start + 500);
+                        arr.slice(start, end)
+                    })
+                    .collect();
 
                 Ok(Chunk::new(cols))
             })
@@ -312,38 +306,33 @@ impl IntoRowGroups for Transactions {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        const ROW_GROUP_SIZE: usize = 50000;
-        let self_len = self.len();
-        let chunks = (0..self_len)
-            .step_by(ROW_GROUP_SIZE)
+        let cols = vec![
+            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(block_number.as_ref(), &indices).unwrap(),
+            arrow_take(from.as_ref(), &indices).unwrap(),
+            arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.to.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+            arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
+        ];
+
+        let chunks = (0..self.len())
+            .step_by(50000)
             .map(|start| {
-                let slice = |arr: Box<dyn Array>| {
-                    let len = if start + ROW_GROUP_SIZE > self_len {
-                        self_len - start
-                    } else {
-                        ROW_GROUP_SIZE
-                    };
-                    arr.slice(start, len)
-                };
-
-                let cols = vec![
-                    arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(block_number.as_ref(), &indices).unwrap(),
-                    arrow_take(from.as_ref(), &indices).unwrap(),
-                    arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.to.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(transaction_index.as_ref(), &indices).unwrap(),
-                    arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
-                ];
-
-                let cols = cols.into_iter().map(slice).collect();
+                let cols = cols
+                    .iter()
+                    .map(|arr| {
+                        let end = std::cmp::min(arr.len(), start + 500);
+                        arr.slice(start, end)
+                    })
+                    .collect();
 
                 Ok(Chunk::new(cols))
             })
@@ -472,36 +461,30 @@ impl IntoRowGroups for Logs {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        const ROW_GROUP_SIZE: usize = 50000;
-        let self_len = self.len();
-        let chunks = (0..self_len)
-            .step_by(ROW_GROUP_SIZE)
+        let cols = vec![
+            arrow_take(address.as_ref(), &indices).unwrap(),
+            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(block_number.as_ref(), &indices).unwrap(),
+            arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic0.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic1.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic2.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+        ];
+        let chunks = (0..self.len())
+            .step_by(50000)
             .map(|start| {
-                let slice = |arr: Box<dyn Array>| {
-                    let len = if start + ROW_GROUP_SIZE > self_len {
-                        self_len - start
-                    } else {
-                        ROW_GROUP_SIZE
-                    };
-                    arr.slice(start, len)
-                };
-
-                let cols = vec![
-                    arrow_take(address.as_ref(), &indices).unwrap(),
-                    arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(block_number.as_ref(), &indices).unwrap(),
-                    arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.topic0.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.topic1.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.topic2.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
-                    arrow_take(transaction_index.as_ref(), &indices).unwrap(),
-                ];
-
-                let cols = cols.into_iter().map(slice).collect();
+                let cols = cols
+                    .iter()
+                    .map(|arr| {
+                        let end = std::cmp::min(arr.len(), start + 500);
+                        arr.slice(start, end)
+                    })
+                    .collect();
 
                 Ok(Chunk::new(cols))
             })
