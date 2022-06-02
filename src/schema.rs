@@ -312,7 +312,7 @@ impl IntoRowGroups for Transactions {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        const ROW_GROUP_SIZE: usize = 500;
+        const ROW_GROUP_SIZE: usize = 50000;
         let self_len = self.len();
         let chunks = (0..self_len)
             .step_by(ROW_GROUP_SIZE)
@@ -472,7 +472,7 @@ impl IntoRowGroups for Logs {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        const ROW_GROUP_SIZE: usize = 500;
+        const ROW_GROUP_SIZE: usize = 50000;
         let self_len = self.len();
         let chunks = (0..self_len)
             .step_by(ROW_GROUP_SIZE)
