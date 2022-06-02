@@ -51,8 +51,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             while let Ok(elems) = rx.recv() {
                 let row = row_group.last_mut().unwrap();
 
-                let row = if row.len() == row_group_size {
-                    if row_group.len() * row_group_size >= threshold {
+                let row = if row.len() >= row_group_size {
+                    if row_group.iter().map(IntoRowGroups::len).sum::<usize>() >= threshold {
                         write_group(&mut row_group);
                     }
                     row_group.push(T::default());
