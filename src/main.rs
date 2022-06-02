@@ -127,6 +127,7 @@ async fn main() {
             }
 
             block_writer.join();
+            tx_writer.join();
         }
     });
 

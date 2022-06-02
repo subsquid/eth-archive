@@ -1,8 +1,5 @@
 use crate::{Error, Result};
-use arrow2::array::{
-    Array, MutableArray, MutableBooleanArray, MutableListArray, MutableUtf8Array, TryPush,
-    UInt64Vec,
-};
+use arrow2::array::{Array, MutableArray, MutableBooleanArray, MutableUtf8Array, UInt64Vec};
 use arrow2::chunk::Chunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
@@ -63,11 +60,10 @@ fn log_schema() -> Schema {
         Field::new("data", DataType::Utf8, false),
         Field::new("log_index", DataType::Utf8, false),
         Field::new("removed", DataType::Boolean, false),
-        Field::new(
-            "topics",
-            DataType::List(Box::new(Field::new("topic", DataType::Utf8, false))),
-            false,
-        ),
+        Field::new("topic0", DataType::Utf8, true),
+        Field::new("topic1", DataType::Utf8, true),
+        Field::new("topic2", DataType::Utf8, true),
+        Field::new("topic3", DataType::Utf8, true),
         Field::new("transaction_hash", DataType::Utf8, false),
         Field::new("transaction_index", DataType::Utf8, true),
     ])
@@ -77,7 +73,7 @@ fn options() -> WriteOptions {
     WriteOptions {
         write_statistics: true,
         compression: CompressionOptions::Snappy,
-        version: Version::V1,
+        version: Version::V2,
     }
 }
 
@@ -141,7 +137,7 @@ impl IntoRowGroups for Blocks {
             number.as_ref(),
             &SortOptions {
                 descending: false,
-                nulls_first: false,
+                nulls_first: true,
             },
             None,
         )
@@ -281,14 +277,14 @@ impl IntoRowGroups for Transactions {
                     values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: false,
+                        nulls_first: true,
                     }),
                 },
                 SortColumn {
                     values: transaction_index.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: false,
+                        nulls_first: true,
                     }),
                 },
             ],
@@ -377,7 +373,10 @@ pub struct Logs {
     pub data: MutableUtf8Array<i64>,
     pub log_index: MutableUtf8Array<i64>,
     pub removed: MutableBooleanArray,
-    pub topics: MutableListArray<i64, MutableUtf8Array<i32>>,
+    pub topic0: MutableUtf8Array<i64>,
+    pub topic1: MutableUtf8Array<i64>,
+    pub topic2: MutableUtf8Array<i64>,
+    pub topic3: MutableUtf8Array<i64>,
     pub transaction_hash: MutableUtf8Array<i64>,
     pub transaction_index: MutableUtf8Array<i64>,
     pub len: usize,
@@ -411,21 +410,21 @@ impl IntoRowGroups for Logs {
                     values: address.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: false,
+                        nulls_first: true,
                     }),
                 },
                 SortColumn {
                     values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: false,
+                        nulls_first: true,
                     }),
                 },
                 SortColumn {
                     values: transaction_index.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: false,
+                        nulls_first: true,
                     }),
                 },
             ],
@@ -441,7 +440,10 @@ impl IntoRowGroups for Logs {
             arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.topics.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic0.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic1.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic2.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
         ]);
@@ -459,7 +461,10 @@ impl IntoRowGroups for Logs {
                 Encoding::DeltaLengthByteArray,
                 Encoding::DeltaLengthByteArray,
                 Encoding::Plain,
-                Encoding::Plain,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
+                Encoding::DeltaLengthByteArray,
                 Encoding::DeltaLengthByteArray,
                 Encoding::DeltaLengthByteArray,
             ],
@@ -477,9 +482,10 @@ impl IntoRowGroups for Logs {
         self.data.push(Some(elem.data));
         self.log_index.push(Some(elem.log_index));
         self.removed.push(Some(elem.removed));
-        self.topics
-            .try_push(Some(elem.topics.into_iter().map(Some)))
-            .map_err(Error::PushRow)?;
+        self.topic0.push(elem.topics.get(0));
+        self.topic1.push(elem.topics.get(1));
+        self.topic2.push(elem.topics.get(2));
+        self.topic3.push(elem.topics.get(3));
         self.transaction_hash.push(Some(elem.transaction_hash));
         self.transaction_index.push(elem.transaction_index);
 

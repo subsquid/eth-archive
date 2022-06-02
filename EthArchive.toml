@@ -8,11 +8,11 @@ end_block = 11000000
 block_write_threshold = 1200000
 tx_write_threshold = 3300000
 batch_size = 50
-concurrency = 16
+concurrency = 100
 
 [log]
 log_write_threshold = 8000000
-batch_size = 10
+batch_size = 50
 concurrency = 100
 
 [retry]
