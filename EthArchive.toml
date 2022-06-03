@@ -6,15 +6,15 @@ end_block = 11000000
 
 [block]
 block_write_threshold = 1200000
-block_row_group_size = 120000
+block_row_group_size = 12000
 tx_write_threshold = 3300000
-tx_row_group_size = 330000
+tx_row_group_size = 33000
 batch_size = 50
 concurrency = 100
 
 [log]
 log_write_threshold = 8000000
-log_row_group_size = 800000
+log_row_group_size = 80000
 batch_size = 50
 concurrency = 100
 
