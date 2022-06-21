@@ -1,11 +1,11 @@
 use crate::schema::IntoRowGroups;
 use arrow2::io::parquet::write::*;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use crossbeam::channel;
 use std::{fs, mem};
 
 pub struct ParquetWriter<T: IntoRowGroups> {
-    tx: mpsc::Sender<Vec<T::Elem>>,
+    tx: channel::Sender<Vec<T::Elem>>,
     join_handle: std::thread::JoinHandle<()>,
 }
 
@@ -16,7 +16,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         row_group_size: usize,
         threshold: usize,
     ) -> Self {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = channel::unbounded();
 
         let name = name.into();
 
@@ -34,9 +34,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let row_group = mem::take(row_group);
                 let (row_groups, schema, options) = T::into_row_groups(row_group);
 
-                let mut path = path.clone();
-                path.push(format!("{}{}.parquet", &name, file_idx));
-                let file = fs::File::create(&path).unwrap();
+                let mut temp_path = path.clone();
+                temp_path.push(format!("{}{}.temp", &name, file_idx));
+                let file = fs::File::create(&temp_path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
                 writer.start().unwrap();
@@ -44,6 +44,10 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                     writer.write(group.unwrap()).unwrap();
                 }
                 writer.end(None).unwrap();
+
+                let mut final_path = path.clone();
+                final_path.push(format!("{}{}.parquet", &name, file_idx));
+                fs::rename(&temp_path, final_path).unwrap();
 
                 file_idx += 1;
             };

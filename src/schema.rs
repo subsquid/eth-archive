@@ -10,6 +10,7 @@ use arrow2::io::parquet::write::{
 };
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
+use rayon::iter::{ParallelIterator, IntoParallelIterator};
 
 type Chunk = ArrowChunk<Box<dyn Array>>;
 
@@ -491,7 +492,7 @@ impl IntoRowGroups for Logs {
     }
 }
 
-pub trait IntoRowGroups: Default {
+pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized;
 
     fn encoding() -> Vec<Encoding>;
@@ -500,7 +501,7 @@ pub trait IntoRowGroups: Default {
     fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
         let row_groups = RowGroupIterator::try_new(
             elems
-                .into_iter()
+                .into_par_iter()
                 .map(|elem| Ok(Self::into_chunk(elem)))
                 .collect::<Vec<_>>()
                 .into_iter(),
