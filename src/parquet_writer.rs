@@ -1,11 +1,11 @@
 use crate::schema::IntoRowGroups;
 use arrow2::io::parquet::write::*;
 use std::path::{Path, PathBuf};
-use crossbeam::channel;
 use std::{fs, mem};
+use tokio::sync::mpsc;
 
 pub struct ParquetWriter<T: IntoRowGroups> {
-    tx: channel::Sender<Vec<T::Elem>>,
+    tx: mpsc::Sender<Vec<T::Elem>>,
     join_handle: std::thread::JoinHandle<()>,
 }
 
@@ -16,7 +16,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         row_group_size: usize,
         threshold: usize,
     ) -> Self {
-        let (tx, rx) = channel::unbounded();
+        let (tx, mut rx) = mpsc::channel(512);
 
         let name = name.into();
 
@@ -52,7 +52,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 file_idx += 1;
             };
 
-            while let Ok(elems) = rx.recv() {
+            while let Some(elems) = rx.blocking_recv() {
                 let row = row_group.last_mut().unwrap();
 
                 let row = if row.len() >= row_group_size {
@@ -78,8 +78,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         Self { tx, join_handle }
     }
 
-    pub fn send(&self, elems: Vec<T::Elem>) {
-        self.tx.send(elems).unwrap();
+    pub async fn send(&self, elems: Vec<T::Elem>) {
+        self.tx.send(elems).await.unwrap();
     }
 
     pub fn join(self) {

@@ -127,9 +127,9 @@ async fn main() {
                         }
                     };
                     for block in batch.iter_mut() {
-                        tx_writer.send(mem::take(&mut block.transactions));
+                        tx_writer.send(mem::take(&mut block.transactions)).await;
                     }
-                    block_writer.send(batch);
+                    block_writer.send(batch).await;
                 }
                 println!(
                     "BLOCK/TX WRITER: processed {} blocks in {} ms",
@@ -220,7 +220,7 @@ async fn main() {
                         }
                     };
 
-                    log_writer.send(batch);
+                    log_writer.send(batch).await;
                 }
                 println!(
                     "LOG WRITER: processed {} blocks in {} ms",

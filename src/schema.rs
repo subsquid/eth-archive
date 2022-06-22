@@ -8,9 +8,9 @@ use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
-use rayon::iter::{ParallelIterator, IntoParallelIterator};
 
 type Chunk = ArrowChunk<Box<dyn Array>>;
 
