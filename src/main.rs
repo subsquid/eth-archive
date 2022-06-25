@@ -13,6 +13,9 @@ const BLOCK: &str = "block";
 const TX: &str = "tx";
 const LOG: &str = "log";
 
+#[global_allocator]
+static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
+
 #[tokio::main]
 async fn main() {
     let config = fs::read_to_string("EthArchive.toml").unwrap();

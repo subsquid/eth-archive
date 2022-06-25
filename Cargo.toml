@@ -12,12 +12,17 @@ toml = "0.5.9"
 url = { version = "2.2.2", features = ["serde"] } 
 rocksdb = { version = "0.18.0", default-features = false }
 rayon = "1.5.3"
+snmalloc-rs = "0.3.3"
 
 [dependencies.arrow2]
 version = "0.11.2"
-features = [ "io_parquet", "io_parquet_compression", "compute" ]
+features = [ "io_parquet", "io_parquet_compression", "compute", "simd" ]
 
 [dependencies.reqwest]
 version = "0.11.10"
 default-features = false
 features = ["json", "rustls-tls", "gzip"]
+
+[profile.release]
+lto = true
+codegen-units = 1
