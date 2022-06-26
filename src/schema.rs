@@ -144,7 +144,7 @@ impl IntoRowGroups for Blocks {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        let chunk = Chunk::new(vec![
+        Chunk::new(vec![
             arrow_take(number.as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
@@ -162,9 +162,7 @@ impl IntoRowGroups for Blocks {
             arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
-        ]);
-
-        chunk
+        ])
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
@@ -198,22 +196,22 @@ impl IntoRowGroups for Blocks {
     fn encoding() -> Vec<Encoding> {
         vec![
             Encoding::Plain,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
         ]
     }
 
@@ -290,7 +288,7 @@ impl IntoRowGroups for Transactions {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        let chunk = Chunk::new(vec![
+        Chunk::new(vec![
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(block_number.as_ref(), &indices).unwrap(),
             arrow_take(from.as_ref(), &indices).unwrap(),
@@ -305,9 +303,7 @@ impl IntoRowGroups for Transactions {
             arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
-        ]);
-
-        chunk
+        ])
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
@@ -338,20 +334,20 @@ impl IntoRowGroups for Transactions {
 
     fn encoding() -> Vec<Encoding> {
         vec![
-            Encoding::DeltaLengthByteArray,
             Encoding::Plain,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
         ]
     }
 
@@ -428,7 +424,7 @@ impl IntoRowGroups for Logs {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        let chunk = Chunk::new(vec![
+        Chunk::new(vec![
             arrow_take(address.as_ref(), &indices).unwrap(),
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(block_number.as_ref(), &indices).unwrap(),
@@ -441,9 +437,7 @@ impl IntoRowGroups for Logs {
             arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
-        ]);
-
-        chunk
+        ])
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
@@ -472,18 +466,18 @@ impl IntoRowGroups for Logs {
 
     fn encoding() -> Vec<Encoding> {
         vec![
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
             Encoding::Plain,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
             Encoding::Plain,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
-            Encoding::DeltaLengthByteArray,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
+            Encoding::Plain,
         ]
     }
 
