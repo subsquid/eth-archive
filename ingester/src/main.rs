@@ -7,7 +7,7 @@ async fn main() {
 
     let options = Options::parse();
 
-    let _ingester = match Ingester::from_cfg_path(&options, "EthIngester.toml").await {
+    let _ingester = match Ingester::new(&options).await {
         Ok(ingester) => ingester,
         Err(e) => {
             log::error!("failed to create ingester:\n{}", e);
