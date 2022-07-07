@@ -87,7 +87,7 @@ async fn init_schema(session: &Session) -> Result<()> {
             gas blob,
             input blob,
             v blob,
-            standard_v BOOLEAN,
+            standard_v boolean,
             r blob,
             raw blob,
             public_key blob,
@@ -104,7 +104,7 @@ async fn init_schema(session: &Session) -> Result<()> {
         .query(
             "
         CREATE TABLE IF NOT EXISTS eth.log (
-            removed BOOLEAN,
+            removed boolean,
             log_index blob,
             transaction_index blob,
             transaction_hash blob,
