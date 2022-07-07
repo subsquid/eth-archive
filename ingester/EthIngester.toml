@@ -1,0 +1,5 @@
+[db]
+known_nodes = [
+    "localhost:9042",
+]
+compression = "Lz4"
