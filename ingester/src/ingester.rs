@@ -6,6 +6,7 @@ use crate::{Error, Result};
 pub struct Ingester {
     db_handle: DbHandle,
     cfg: IngestConfig,
+    rpc_client: RpcClient,
 }
 
 impl Ingester {
@@ -27,6 +28,22 @@ impl Ingester {
     }
 
     pub async fn run(&self) -> Result<()> {
-        todo!()
+        let from_block = self.initial_sync().await?;
+        todo!();
+    }
+
+    pub async fn initial_sync(&self) -> Result<u64> {
+        let from_block =  match self.cfg.from_block {
+            Some(from_block) => from_block,
+            None => self.last_synched_block().await?,
+        };
+        let to_block = match self.cfg.to_block {
+            Some(to_block) => to_block,
+            None => self.rpc_client.get_bestblock().await?,
+        };
+    }
+
+    pub async fn last_synched_block(&self) -> Result<u64> {
+        
     }
 }
