@@ -18,6 +18,8 @@ pub enum Error {
     CreateKeyspace(scylla::transport::errors::QueryError),
     #[error("failed to create table:\n{0}")]
     CreateTable(scylla::transport::errors::QueryError),
+    #[error("failed to create index:\n{0}")]
+    CreateIndex(scylla::transport::errors::QueryError),
 }
 
 pub type Result<T> = StdResult<T, Error>;
