@@ -1,5 +1,6 @@
 use clap::Parser;
 use eth_archive_ingester::{Ingester, Options};
+use std::process;
 
 #[tokio::main]
 async fn main() {
@@ -7,11 +8,16 @@ async fn main() {
 
     let options = Options::parse();
 
-    let _ingester = match Ingester::new(&options).await {
+    let ingester = match Ingester::new(&options).await {
         Ok(ingester) => ingester,
         Err(e) => {
             log::error!("failed to create ingester:\n{}", e);
-            return;
+            process::abort();
         }
     };
+
+    if let Err(e) = ingester.run().await {
+        log::error!("failed to run ingester:\n{}", e);
+        process::abort();
+    }
 }

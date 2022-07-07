@@ -1,10 +1,11 @@
-use crate::config::Config;
+use crate::config::{Config, IngestConfig};
 use crate::db::DbHandle;
 use crate::options::Options;
 use crate::{Error, Result};
 
 pub struct Ingester {
     db_handle: DbHandle,
+    cfg: IngestConfig,
 }
 
 impl Ingester {
@@ -19,6 +20,13 @@ impl Ingester {
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
 
-        Ok(Self { db_handle })
+        Ok(Self {
+            db_handle,
+            cfg: config.ingest,
+        })
+    }
+
+    pub async fn run(&self) -> Result<()> {
+        todo!()
     }
 }
