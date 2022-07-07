@@ -3,3 +3,9 @@ known_nodes = [
     "localhost:9042",
 ]
 connection_compression = "Lz4"
+
+[ingest]
+eth_rpc_url = "http://195.201.56.33:8545"
+tx_batch_size = 50
+log_batch_size = 50
+http_req_concurrency = 100

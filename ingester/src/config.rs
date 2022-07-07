@@ -4,17 +4,18 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct Config {
     pub db: DbConfig,
+    pub ingest: IngestConfig,
 }
 
 #[derive(Deserialize)]
 pub struct DbConfig {
-    pub auth: Option<Auth>,
+    pub auth: Option<DbAuth>,
     pub connection_compression: Option<Compression>,
     pub known_nodes: Vec<String>,
 }
 
 #[derive(Deserialize)]
-pub struct Auth {
+pub struct DbAuth {
     pub username: String,
     pub password: String,
 }
@@ -32,4 +33,14 @@ impl From<Compression> for ScyllaCompression {
             Compression::Snappy => ScyllaCompression::Snappy,
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct IngestConfig {
+    pub eth_rpc_url: String,
+    pub from_block: Option<u64>,
+    pub to_block: Option<u64>,
+    pub tx_batch_size: usize,
+    pub log_batch_size: usize,
+    pub http_req_concurrency: usize,
 }
