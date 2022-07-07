@@ -11,7 +11,7 @@ impl DbHandle {
     pub async fn new(cfg: &DbConfig) -> Result<Self> {
         let mut session = SessionBuilder::new()
             .known_nodes(&cfg.known_nodes)
-            .compression(cfg.compression.map(Into::into));
+            .compression(cfg.connection_compression.map(Into::into));
 
         if let Some(auth) = &cfg.auth {
             session = session.user(&auth.username, &auth.password);

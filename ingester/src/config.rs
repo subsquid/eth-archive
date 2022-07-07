@@ -9,7 +9,7 @@ pub struct Config {
 #[derive(Deserialize)]
 pub struct DbConfig {
     pub auth: Option<Auth>,
-    pub compression: Option<Compression>,
+    pub connection_compression: Option<Compression>,
     pub known_nodes: Vec<String>,
 }
 
