@@ -1,4 +1,5 @@
 use crate::config::DbConfig;
+use crate::options::Options;
 use crate::{Error, Result};
 
 use scylla::{Session, SessionBuilder};
@@ -8,7 +9,7 @@ pub struct DbHandle {
 }
 
 impl DbHandle {
-    pub async fn new(cfg: &DbConfig) -> Result<Self> {
+    pub async fn new(options: &Options, cfg: &DbConfig) -> Result<Self> {
         let mut session = SessionBuilder::new()
             .known_nodes(&cfg.known_nodes)
             .compression(cfg.connection_compression.map(Into::into));
@@ -19,12 +20,32 @@ impl DbHandle {
 
         let session = session.build().await.map_err(Error::BuildDbSession)?;
 
+        if options.reset_db {
+            reset_db(&session)
+                .await
+                .map_err(|e| Error::ResetDb(Box::new(e)))?;
+        }
+
         init_schema(&session)
             .await
             .map_err(|e| Error::InitSchema(Box::new(e)))?;
 
         Ok(Self { session })
     }
+}
+
+async fn reset_db(session: &Session) -> Result<()> {
+    session
+        .query(
+            "
+        DROP KEYSPACE IF EXISTS eth;
+    ",
+            &[],
+        )
+        .await
+        .map_err(Error::DropEthKeyspace)?;
+
+    Ok(())
 }
 
 async fn init_schema(session: &Session) -> Result<()> {

@@ -14,6 +14,8 @@ pub enum Error {
     BuildDbSession(scylla::transport::errors::NewSessionError),
     #[error("failed to initialize database schema:\n{0}")]
     InitSchema(Box<Error>),
+    #[error("failed to reset database:\n{0}")]
+    ResetDb(Box<Error>),
     #[error("failed to create keyspace:\n{0}")]
     CreateKeyspace(scylla::transport::errors::QueryError),
     #[error("failed to create block table:\n{0}")]
@@ -22,6 +24,8 @@ pub enum Error {
     CreateTxTable(scylla::transport::errors::QueryError),
     #[error("failed to create log table:\n{0}")]
     CreateLogTable(scylla::transport::errors::QueryError),
+    #[error("failed to drop eth keyspace:\n{0}")]
+    DropEthKeyspace(scylla::transport::errors::QueryError),
 }
 
 pub type Result<T> = StdResult<T, Error>;

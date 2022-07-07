@@ -8,4 +8,7 @@ scylla = "0.4"
 serde = { version = "1", features = ["derive"] }
 toml = "0.5.9"
 tokio = { version = "1", features = ["full"] }
-thiserror = "1.0.31"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.9"
+clap = { version = "3", features = ["derive"] }
