@@ -34,7 +34,7 @@ async fn init_schema(session: &Session) -> Result<()> {
         CREATE KEYSPACE IF NOT EXISTS eth WITH REPLICATION = {
             'class': 'SimpleStrategy',
             'replication_factor': 1
-        };
+        }
     ",
             &[],
         )
@@ -45,111 +45,84 @@ async fn init_schema(session: &Session) -> Result<()> {
         .query(
             "
         CREATE TABLE IF NOT EXISTS eth.block (
-            number BIGINT NOT NULL,
-            hash BLOB NOT NULL,
-            parent_hash BLOB NOT NULL,
-            nonce BLOB NOT NULL,
-            sha3_uncles BLOB NOT NULL,
-            logs_bloom BLOB NOT NULL,
-            transactions_root BLOB NOT NULL,
-            state_root BLOB NOT NULL,
-            receipts_root BLOB NOT NULL,
-            miner BLOB NOT NULL,
-            difficulty BLOB NOT NULL,
-            total_difficulty BLOB NOT NULL,
-            extradata BLOB NOT NULL,
-            size BIGINT NOT NULL,
-            gas_limit BLOB NOT NULL,
-            gas_used BLOB NOT NULL,
-            timestamp BIGINT NOT NULL,
-            uncles BLOB NOT NULL
-        );
+            number bigint,
+            hash blob,
+            parent_hash blob,
+            nonce blob,
+            sha3_uncles blob,
+            logs_bloom blob,
+            transactions_root blob,
+            state_root blob,
+            receipts_root blob,
+            miner blob,
+            difficulty blob,
+            total_difficulty blob,
+            extradata blob,
+            size bigint,
+            gas_limit blob,
+            gas_used blob,
+            timestamp bigint,
+            uncles blob,
+            PRIMARY KEY (number)
+        )
     ",
             &[],
         )
         .await
-        .map_err(Error::CreateTable)?;
-
-    session
-        .query(
-            "
-        CREATE INDEX IF NOT EXISTS ON eth.block(number);
-    ",
-            &[],
-        )
-        .await
-        .map_err(Error::CreateTable)?;
+        .map_err(Error::CreateBlockTable)?;
 
     session
         .query(
             "
         CREATE TABLE IF NOT EXISTS eth.tx (
-            hash BLOB NOT NULL,
-            nonce BLOB NOT NULL,
-            block_hash BLOB NOT NULL,
-            block_number BIGINT NOT NULL,
-            transaction_index BLOB NOT NULL,
-            from BLOB NOT NULL,
-            to BLOB,
-            value BLOB NOT NULL,
-            gas_price BLOB NOT NULL,
-            gas BLOB NOT NULL,
-            input BLOB NOT NULL,
-            v BLOB NOT NULL,
-            standard_v BOOLEAN NOT NULL,
-            r BLOB NOT NULL,
-            raw BLOB NOT NULL,
-            public_key BLOB NOT NULL,
-            chain_id BLOB NOT NULL
-        );
+            hash blob,
+            nonce blob,
+            block_hash blob,
+            block_number bigint,
+            transaction_index blob,
+            sender blob,
+            receiver blob,
+            value blob,
+            gas_price blob,
+            gas blob,
+            input blob,
+            v blob,
+            standard_v BOOLEAN,
+            r blob,
+            raw blob,
+            public_key blob,
+            chain_id blob,
+            PRIMARY KEY (block_number, transaction_index)
+        )
     ",
             &[],
         )
         .await
-        .map_err(Error::CreateTable)?;
-
-    session
-        .query(
-            "
-        CREATE INDEX IF NOT EXISTS ON eth.tx(block_number);
-    ",
-            &[],
-        )
-        .await
-        .map_err(Error::CreateTable)?;
+        .map_err(Error::CreateTxTable)?;
 
     session
         .query(
             "
         CREATE TABLE IF NOT EXISTS eth.log (
-            removed BOOLEAN NOT NULL,
-            log_index BLOB NOT NULL,
-            transaction_index BLOB NOT NULL,
-            transaction_hash BLOB NOT NULL,
-            block_hash BLOB NOT NULL,
-            block_number BIGINT NOT NULL,
-            address BLOB NOT NULL,
-            data BLOB NOT NULL,
-            topic0 BLOB,
-            topic1 BLOB,
-            topic2 BLOB,
-            topic3 BLOB
+            removed BOOLEAN,
+            log_index blob,
+            transaction_index blob,
+            transaction_hash blob,
+            block_hash blob,
+            block_number bigint,
+            address blob,
+            data blob,
+            topic0 blob,
+            topic1 blob,
+            topic2 blob,
+            topic3 blob,
+            PRIMARY KEY (block_number, log_index)
         );
     ",
             &[],
         )
         .await
-        .map_err(Error::CreateTable)?;
-
-    session
-        .query(
-            "
-        CREATE INDEX IF NOT EXISTS ON eth.log(block_number);
-    ",
-            &[],
-        )
-        .await
-        .map_err(Error::CreateTable)?;
+        .map_err(Error::CreateLogTable)?;
 
     Ok(())
 }

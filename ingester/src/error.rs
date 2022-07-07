@@ -16,10 +16,12 @@ pub enum Error {
     InitSchema(Box<Error>),
     #[error("failed to create keyspace:\n{0}")]
     CreateKeyspace(scylla::transport::errors::QueryError),
-    #[error("failed to create table:\n{0}")]
-    CreateTable(scylla::transport::errors::QueryError),
-    #[error("failed to create index:\n{0}")]
-    CreateIndex(scylla::transport::errors::QueryError),
+    #[error("failed to create block table:\n{0}")]
+    CreateBlockTable(scylla::transport::errors::QueryError),
+    #[error("failed to create transaction table:\n{0}")]
+    CreateTxTable(scylla::transport::errors::QueryError),
+    #[error("failed to create log table:\n{0}")]
+    CreateLogTable(scylla::transport::errors::QueryError),
 }
 
 pub type Result<T> = StdResult<T, Error>;
