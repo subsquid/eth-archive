@@ -34,7 +34,7 @@ async fn init_schema(session: &Session) -> Result<()> {
         CREATE KEYSPACE IF NOT EXISTS eth WITH REPLICATION = {
             'class': 'SimpleStrategy',
             'replication_factor': 1
-        }
+        };
     ",
             &[],
         )
@@ -64,7 +64,7 @@ async fn init_schema(session: &Session) -> Result<()> {
             timestamp bigint,
             uncles blob,
             PRIMARY KEY (number)
-        )
+        );
     ",
             &[],
         )
@@ -93,7 +93,7 @@ async fn init_schema(session: &Session) -> Result<()> {
             public_key blob,
             chain_id blob,
             PRIMARY KEY (block_number, transaction_index)
-        )
+        );
     ",
             &[],
         )
