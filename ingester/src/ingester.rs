@@ -1,7 +1,9 @@
 use crate::config::{Config, IngestConfig};
 use crate::db::DbHandle;
 use crate::eth_client::EthClient;
+use crate::eth_request::{GetBestBlock, GetBlockByNumber};
 use crate::options::Options;
+use crate::retry::Retry;
 use crate::{Error, Result};
 use std::cmp;
 use std::sync::Arc;
@@ -56,7 +58,7 @@ impl Ingester {
         let retry = Arc::new(Retry::new(self.cfg.retry));
 
         let step = self.cfg.http_req_concurrency * self.cfg.tx_batch_size;
-        for block_number in (from_block..to_block).step_by(step) {
+        for block_num in (from_block..to_block).step_by(step) {
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.tx_batch_size;
 
@@ -85,7 +87,7 @@ impl Ingester {
             let group = futures::future::join_all(group).await;
 
             for batch in group {
-                let mut batch = match batch {
+                let mut batch = match batch.await {
                     Ok(batch) => batch,
                     Err(e) => {
                         log::error!("failed batch block req: {:#?}", e);
@@ -96,5 +98,7 @@ impl Ingester {
                 retry.retry(self.db.insert_blocks(batch)).await?;
             }
         }
+
+        Ok(to_block)
     }
 }

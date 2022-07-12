@@ -1,8 +1,10 @@
 use crate::config::DbConfig;
 use crate::options::Options;
+use crate::schema::Block;
 use crate::{Error, Result};
+use scylla::frame::value::Value as ScyllaValue;
 
-use scylla::statement::batch::Batch;
+use scylla::statement::batch::{Batch, BatchType};
 use scylla::statement::prepared_statement::PreparedStatement;
 use scylla::{Session, SessionBuilder};
 
@@ -16,7 +18,7 @@ struct Queries {
 }
 
 impl Queries {
-    async fn new(session: Session) -> Result<Self> {
+    async fn new(session: &Session) -> Result<Self> {
         let insert_block = session
             .prepare(
                 "
@@ -33,7 +35,7 @@ impl Queries {
                 miner,
                 difficulty,
                 total_difficulty,
-                extradata,
+                extra_data,
                 size,
                 gas_limit,
                 gas_used,
@@ -45,7 +47,7 @@ impl Queries {
             .await
             .map_err(Error::PrepareInsertBlockStatement)?;
 
-        Self { insert_block }
+        Ok(Self { insert_block })
     }
 }
 
@@ -95,39 +97,42 @@ impl DbHandle {
     }
 
     pub async fn insert_blocks(&self, blocks: Vec<Block>) -> Result<()> {
-        let batch = Batch::new();
+        let batch = Batch::new(BatchType::Unlogged);
 
         for _ in 0..blocks.len() {
-            batch.append(self.queries.insert_block.clone())
+            batch.append_statement(self.queries.insert_block.clone())
         }
 
         let batch_values = blocks
             .into_iter()
-            .map(|block| {
-                (
-                    block.number,
-                    block.hash,
-                    block.parent_hash,
-                    block.nonce,
-                    block.sha3_uncles,
-                    block.logs_bloom,
-                    block.transactions_root,
-                    block.state_root,
-                    block.receipts_root,
-                    block.miner,
-                    block.difficulty,
-                    block.total_difficulty,
-                    block.extradata,
-                    block.size,
-                    block.gas_limit,
-                    block.gas_used,
-                    block.timestamp,
-                    block.uncles,
-                )
+            .map(|block| -> Vec<Box<dyn ScyllaValue>> {
+                vec![
+                    Box::new(block.number),
+                    Box::new(block.hash),
+                    Box::new(block.parent_hash),
+                    Box::new(block.nonce),
+                    Box::new(block.sha3_uncles),
+                    Box::new(block.logs_bloom),
+                    Box::new(block.transactions_root),
+                    Box::new(block.state_root),
+                    Box::new(block.receipts_root),
+                    Box::new(block.miner),
+                    Box::new(block.difficulty),
+                    Box::new(block.total_difficulty),
+                    Box::new(block.extra_data),
+                    Box::new(block.size),
+                    Box::new(block.gas_limit),
+                    Box::new(block.gas_used),
+                    Box::new(block.timestamp),
+                    Box::new(block.uncles),
+                ]
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        self.session.batch().await.map_err(Error::InsertBlocks)?;
+        self.session
+            .batch(&batch, batch_values)
+            .await
+            .map_err(Error::InsertBlocks)?;
 
         Ok(())
     }
@@ -177,7 +182,7 @@ async fn init_schema(session: &Session) -> Result<()> {
             miner blob,
             difficulty blob,
             total_difficulty blob,
-            extradata blob,
+            extra_data blob,
             size bigint,
             gas_limit blob,
             gas_used blob,

@@ -213,14 +213,17 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "env_logger",
+ "futures",
  "hex",
  "log",
  "reqwest",
  "scylla",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "toml",
+ "url",
 ]
 
 [[package]]
@@ -1341,6 +1344,7 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
@@ -19,6 +21,7 @@ pub struct Block {
     pub gas_used: String,
     pub timestamp: String,
     pub transactions: Vec<Transaction>,
+    pub uncles: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

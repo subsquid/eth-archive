@@ -37,7 +37,7 @@ impl From<Compression> for ScyllaCompression {
 
 #[derive(Deserialize)]
 pub struct IngestConfig {
-    pub eth_rpc_url: String,
+    pub eth_rpc_url: url::Url,
     pub from_block: Option<u64>,
     pub to_block: Option<u64>,
     pub tx_batch_size: usize,
@@ -48,7 +48,6 @@ pub struct IngestConfig {
 
 #[derive(Deserialize, Clone, Copy)]
 pub struct RetryConfig {
-    num_tries: Option<usize>,
-    #[serde(default = "3")]
-    secs_between_tries: usize,
+    pub num_tries: Option<usize>,
+    pub secs_between_tries: u64,
 }
