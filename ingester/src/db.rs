@@ -2,10 +2,51 @@ use crate::config::DbConfig;
 use crate::options::Options;
 use crate::{Error, Result};
 
+use scylla::statement::batch::Batch;
+use scylla::statement::prepared_statement::PreparedStatement;
 use scylla::{Session, SessionBuilder};
 
 pub struct DbHandle {
     session: Session,
+    queries: Queries,
+}
+
+struct Queries {
+    insert_block: PreparedStatement,
+}
+
+impl Queries {
+    async fn new(session: Session) -> Result<Self> {
+        let insert_block = session
+            .prepare(
+                "
+            INSERT INTO eth.block (
+                number,
+                hash,
+                parent_hash,
+                nonce,
+                sha3_uncles,
+                logs_bloom,
+                transactions_root,
+                state_root,
+                receipts_root,
+                miner,
+                difficulty,
+                total_difficulty,
+                extradata,
+                size,
+                gas_limit,
+                gas_used,
+                timestamp,
+                uncles
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ",
+            )
+            .await
+            .map_err(Error::PrepareInsertBlockStatement)?;
+
+        Self { insert_block }
+    }
 }
 
 impl DbHandle {
@@ -30,7 +71,65 @@ impl DbHandle {
             .await
             .map_err(|e| Error::InitSchema(Box::new(e)))?;
 
-        Ok(Self { session })
+        let queries = Queries::new(&session).await?;
+
+        Ok(Self { session, queries })
+    }
+
+    pub async fn get_max_block_number(&self) -> Result<Option<u64>> {
+        let res = self
+            .session
+            .query("SELECT MAX(number) from block;", &[])
+            .await
+            .map_err(|e| Error::GetMaxBlockNumber(Box::new(e)))?;
+        let (num,) = res
+            .single_row_typed::<(Option<i64>,)>()
+            .map_err(|e| Error::GetMaxBlockNumber(Box::new(e)))?;
+        match num {
+            Some(num) => {
+                let num = u64::try_from(num).map_err(|e| Error::GetMaxBlockNumber(Box::new(e)))?;
+                Ok(Some(num))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn insert_blocks(&self, blocks: Vec<Block>) -> Result<()> {
+        let batch = Batch::new();
+
+        for _ in 0..blocks.len() {
+            batch.append(self.queries.insert_block.clone())
+        }
+
+        let batch_values = blocks
+            .into_iter()
+            .map(|block| {
+                (
+                    block.number,
+                    block.hash,
+                    block.parent_hash,
+                    block.nonce,
+                    block.sha3_uncles,
+                    block.logs_bloom,
+                    block.transactions_root,
+                    block.state_root,
+                    block.receipts_root,
+                    block.miner,
+                    block.difficulty,
+                    block.total_difficulty,
+                    block.extradata,
+                    block.size,
+                    block.gas_limit,
+                    block.gas_used,
+                    block.timestamp,
+                    block.uncles,
+                )
+            })
+            .collect();
+
+        self.session.batch().await.map_err(Error::InsertBlocks)?;
+
+        Ok(())
     }
 }
 

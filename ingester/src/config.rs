@@ -43,4 +43,12 @@ pub struct IngestConfig {
     pub tx_batch_size: usize,
     pub log_batch_size: usize,
     pub http_req_concurrency: usize,
+    pub retry: RetryConfig,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+pub struct RetryConfig {
+    num_tries: Option<usize>,
+    #[serde(default = "3")]
+    secs_between_tries: usize,
 }

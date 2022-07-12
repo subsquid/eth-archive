@@ -1,6 +1,9 @@
+use std::error::Error as StdError;
 use std::result::Result as StdResult;
 
 use thiserror::Error as ThisError;
+
+type Cause = Box<dyn StdError + Send + Sync>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -26,6 +29,12 @@ pub enum Error {
     CreateLogTable(scylla::transport::errors::QueryError),
     #[error("failed to drop eth keyspace:\n{0}")]
     DropEthKeyspace(scylla::transport::errors::QueryError),
+    #[error("failed to get maximum block number in database:\n{0}")]
+    GetMaxBlockNumber(Cause),
+    #[error("failed to get bestblock from ethereum node")]
+    GetBestBlock,
+    #[error("failed to build http client:\n{0}")]
+    BuildHttpClient,
 }
 
 pub type Result<T> = StdResult<T, Error>;
