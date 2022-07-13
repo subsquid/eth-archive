@@ -1,4 +1,3 @@
-use scylla::transport::Compression as ScyllaCompression;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -9,37 +8,18 @@ pub struct Config {
 
 #[derive(Deserialize)]
 pub struct DbConfig {
-    pub auth: Option<DbAuth>,
-    pub connection_compression: Option<Compression>,
-    pub known_nodes: Vec<String>,
-}
-
-#[derive(Deserialize)]
-pub struct DbAuth {
-    pub username: String,
+    pub user: String,
     pub password: String,
-}
-
-#[derive(Deserialize, Clone, Copy)]
-pub enum Compression {
-    Lz4,
-    Snappy,
-}
-
-impl From<Compression> for ScyllaCompression {
-    fn from(compression: Compression) -> ScyllaCompression {
-        match compression {
-            Compression::Lz4 => ScyllaCompression::Lz4,
-            Compression::Snappy => ScyllaCompression::Snappy,
-        }
-    }
+    pub dbname: String,
+    pub host: String,
+    pub port: u16,
 }
 
 #[derive(Deserialize)]
 pub struct IngestConfig {
     pub eth_rpc_url: url::Url,
-    pub from_block: Option<u64>,
-    pub to_block: Option<u64>,
+    pub from_block: Option<usize>,
+    pub to_block: Option<usize>,
     pub tx_batch_size: usize,
     pub log_batch_size: usize,
     pub http_req_concurrency: usize,

@@ -2,6 +2,7 @@ use crate::config::RetryConfig;
 use crate::Error;
 use std::future::Future;
 
+#[derive(Clone, Copy)]
 pub struct Retry {
     num_tries: Option<usize>,
     secs_between_tries: u64,

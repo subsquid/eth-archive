@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::eth_request::EthRequest;
+use crate::eth_request::{EthRequest, GetBestBlock};
 use serde_json::Value as JsonValue;
 
 pub struct EthClient {
@@ -101,5 +101,14 @@ impl EthClient {
             .collect();
 
         Ok(rpc_results)
+    }
+
+    pub async fn get_best_block(&self) -> Result<usize, Error> {
+        let num = self.send(GetBestBlock {}).await?;
+        let num = hex::decode(num).map_err(|e| Error::DecodeBlockNumber(Box::new(e)))?;
+        let num = num
+            .try_into()
+            .map_err(|e| Error::DecodeBlockNumber(Box::new(Error::UnexpectedArrayLength)))?;
+        Ok(usize::from_le_bytes(num))
     }
 }
