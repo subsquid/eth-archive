@@ -1,8 +1,16 @@
-version: '3'
+version: '3.7'
+
 services:
-  scylla:
-    image: "scylladb/scylla"
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=eth-archive-user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=eth-archive-db
     ports:
-     - "9042:9042"
+      - 5432:5432
     volumes:
-     - /var/lib/scylla:/var/lib/scylla
+      - eth_archive_data:/var/lib/postgresql/data
+
+volumes:
+  eth_archive_data:

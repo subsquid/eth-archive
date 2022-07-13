@@ -1,26 +1,26 @@
 CREATE TABLE eth_block (
     row_id BIGSERIAL PRIMARY KEY,
     number bigint,
-    hash blob,
-    parent_hash blob,
-    nonce blob,
-    sha3_uncles blob,
-    logs_bloom blob,
-    transactions_root blob,
-    state_root blob,
-    receipts_root blob,
-    miner blob,
-    difficulty blob,
-    total_difficulty blob,
-    extra_data blob,
+    hash bytea,
+    parent_hash bytea,
+    nonce bytea,
+    sha3_uncles bytea,
+    logs_bloom bytea,
+    transactions_root bytea,
+    state_root bytea,
+    receipts_root bytea,
+    miner bytea,
+    difficulty bytea,
+    total_difficulty bytea,
+    extra_data bytea,
     size bigint,
-    gas_limit blob,
-    gas_used blob,
+    gas_limit bytea,
+    gas_used bytea,
     timestamp bigint,
-    uncles blob
+    uncles bytea
 );
 
-CREATE TABLE IF NOT EXISTS eth_tx (
+CREATE TABLE eth_tx (
     row_id BIGSERIAL PRIMARY KEY,
     hash bytea,
     nonce bytea,
@@ -39,22 +39,22 @@ CREATE TABLE IF NOT EXISTS eth_tx (
     raw bytea,
     public_key bytea,
     chain_id bytea,
-    block_row_id BIGINT NOT NULL REFERENCES eth_block(row_id),
+    block_row_id BIGINT NOT NULL REFERENCES eth_block(row_id)
 );
 
-CREATE TABLE IF NOT EXISTS eth_log (
+CREATE TABLE eth_log (
     row_id BIGSERIAL PRIMARY KEY,
     removed boolean,
-    log_index blob,
-    transaction_index blob,
-    transaction_hash blob,
-    block_hash blob,
+    log_index bytea,
+    transaction_index bytea,
+    transaction_hash bytea,
+    block_hash bytea,
     block_number bigint,
-    address blob,
-    data blob,
-    topic0 blob,
-    topic1 blob,
-    topic2 blob,
-    topic3 blob,
-    block_row_id BIGINT NOT NULL REFERENCES eth_block(row_id),
+    address bytea,
+    data bytea,
+    topic0 bytea,
+    topic1 bytea,
+    topic2 bytea,
+    topic3 bytea,
+    block_row_id BIGINT NOT NULL REFERENCES eth_block(row_id)
 );

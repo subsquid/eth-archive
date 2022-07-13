@@ -1,8 +1,9 @@
 [db]
-known_nodes = [
-    "localhost:9042",
-]
-connection_compression = "Lz4"
+user = "eth-archive-user"
+password = "password"
+dbname = "eth-archive-db"
+host = "localhost"
+port = 5432
 
 [ingest]
 eth_rpc_url = "http://195.201.56.33:8545"

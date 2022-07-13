@@ -61,9 +61,25 @@ impl DbHandle {
 async fn reset_db(conn: &deadpool_postgres::Object) -> Result<()> {
     conn.execute(
         "
-        DROP TABLE IF EXISTS eth_log;
-        DROP TABLE IF EXISTS eth_tx;
-        DROP TABLE IF EXISTS eth_block;
+        DELETE FROM eth_log;
+    ",
+        &[],
+    )
+    .await
+    .map_err(Error::ResetDb)?;
+
+    conn.execute(
+        "
+        DELETE FROM eth_tx;
+    ",
+        &[],
+    )
+    .await
+    .map_err(Error::ResetDb)?;
+
+    conn.execute(
+        "
+        DELETE FROM eth_block;
     ",
         &[],
     )
