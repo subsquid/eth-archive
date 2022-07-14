@@ -17,10 +17,10 @@ pub enum Error {
     CreatePool(deadpool_postgres::CreatePoolError),
     #[error("failed to get a database connection from pool:\n{0}")]
     GetDbConnection(deadpool_postgres::PoolError),
-    #[error("failed to run database migrations:\n{0}")]
-    RunMigrations(refinery::Error),
     #[error("failed to reset database:\n{0}")]
     ResetDb(tokio_postgres::Error),
+    #[error("failed to initialize database tables:\n{0}")]
+    InitDb(tokio_postgres::Error),
     #[error("failed to get bestblock from ethereum node")]
     GetBestBlock,
     #[error("failed to build http client:\n{0}")]
@@ -35,12 +35,16 @@ pub enum Error {
     RpcResponseStatus(u16),
     #[error("failed to execute http request:\n{0}")]
     HttpRequest(reqwest::Error),
-    #[error("failed to insert blocks:\n{0:#?}")]
+    #[error("failed to insert blocks to database:\n{0:#?}")]
     InsertBlocks(Vec<Error>),
+    #[error("failed to insert a block to database:\n{0}")]
+    InsertBlock(tokio_postgres::Error),
     #[error("failed to decode block number:\n{0}")]
     DecodeBlockNumber(Cause),
     #[error("failed to execute database query:\n{0}")]
     DbQuery(tokio_postgres::Error),
+    #[error("failed to create database transaction:\n{0}")]
+    CreateDbTransaction(tokio_postgres::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
