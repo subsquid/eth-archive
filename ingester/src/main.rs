@@ -17,6 +17,5 @@ async fn main() {
 
     if let Err(e) = ingester.run().await {
         log::error!("failed to run ingester:\n{}", e);
-        return;
     }
 }

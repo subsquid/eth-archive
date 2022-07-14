@@ -50,7 +50,20 @@ impl DbHandle {
     }
 
     pub async fn get_max_block_number(&self) -> Result<Option<usize>> {
-        todo!();
+        let rows = self
+            .get_conn()
+            .await?
+            .query("SELECT MAX(number) from eth_block;", &[])
+            .await
+            .map_err(Error::DbQuery)?;
+        let row = match rows.get(0) {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+        match row.get::<_, Option<i64>>(0) {
+            Some(num) => Ok(Some(num as usize)),
+            None => Ok(None),
+        }
     }
 
     pub async fn insert_blocks(&self, blocks: Arc<[Block]>) -> Result<()> {
@@ -59,29 +72,12 @@ impl DbHandle {
 }
 
 async fn reset_db(conn: &deadpool_postgres::Object) -> Result<()> {
-    conn.execute(
+    conn.batch_execute(
         "
         DELETE FROM eth_log;
-    ",
-        &[],
-    )
-    .await
-    .map_err(Error::ResetDb)?;
-
-    conn.execute(
-        "
         DELETE FROM eth_tx;
-    ",
-        &[],
-    )
-    .await
-    .map_err(Error::ResetDb)?;
-
-    conn.execute(
-        "
         DELETE FROM eth_block;
     ",
-        &[],
     )
     .await
     .map_err(Error::ResetDb)?;

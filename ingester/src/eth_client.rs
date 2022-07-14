@@ -105,10 +105,11 @@ impl EthClient {
 
     pub async fn get_best_block(&self) -> Result<usize, Error> {
         let num = self.send(GetBestBlock {}).await?;
-        let num = hex::decode(num).map_err(|e| Error::DecodeBlockNumber(Box::new(e)))?;
-        let num = num
-            .try_into()
-            .map_err(|e| Error::DecodeBlockNumber(Box::new(Error::UnexpectedArrayLength)))?;
-        Ok(usize::from_le_bytes(num))
+        Ok(get_usize_from_hex(&num))
     }
+}
+
+fn get_usize_from_hex(hex: &str) -> usize {
+    let without_prefix = hex.trim_start_matches("0x");
+    usize::from_str_radix(without_prefix, 16).unwrap()
 }

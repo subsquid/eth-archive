@@ -21,7 +21,7 @@ impl EthRequest for GetBlockByNumber {
             "jsonrpc": "2.0",
             "method": "eth_getBlockByNumber",
             "params": [
-                hex::encode(self.block_number.to_le_bytes()),
+                block_number_to_hex(self.block_number),
                 true,
             ],
             "id": id,
@@ -44,8 +44,8 @@ impl EthRequest for GetLogs {
             "method": "eth_getLogs",
             "params": [
                 {
-                    "fromBlock": hex::encode(self.from_block.to_le_bytes()),
-                    "toBlock": hex::encode(self.to_block.to_le_bytes()),
+                    "fromBlock": block_number_to_hex(self.from_block),
+                    "toBlock": block_number_to_hex(self.to_block),
                 }
             ],
             "id": id,
@@ -66,4 +66,8 @@ impl EthRequest for GetBestBlock {
             "id": id,
         })
     }
+}
+
+fn block_number_to_hex(block_number: usize) -> String {
+    format!("0x{:x}", block_number)
 }

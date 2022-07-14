@@ -11,3 +11,4 @@ tx_batch_size = 50
 log_batch_size = 50
 http_req_concurrency = 100
 retry = { secs_between_tries = 3 }
+from_block = 10000000

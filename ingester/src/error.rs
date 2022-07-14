@@ -39,8 +39,8 @@ pub enum Error {
     InsertBlocks(Vec<Error>),
     #[error("failed to decode block number:\n{0}")]
     DecodeBlockNumber(Cause),
-    #[error("unexpected array length")]
-    UnexpectedArrayLength,
+    #[error("failed to execute database query:\n{0}")]
+    DbQuery(tokio_postgres::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
