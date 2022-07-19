@@ -111,7 +111,7 @@ impl DbHandle {
                     &*block.number,
                     &block.hash.as_slice(),
                     &block.parent_hash.as_slice(),
-                    &block.nonce.as_slice(),
+                    &block.nonce.0.to_be_bytes().as_slice(),
                     &block.sha3_uncles.as_slice(),
                     &block.logs_bloom.as_slice(),
                     &block.transactions_root.as_slice(),

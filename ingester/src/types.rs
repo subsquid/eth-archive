@@ -28,19 +28,18 @@ pub struct Block {
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub block_hash: Bytes32,
-    pub block_number: i64,
+    pub block_number: BigInt,
     pub from: Address,
-    pub gas: i64,
-    pub gas_price: i64,
+    pub gas: BigInt,
+    pub gas_price: BigInt,
     pub hash: Bytes32,
-    pub input: Vec<u8>,
+    pub input: Bytes,
     pub nonce: Nonce,
     pub to: Option<Address>,
-    pub transaction_index: Option<i64>,
-    pub value: Bytes32,
-    pub v: i64,
-    pub r: Bytes32,
-    pub s: Bytes32,
+    pub value: Bytes,
+    pub v: BigInt,
+    pub r: Bytes,
+    pub s: Bytes,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -48,14 +47,11 @@ pub struct Transaction {
 pub struct Log {
     pub address: Address,
     pub block_hash: Bytes32,
-    pub block_number: i64,
-    pub data: Vec<u8>,
-    pub log_index: i64,
+    pub block_number: BigInt,
+    pub data: Bytes,
+    pub log_index: BigInt,
     pub removed: bool,
-    pub topic0: Option<Bytes32>,
-    pub topic1: Option<Bytes32>,
-    pub topic2: Option<Bytes32>,
-    pub topic3: Option<Bytes32>,
+    pub topics: [Option<Bytes32>; 4],
     pub transaction_hash: Bytes32,
-    pub transaction_index: i64,
+    pub transaction_index: BigInt,
 }

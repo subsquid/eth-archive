@@ -8,8 +8,8 @@ pub struct Bytes32(pub Box<[u8; 32]>);
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct Address(pub Box<[u8; 20]>);
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct Nonce(pub Box<[u8; 8]>);
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+pub struct Nonce(pub u64);
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
@@ -33,7 +33,7 @@ impl<'de> Visitor<'de> for Bytes32Visitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 32] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf: [u8; 32] = prefix_hex::decode(value).unwrap();
 
         Ok(Box::new(buf).into())
     }
@@ -61,7 +61,7 @@ impl<'de> Visitor<'de> for AddressVisitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 20] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf: [u8; 20] = prefix_hex::decode(value).unwrap();
 
         Ok(Box::new(buf).into())
     }
@@ -89,9 +89,10 @@ impl<'de> Visitor<'de> for NonceVisitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 8] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let without_prefix = value.trim_start_matches("0x");
+        let val = u64::from_str_radix(without_prefix, 16).unwrap();
 
-        Ok(Box::new(buf).into())
+        Ok(Nonce(val))
     }
 }
 
@@ -117,7 +118,7 @@ impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 256] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf: [u8; 256] = prefix_hex::decode(value).unwrap();
 
         Ok(Box::new(buf).into())
     }
@@ -145,7 +146,12 @@ impl<'de> Visitor<'de> for BytesVisitor {
     where
         E: de::Error,
     {
-        let buf: Vec<u8> = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf: Vec<u8> = if value.len() % 2 != 0 {
+            let value = format!("0x0{}", &value[2..]);
+            prefix_hex::decode(&value).unwrap()
+        } else {
+            prefix_hex::decode(value).unwrap()
+        };
 
         Ok(buf.into())
     }
@@ -174,7 +180,7 @@ impl<'de> Visitor<'de> for BigIntVisitor {
         E: de::Error,
     {
         let without_prefix = value.trim_start_matches("0x");
-        let val = i64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
+        let val = i64::from_str_radix(without_prefix, 16).unwrap();
 
         Ok(BigInt(val))
     }
