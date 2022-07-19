@@ -4,6 +4,7 @@ use crate::eth_client::EthClient;
 use crate::eth_request::GetBlockByNumber;
 use crate::options::Options;
 use crate::retry::Retry;
+use crate::types::Block;
 use crate::{Error, Result};
 use std::cmp;
 use std::sync::Arc;
@@ -96,6 +97,7 @@ impl Ingester {
                         continue;
                     }
                 };
+
                 let batch: Arc<[_]> = batch.into();
 
                 retry

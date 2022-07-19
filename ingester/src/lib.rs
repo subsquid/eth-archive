@@ -1,5 +1,6 @@
 mod config;
 mod db;
+mod deserialize;
 mod error;
 mod eth_client;
 mod eth_request;

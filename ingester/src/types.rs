@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use crate::deserialize::{BigInt, Bytes32, Address, BloomFilterBytes, Nonce};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Block {
+pub struct AnanBlock {
     pub number: String,
     pub hash: String,
     pub parent_hash: String,
@@ -23,25 +24,26 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
 }
 
-#[derive(Debug, Clone)]
-pub struct DbBlock {
-    pub number: i64,
-    pub hash: Box<[u8; 32]>,
-    pub parent_hash: Box<[u8; 32]>,
-    pub nonce: Box<[u8; 16]>,
-    pub sha3_uncles: Box<[u8; 32]>,
-    pub logs_bloom: Box<[u8; 256]>,
-    pub transactions_root: Box<[u8; 32]>,
-    pub state_root: Box<[u8; 32]>,
-    pub receipts_root: Box<[u8; 32]>,
-    pub miner: Box<[u8; 20]>,
-    pub difficulty: i64,
-    pub total_difficulty: Box<[u8; 32]>,
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Block {
+    pub number: BigInt,
+    pub hash: Bytes32,
+    pub parent_hash: Bytes32,
+    pub nonce: Nonce,
+    pub sha3_uncles: Bytes32,
+    pub logs_bloom: BloomFilterBytes,
+    pub transactions_root: Bytes32,
+    pub state_root: Bytes32,
+    pub receipts_root: Bytes32,
+    pub miner: Address,
+    pub difficulty: BigInt,
+    pub total_difficulty: BigInt,
     pub extra_data: Vec<u8>,
-    pub size: i64,
-    pub gas_limit: i64,
-    pub gas_used: i64,
-    pub timestamp: i64,
+    pub size: BigInt,
+    pub gas_limit: BigInt,
+    pub gas_used: BigInt,
+    pub timestamp: BigInt,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,20 +67,20 @@ pub struct Transaction {
 
 #[derive(Debug, Clone)]
 pub struct DbTransaction {
-    pub block_hash: Box<[u8; 32]>,
+    pub block_hash: Bytes32,
     pub block_number: i64,
-    pub from: Box<[u8; 20]>,
-    pub gas:i64,
+    pub from: Address,
+    pub gas: i64,
     pub gas_price: i64,
-    pub hash: Box<[u8; 32]>,
+    pub hash: Bytes32,
     pub input: Vec<u8>,
-    pub nonce: Box<[u8; 16]>,
-    pub to: Option<Box<[u8; 20]>>,
+    pub nonce: Nonce,
+    pub to: Option<Address>,
     pub transaction_index: Option<i64>,
-    pub value: Box<[u8; 32]>,
+    pub value: Bytes32,
     pub v: i64,
-    pub r: Box<[u8; 32]>,
-    pub s: Box<[u8; 32]>,
+    pub r: Bytes32,
+    pub s: Bytes32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,16 +99,16 @@ pub struct Log {
 
 #[derive(Debug, Clone)]
 pub struct DbLog {
-    pub address: Box<[u8; 20]>,
-    pub block_hash: Box<[u8; 32]>,
+    pub address: Address,
+    pub block_hash: Bytes32,
     pub block_number: i64,
     pub data: Vec<u8>,
     pub log_index: i64,
     pub removed: bool,
-    pub topic0: Option<Box<[u8; 32]>>,
-    pub topic1: Option<Box<[u8; 32]>>,
-    pub topic2: Option<Box<[u8; 32]>>,
-    pub topic3: Option<Box<[u8; 32]>>,
-    pub transaction_hash: Box<[u8; 32]>,
+    pub topic0: Option<Bytes32>,
+    pub topic1: Option<Bytes32>,
+    pub topic2: Option<Bytes32>,
+    pub topic3: Option<Bytes32>,
+    pub transaction_hash: Bytes32,
     pub transaction_index: i64,
 }

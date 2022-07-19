@@ -3,8 +3,8 @@ use crate::options::Options;
 use crate::types::Block;
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
-use std::sync::Arc;
 use std::convert::TryInto;
+use std::sync::Arc;
 
 pub struct DbHandle {
     pool: Pool,
@@ -109,7 +109,7 @@ impl DbHandle {
                 $17
             );",
                 &[
-                    &(i64::from_be_bytes(block.number)),
+                    &*block.number,
                     &block.hash.as_slice(),
                     &block.parent_hash.as_slice(),
                     &block.nonce.as_slice(),
@@ -119,13 +119,13 @@ impl DbHandle {
                     &block.state_root.as_slice(),
                     &block.receipts_root.as_slice(),
                     &block.miner.as_slice(),
-                    &block.difficulty.as_slice(),
-                    &block.total_difficulty.as_slice(),
+                    &*block.difficulty,
+                    &*block.total_difficulty,
                     &block.extra_data.as_slice(),
-                    &block.size.as_slice(),
-                    &block.gas_limit.as_slice(),
-                    &block.gas_used.as_slice(),
-                    &block.timestamp.as_slice(),
+                    &*block.size,
+                    &*block.gas_limit,
+                    &*block.gas_used,
+                    &*block.timestamp,
                 ],
             )
             .await
@@ -164,14 +164,13 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             state_root bytea,
             receipts_root bytea,
             miner bytea,
-            difficulty bytea,
-            total_difficulty bytea,
+            difficulty bigint,
+            total_difficulty bigint,
             extra_data bytea,
             size bigint,
-            gas_limit bytea,
-            gas_used bytea,
-            timestamp bigint,
-            uncles bytea[]
+            gas_limit bigint,
+            gas_used bigint,
+            timestamp bigint
         );
         
         CREATE TABLE IF NOT EXISTS eth_tx (
@@ -179,7 +178,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             hash bytea,
             nonce bytea,
             block_hash bytea,
-            block_number bigint,
+            block_number bigint REFERENCES eth_block(number),
             transaction_index bytea,
             sender bytea,
             receiver bytea,
@@ -192,8 +191,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             r bytea,
             raw bytea,
             public_key bytea,
-            chain_id bytea,
-            block_row_id BIGINT NOT NULL REFERENCES eth_block(row_id)
+            chain_id bytea
         );
         
         CREATE TABLE IF NOT EXISTS eth_log (
@@ -203,14 +201,13 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             transaction_index bytea,
             transaction_hash bytea,
             block_hash bytea,
-            block_number bigint,
+            block_number bigint REFERENCES eth_block(number),
             address bytea,
             data bytea,
             topic0 bytea,
             topic1 bytea,
             topic2 bytea,
-            topic3 bytea,
-            block_row_id BIGINT NOT NULL REFERENCES eth_block(row_id)
+            topic3 bytea
         );
     ",
     )
