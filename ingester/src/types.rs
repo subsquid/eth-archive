@@ -21,7 +21,28 @@ pub struct Block {
     pub gas_used: String,
     pub timestamp: String,
     pub transactions: Vec<Transaction>,
-    pub uncles: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DbBlock {
+    pub number: Option<usize>,
+    pub hash: Option<[u8; 32]>,
+    pub parent_hash: String,
+    pub nonce: String,
+    pub sha3_uncles: String,
+    pub logs_bloom: String,
+    pub transactions_root: String,
+    pub state_root: String,
+    pub receipts_root: String,
+    pub miner: Option<String>,
+    pub difficulty: String,
+    pub total_difficulty: Option<String>,
+    pub extra_data: String,
+    pub size: String,
+    pub gas_limit: String,
+    pub gas_used: String,
+    pub timestamp: String,
+    pub transactions: Vec<Transaction>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -45,6 +45,8 @@ pub enum Error {
     DbQuery(tokio_postgres::Error),
     #[error("failed to create database transaction:\n{0}")]
     CreateDbTransaction(tokio_postgres::Error),
+    #[error("failed to commit database transaction:\n{0}")]
+    CommitDbTx(tokio_postgres::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

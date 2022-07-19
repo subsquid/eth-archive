@@ -1,9 +1,10 @@
 use crate::config::DbConfig;
 use crate::options::Options;
-use crate::schema::Block;
+use crate::types::Block;
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
 use std::sync::Arc;
+use std::convert::TryInto;
 
 pub struct DbHandle {
     pool: Pool,
@@ -63,10 +64,14 @@ impl DbHandle {
     pub async fn insert_blocks(&self, blocks: Arc<[Block]>) -> Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let tx = conn.transaction().await.map_err(Error::CreateDbTransaction)?;
+        let tx = conn
+            .transaction()
+            .await
+            .map_err(Error::CreateDbTransaction)?;
 
         for block in blocks.iter() {
-            tx.execute("INSERT INTO eth_block (
+            tx.execute(
+                "INSERT INTO eth_block (
                 number,
                 hash,
                 parent_hash,
@@ -83,8 +88,7 @@ impl DbHandle {
                 size,
                 gas_limit,
                 gas_used,
-                timestamp,
-                uncles
+                timestamp
             ) VALUES (
                 $1,
                 $2,
@@ -102,28 +106,30 @@ impl DbHandle {
                 $14,
                 $15,
                 $16,
-                $17,
-                $18
-            );", &[
-                &block.number,
-                &block.hash,
-                &block.parent_hash,
-                &block.nonce,
-                &block.sha3_uncles,
-                &block.logs_bloom,
-                &block.transactions_root,
-                &block.state_root,
-                &block.receipts_root,
-                &block.miner,
-                &block.difficulty,
-                &block.total_difficulty,
-                &block.extra_data,
-                &block.size,
-                &block.gas_limit,
-                &block.gas_used,
-                &block.timestamp,
-                &block.uncles
-            ]).await.map_err(Error::InsertBlock)?;
+                $17
+            );",
+                &[
+                    &(i64::from_be_bytes(block.number)),
+                    &block.hash.as_slice(),
+                    &block.parent_hash.as_slice(),
+                    &block.nonce.as_slice(),
+                    &block.sha3_uncles.as_slice(),
+                    &block.logs_bloom.as_slice(),
+                    &block.transactions_root.as_slice(),
+                    &block.state_root.as_slice(),
+                    &block.receipts_root.as_slice(),
+                    &block.miner.as_slice(),
+                    &block.difficulty.as_slice(),
+                    &block.total_difficulty.as_slice(),
+                    &block.extra_data.as_slice(),
+                    &block.size.as_slice(),
+                    &block.gas_limit.as_slice(),
+                    &block.gas_used.as_slice(),
+                    &block.timestamp.as_slice(),
+                ],
+            )
+            .await
+            .map_err(Error::InsertBlock)?;
         }
 
         Ok(())
@@ -133,9 +139,9 @@ impl DbHandle {
 async fn reset_db(conn: &deadpool_postgres::Object) -> Result<()> {
     conn.batch_execute(
         "
-        DELETE FROM eth_log;
-        DELETE FROM eth_tx;
-        DELETE FROM eth_block;
+        DROP TABLE eth_log;
+        DROP TABLE eth_tx;
+        DROP TABLE eth_block;
     ",
     )
     .await
@@ -148,8 +154,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
     conn.batch_execute(
         "
         CREATE TABLE IF NOT EXISTS eth_block (
-            row_id BIGSERIAL PRIMARY KEY,
-            number bigint,
+            number bigint primary key,
             hash bytea,
             parent_hash bytea,
             nonce bytea,
@@ -166,7 +171,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             gas_limit bytea,
             gas_used bytea,
             timestamp bigint,
-            uncles bytea
+            uncles bytea[]
         );
         
         CREATE TABLE IF NOT EXISTS eth_tx (

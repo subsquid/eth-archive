@@ -6,7 +6,7 @@ mod eth_request;
 mod ingester;
 mod options;
 mod retry;
-mod schema;
+mod types;
 
 pub use error::{Error, Result};
 pub use ingester::Ingester;
