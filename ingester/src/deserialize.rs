@@ -33,7 +33,7 @@ impl<'de> Visitor<'de> for Bytes32Visitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 32] = prefix_hex::decode(value).unwrap();
+        let buf: [u8; 32] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(Box::new(buf).into())
     }
@@ -61,7 +61,7 @@ impl<'de> Visitor<'de> for AddressVisitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 20] = prefix_hex::decode(value).unwrap();
+        let buf: [u8; 20] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(Box::new(buf).into())
     }
@@ -90,7 +90,7 @@ impl<'de> Visitor<'de> for NonceVisitor {
         E: de::Error,
     {
         let without_prefix = value.trim_start_matches("0x");
-        let val = u64::from_str_radix(without_prefix, 16).unwrap();
+        let val = u64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(Nonce(val))
     }
@@ -118,7 +118,7 @@ impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 256] = prefix_hex::decode(value).unwrap();
+        let buf: [u8; 256] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(Box::new(buf).into())
     }
@@ -148,9 +148,9 @@ impl<'de> Visitor<'de> for BytesVisitor {
     {
         let buf: Vec<u8> = if value.len() % 2 != 0 {
             let value = format!("0x0{}", &value[2..]);
-            prefix_hex::decode(&value).unwrap()
+            prefix_hex::decode(&value).map_err(|e| E::custom(e.to_string()))?
         } else {
-            prefix_hex::decode(value).unwrap()
+            prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?
         };
 
         Ok(buf.into())
@@ -180,7 +180,7 @@ impl<'de> Visitor<'de> for BigIntVisitor {
         E: de::Error,
     {
         let without_prefix = value.trim_start_matches("0x");
-        let val = i64::from_str_radix(without_prefix, 16).unwrap();
+        let val = i64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(BigInt(val))
     }
