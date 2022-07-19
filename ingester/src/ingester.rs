@@ -7,6 +7,7 @@ use crate::retry::Retry;
 use crate::{Error, Result};
 use std::cmp;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub struct Ingester {
     db: Arc<DbHandle>,
@@ -44,6 +45,7 @@ impl Ingester {
 
     pub async fn initial_sync(&self) -> Result<usize> {
         let from_block = self.db.get_max_block_number().await?.map(|a| a + 1);
+
         let from_block = match (self.cfg.from_block, from_block) {
             (Some(a), Some(b)) => cmp::max(a, b),
             (Some(a), None) => a,
@@ -56,12 +58,20 @@ impl Ingester {
             None => self.eth_client.get_best_block().await? + 1,
         };
 
+        log::info!(
+            "stating initial sync. from: {}, to: {}.",
+            from_block,
+            to_block
+        );
+
         let retry = Retry::new(self.cfg.retry);
 
         let step = self.cfg.http_req_concurrency * self.cfg.tx_batch_size;
         for block_num in (from_block..to_block).step_by(step) {
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.tx_batch_size;
+
+            let start_time = Instant::now();
 
             let group = (0..concurrency)
                 .map(|step| {
@@ -88,6 +98,14 @@ impl Ingester {
 
             let group = futures::future::join_all(group).await;
 
+            log::info!(
+                "downloaded {} blocks in {}ms",
+                step,
+                start_time.elapsed().as_millis()
+            );
+
+            let start_time = Instant::now();
+
             for batch in group {
                 let batch = match batch {
                     Ok(batch) => batch,
@@ -108,6 +126,12 @@ impl Ingester {
                     .await
                     .map_err(Error::InsertBlocks)?;
             }
+
+            log::info!(
+                "inserted {} blocks in {}ms",
+                step,
+                start_time.elapsed().as_millis()
+            );
         }
 
         Ok(to_block)

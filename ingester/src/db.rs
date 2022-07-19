@@ -131,6 +131,8 @@ impl DbHandle {
             .map_err(Error::InsertBlock)?;
         }
 
+        tx.commit().await.map_err(Error::CommitDbTx)?;
+
         Ok(())
     }
 }
