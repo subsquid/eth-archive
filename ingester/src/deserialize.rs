@@ -1,5 +1,5 @@
 use serde::de::{self, Visitor};
-use serde::{Deserializer, Deserialize};
+use serde::{Deserialize, Deserializer};
 use std::fmt;
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
@@ -9,13 +9,16 @@ pub struct Bytes32(pub Box<[u8; 32]>);
 pub struct Address(pub Box<[u8; 20]>);
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct Nonce(pub Box<[u8; 16]>);
+pub struct Nonce(pub Box<[u8; 8]>);
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct BigInt(pub i64);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+pub struct Bytes(pub Vec<u8>);
 
 struct Bytes32Visitor;
 
@@ -86,7 +89,7 @@ impl<'de> Visitor<'de> for NonceVisitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 16] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf: [u8; 8] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(Box::new(buf).into())
     }
@@ -126,6 +129,34 @@ impl<'de> Deserialize<'de> for BloomFilterBytes {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_str(BloomFilterBytesVisitor)
+    }
+}
+
+struct BytesVisitor;
+
+impl<'de> Visitor<'de> for BytesVisitor {
+    type Value = Bytes;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("hex string")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let buf: Vec<u8> = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+
+        Ok(buf.into())
+    }
+}
+
+impl<'de> Deserialize<'de> for Bytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(BytesVisitor)
     }
 }
 

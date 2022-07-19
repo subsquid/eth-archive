@@ -3,7 +3,6 @@ use crate::options::Options;
 use crate::types::Block;
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
-use std::convert::TryInto;
 use std::sync::Arc;
 
 pub struct DbHandle {
