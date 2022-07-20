@@ -263,6 +263,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "eth-archive-core"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "futures",
+ "log",
+ "prefix-hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "url",
+]
+
+[[package]]
 name = "eth-archive-ingester"
 version = "0.1.0"
 dependencies = [
@@ -270,6 +287,7 @@ dependencies = [
  "deadpool-postgres",
  "derive_more",
  "env_logger",
+ "eth-archive-core",
  "futures",
  "log",
  "prefix-hex",
