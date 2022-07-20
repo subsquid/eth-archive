@@ -1,3 +1,4 @@
+use eth_archive_core::config::RetryConfig;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -24,10 +25,4 @@ pub struct IngestConfig {
     pub log_batch_size: usize,
     pub http_req_concurrency: usize,
     pub retry: RetryConfig,
-}
-
-#[derive(Deserialize, Clone, Copy)]
-pub struct RetryConfig {
-    pub num_tries: Option<usize>,
-    pub secs_between_tries: u64,
 }

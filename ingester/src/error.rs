@@ -3,8 +3,6 @@ use std::result::Result as StdResult;
 
 use thiserror::Error as ThisError;
 
-type Cause = Box<dyn StdError + Send + Sync>;
-
 #[derive(Debug, ThisError)]
 pub enum Error {
     #[error("failed to read config file:\n{0}")]
@@ -23,30 +21,20 @@ pub enum Error {
     InitDb(tokio_postgres::Error),
     #[error("failed to get bestblock from ethereum node")]
     GetBestBlock,
-    #[error("failed to build http client:\n{0}")]
-    BuildHttpClient(reqwest::Error),
-    #[error("failed to parse rpc response:\n{0}")]
-    RpcResponseParse(reqwest::Error),
-    #[error("failed to parse rpc result:\n{0}")]
-    RpcResultParse(serde_json::Error),
-    #[error("invalid rpc response")]
-    InvalidRpcResponse,
-    #[error("error: rpc response status is {0}")]
-    RpcResponseStatus(u16),
-    #[error("failed to execute http request:\n{0}")]
-    HttpRequest(reqwest::Error),
     #[error("failed to insert blocks to database:\n{0:#?}")]
     InsertBlocks(Vec<Error>),
     #[error("failed to insert a block to database:\n{0}")]
     InsertBlock(tokio_postgres::Error),
-    #[error("failed to decode block number:\n{0}")]
-    DecodeBlockNumber(Cause),
     #[error("failed to execute database query:\n{0}")]
     DbQuery(tokio_postgres::Error),
     #[error("failed to create database transaction:\n{0}")]
     CreateDbTransaction(tokio_postgres::Error),
     #[error("failed to commit database transaction:\n{0}")]
     CommitDbTx(tokio_postgres::Error),
+    #[error("failed to crate ethereum rpc client for ingestion:\n{0}")]
+    CreateEthClient(eth_archive_core::Error),
+    #[error("ethereum rpc client error:\n{0}")]
+    EthClient(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

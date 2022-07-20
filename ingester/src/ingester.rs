@@ -1,10 +1,10 @@
 use crate::config::{Config, IngestConfig};
 use crate::db::DbHandle;
-use crate::eth_client::EthClient;
-use crate::eth_request::GetBlockByNumber;
 use crate::options::Options;
-use crate::retry::Retry;
 use crate::{Error, Result};
+use eth_archive_core::eth_client::EthClient;
+use eth_archive_core::eth_request::GetBlockByNumber;
+use eth_archive_core::retry::Retry;
 use std::cmp;
 use std::sync::Arc;
 use std::time::Instant;
@@ -28,7 +28,8 @@ impl Ingester {
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
 
-        let eth_client = EthClient::new(config.ingest.eth_rpc_url.clone())?;
+        let eth_client =
+            EthClient::new(config.ingest.eth_rpc_url.clone()).map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
         Ok(Self {
@@ -55,7 +56,13 @@ impl Ingester {
 
         let to_block = match self.cfg.to_block {
             Some(to_block) => to_block,
-            None => self.eth_client.get_best_block().await? + 1,
+            None => {
+                self.eth_client
+                    .get_best_block()
+                    .await
+                    .map_err(Error::EthClient)?
+                    + 1
+            }
         };
 
         log::info!(
@@ -88,7 +95,10 @@ impl Ingester {
                                     let batch = (start..end)
                                         .map(|i| GetBlockByNumber { block_number: i })
                                         .collect::<Vec<_>>();
-                                    eth_client.send_batch(&batch).await
+                                    eth_client
+                                        .send_batch(&batch)
+                                        .await
+                                        .map_err(Error::EthClient)
                                 }
                             })
                             .await
@@ -133,6 +143,8 @@ impl Ingester {
                 start_time.elapsed().as_millis()
             );
         }
+
+        log::info!("finished initial sync up to block {}", to_block);
 
         Ok(to_block)
     }

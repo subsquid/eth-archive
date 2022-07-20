@@ -1,8 +1,8 @@
 use crate::config::DbConfig;
 use crate::options::Options;
-use crate::types::Block;
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
+use eth_archive_core::types::Block;
 use std::sync::Arc;
 
 pub struct DbHandle {
