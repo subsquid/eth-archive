@@ -14,61 +14,73 @@ use std::result::Result as StdResult;
 
 type Chunk = ArrowChunk<Box<dyn Array>>;
 
+fn bytes32() -> DataType {
+    DataType::FixedSizeBinary(32)
+}
+
+fn bloom_filter_bytes() -> DataType {
+    DataType::FixedSizeBinary(256)
+}
+
+fn address() -> DataType {
+    DataType::FixedSizeBinary(20)
+}
+
 fn block_schema() -> Schema {
     Schema::from(vec![
         Field::new("number", DataType::UInt64, true),
-        Field::new("hash", DataType::Utf8, true),
-        Field::new("parent_hash", DataType::Utf8, false),
-        Field::new("nonce", DataType::Utf8, false),
-        Field::new("sha3_uncles", DataType::Utf8, false),
-        Field::new("logs_bloom", DataType::Utf8, false),
-        Field::new("transactions_root", DataType::Utf8, false),
-        Field::new("state_root", DataType::Utf8, false),
-        Field::new("receipts_root", DataType::Utf8, false),
-        Field::new("miner", DataType::Utf8, true),
-        Field::new("difficulty", DataType::Utf8, false),
-        Field::new("total_difficulty", DataType::Utf8, true),
-        Field::new("extra_data", DataType::Utf8, false),
-        Field::new("size", DataType::Utf8, false),
-        Field::new("gas_limit", DataType::Utf8, false),
-        Field::new("gas_used", DataType::Utf8, false),
-        Field::new("timestamp", DataType::Utf8, false),
+        Field::new("hash", bytes32(), false),
+        Field::new("parent_hash", bytes32(), false),
+        Field::new("nonce", DataType::UInt64, false),
+        Field::new("sha3_uncles", bytes32(), false),
+        Field::new("logs_bloom", bloom_filter_bytes(), false),
+        Field::new("transactions_root", bytes32(), false),
+        Field::new("state_root", bytes32(), false),
+        Field::new("receipts_root", bytes32(), false),
+        Field::new("miner", address(), false),
+        Field::new("difficulty", DataType::UInt64, false),
+        Field::new("total_difficulty", DataType::UInt64, false),
+        Field::new("extra_data", DataType::Binary, false),
+        Field::new("size", DataType::UInt64, false),
+        Field::new("gas_limit", DataType::UInt64, false),
+        Field::new("gas_used", DataType::UInt64, false),
+        Field::new("timestamp", DataType::UInt64, false),
     ])
 }
 
 fn transaction_schema() -> Schema {
     Schema::from(vec![
-        Field::new("block_hash", DataType::Utf8, true),
-        Field::new("block_number", DataType::UInt64, true),
-        Field::new("from", DataType::Utf8, false),
-        Field::new("gas", DataType::Utf8, false),
-        Field::new("gas_price", DataType::Utf8, false),
-        Field::new("hash", DataType::Utf8, false),
-        Field::new("input", DataType::Utf8, false),
-        Field::new("nonce", DataType::Utf8, false),
-        Field::new("to", DataType::Utf8, true),
-        Field::new("transaction_index", DataType::Utf8, true),
-        Field::new("value", DataType::Utf8, false),
-        Field::new("v", DataType::Utf8, false),
-        Field::new("r", DataType::Utf8, false),
-        Field::new("s", DataType::Utf8, false),
+        Field::new("block_hash", bytes32(), true),
+        Field::new("block_number", DataType::UInt64, false),
+        Field::new("from", address(), false),
+        Field::new("gas", DataType::UInt64, false),
+        Field::new("gas_price", DataType::UInt64, false),
+        Field::new("hash", bytes32(), false),
+        Field::new("input", DataType::Binary, false),
+        Field::new("nonce", DataType::UInt64, false),
+        Field::new("to", address(), true),
+        Field::new("transaction_index", DataType::UInt64, false),
+        Field::new("value", DataType::Binary, false),
+        Field::new("v", DataType::UInt64, false),
+        Field::new("r", DataType::Binary, false),
+        Field::new("s", DataType::Binary, false),
     ])
 }
 
 fn log_schema() -> Schema {
     Schema::from(vec![
-        Field::new("address", DataType::Utf8, false),
-        Field::new("block_hash", DataType::Utf8, false),
+        Field::new("address", address(), false),
+        Field::new("block_hash", bytes32(), false),
         Field::new("block_number", DataType::UInt64, false),
-        Field::new("data", DataType::Utf8, false),
-        Field::new("log_index", DataType::Utf8, false),
+        Field::new("data", DataType::Binary, false),
+        Field::new("log_index", DataType::UInt64, false),
         Field::new("removed", DataType::Boolean, false),
-        Field::new("topic0", DataType::Utf8, true),
-        Field::new("topic1", DataType::Utf8, true),
-        Field::new("topic2", DataType::Utf8, true),
-        Field::new("topic3", DataType::Utf8, true),
-        Field::new("transaction_hash", DataType::Utf8, false),
-        Field::new("transaction_index", DataType::Utf8, true),
+        Field::new("topic0", bytes32(), true),
+        Field::new("topic1", bytes32(), true),
+        Field::new("topic2", bytes32(), true),
+        Field::new("topic3", bytes32(), true),
+        Field::new("transaction_hash", bytes32(), false),
+        Field::new("transaction_index", DataType::UInt64, false),
     ])
 }
 

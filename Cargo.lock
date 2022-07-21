@@ -553,12 +553,10 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "deadpool-postgres",
- "derive_more",
  "env_logger",
  "eth-archive-core",
  "futures",
  "log",
- "prefix-hex",
  "reqwest",
  "serde",
  "serde_json",
@@ -574,6 +572,8 @@ name = "eth-archive-parquet-writer"
 version = "0.0.1"
 dependencies = [
  "arrow2",
+ "clap",
+ "deadpool-postgres",
  "eth-archive-core",
  "futures",
  "rayon",
@@ -583,6 +583,7 @@ dependencies = [
  "serde_json",
  "snmalloc-rs",
  "tokio",
+ "tokio-postgres",
  "toml",
  "url",
 ]

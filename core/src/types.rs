@@ -36,6 +36,7 @@ pub struct Transaction {
     pub input: Bytes,
     pub nonce: Nonce,
     pub to: Option<Address>,
+    pub transaction_index: BigInt,
     pub value: Bytes,
     pub v: BigInt,
     pub r: Bytes,
