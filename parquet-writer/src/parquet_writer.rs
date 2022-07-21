@@ -1,3 +1,4 @@
+use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use arrow2::io::parquet::write::*;
 use std::path::{Path, PathBuf};
@@ -10,21 +11,10 @@ pub struct ParquetWriter<T: IntoRowGroups> {
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new<P: AsRef<Path>, S: Into<String>>(
-        name: S,
-        path: P,
-        row_group_size: usize,
-        threshold: usize,
-    ) -> Self {
-        let (tx, mut rx) = mpsc::channel(512);
+    pub fn new(cfg: ParquetConfig) -> Self {
+        let (tx, mut rx) = mpsc::channel(cfg.channel_size);
 
-        let name = name.into();
-
-        let mut path: PathBuf = path.as_ref().into();
-        path.push(&name);
-        let path = path;
-
-        fs::create_dir_all(&path).unwrap();
+        fs::create_dir_all(&cfg.path).unwrap();
 
         let join_handle = std::thread::spawn(move || {
             let mut row_group = vec![T::default()];
@@ -34,8 +24,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let row_group = mem::take(row_group);
                 let (row_groups, schema, options) = T::into_row_groups(row_group);
 
-                let mut temp_path = path.clone();
-                temp_path.push(format!("{}{}.temp", &name, file_idx));
+                let mut temp_path = cfg.path.clone();
+                temp_path.push(format!("{}{}.temp", &cfg.name, file_idx));
                 let file = fs::File::create(&temp_path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
@@ -45,8 +35,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 }
                 writer.end(None).unwrap();
 
-                let mut final_path = path.clone();
-                final_path.push(format!("{}{}.parquet", &name, file_idx));
+                let mut final_path = cfg.path.clone();
+                final_path.push(format!("{}{}.parquet", &cfg.name, file_idx));
                 fs::rename(&temp_path, final_path).unwrap();
 
                 file_idx += 1;
@@ -55,8 +45,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             while let Some(elems) = rx.blocking_recv() {
                 let row = row_group.last_mut().unwrap();
 
-                let row = if row.len() >= row_group_size {
-                    if row_group.iter().map(IntoRowGroups::len).sum::<usize>() >= threshold {
+                let row = if row.len() >= cfg.items_per_row_group {
+                    if row_group.iter().map(IntoRowGroups::len).sum::<usize>() >= cfg.items_per_file
+                    {
                         write_group(&mut row_group);
                     }
                     row_group.push(T::default());

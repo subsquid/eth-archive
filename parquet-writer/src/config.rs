@@ -1,28 +1,25 @@
+use eth_archive_core::config::DbConfig;
 use eth_archive_core::config::RetryConfig;
 use serde::Deserialize;
+use std::path::PathBuf;
 
 #[derive(Deserialize)]
 pub struct Config {
-    block: ParquetConfig,
-    transaction: ParquetConfig,
-    log: ParquetConfig,
-    ingest: IngestConfig,
-    retry: RetryConfig,
+    pub block: ParquetConfig,
+    pub transaction: ParquetConfig,
+    pub log: ParquetConfig,
+    pub ingest: IngestConfig,
+    pub retry: RetryConfig,
+    pub db: DbConfig,
 }
 
 #[derive(Deserialize)]
 pub struct ParquetConfig {
+    pub name: String,
     pub items_per_file: usize,
     pub items_per_row_group: usize,
-}
-
-#[derive(Deserialize)]
-pub struct DbConfig {
-    pub user: String,
-    pub password: String,
-    pub dbname: String,
-    pub host: String,
-    pub port: u16,
+    pub path: PathBuf,
+    pub channel_size: usize,
 }
 
 #[derive(Deserialize)]

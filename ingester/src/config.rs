@@ -1,3 +1,4 @@
+use eth_archive_core::config::DbConfig;
 use eth_archive_core::config::RetryConfig;
 use serde::Deserialize;
 
@@ -6,15 +7,6 @@ pub struct Config {
     pub db: DbConfig,
     pub ingest: IngestConfig,
     pub retry: RetryConfig,
-}
-
-#[derive(Deserialize)]
-pub struct DbConfig {
-    pub user: String,
-    pub password: String,
-    pub dbname: String,
-    pub host: String,
-    pub port: u16,
 }
 
 #[derive(Deserialize)]
