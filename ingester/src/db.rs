@@ -59,6 +59,23 @@ impl DbHandle {
         }
     }
 
+    pub async fn get_min_block_number(&self) -> Result<Option<usize>> {
+        let rows = self
+            .get_conn()
+            .await?
+            .query("SELECT MIN(number) from eth_block;", &[])
+            .await
+            .map_err(Error::DbQuery)?;
+        let row = match rows.get(0) {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+        match row.get::<_, Option<i64>>(0) {
+            Some(num) => Ok(Some(num as usize)),
+            None => Ok(None),
+        }
+    }
+
     pub async fn insert_block(&self, block: Block) -> Result<()> {
         let mut conn = self.get_conn().await?;
 
@@ -116,12 +133,12 @@ impl DbHandle {
                 &block.state_root.as_slice(),
                 &block.receipts_root.as_slice(),
                 &block.miner.as_slice(),
-                &*block.difficulty,
-                &*block.total_difficulty,
+                &block.difficulty.as_slice(),
+                &block.total_difficulty.as_slice(),
                 &block.extra_data.as_slice(),
                 &*block.size,
-                &*block.gas_limit,
-                &*block.gas_used,
+                &block.gas_limit.as_slice(),
+                &block.gas_used.as_slice(),
                 &*block.timestamp,
             ],
         )
@@ -162,12 +179,12 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             state_root bytea,
             receipts_root bytea,
             miner bytea,
-            difficulty bigint,
-            total_difficulty bigint,
+            difficulty bytea,
+            total_difficulty bytea,
             extra_data bytea,
             size bigint,
-            gas_limit bigint,
-            gas_used bigint,
+            gas_limit bytea,
+            gas_used bytea,
             timestamp bigint
         );
         

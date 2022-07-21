@@ -48,8 +48,7 @@ impl EthClient {
             .remove("result")
             .ok_or(Error::InvalidRpcResponse)?;
 
-        let rpc_result =
-            serde_json::from_value(rpc_result).map_err(|_| Error::InvalidRpcResponse)?;
+        let rpc_result = serde_json::from_value(rpc_result).map_err(Error::RpcResultParse)?;
 
         Ok(rpc_result)
     }

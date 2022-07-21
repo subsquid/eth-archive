@@ -60,7 +60,7 @@ impl ParquetWriterRunner {
         todo!();
     }
 
-    async fn get_start_block_number(&self) -> Result<usize> {
+    async fn wait_for_start_block_number(&self) -> Result<usize> {
         loop {
             match self.db.get_min_block_number().await? {
                 Some(min_num) => return Ok(min_num),
@@ -73,7 +73,7 @@ impl ParquetWriterRunner {
     }
 
     pub async fn initial_sync(&self) -> Result<usize> {
-        let to_block = self.get_start_block_number().await?;
+        let to_block = self.wait_for_start_block_number().await?;
         log::info!("starting initial sync up to: {}.", to_block);
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;

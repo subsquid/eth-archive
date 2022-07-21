@@ -10,3 +10,4 @@ port = 5432
 
 [ingest]
 eth_rpc_url = "http://195.201.56.33:8545"
+block_window_size = 500000

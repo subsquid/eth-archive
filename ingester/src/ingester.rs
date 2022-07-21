@@ -5,7 +5,9 @@ use crate::{Error, Result};
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::GetBlockByNumber;
 use eth_archive_core::retry::Retry;
+use eth_archive_core::types::Block;
 use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 
 pub struct Ingester {
     db: Arc<DbHandle>,
@@ -41,40 +43,69 @@ impl Ingester {
         })
     }
 
+    async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
+        loop {
+            let block_number = self
+                .eth_client
+                .get_best_block()
+                .await
+                .map_err(Error::EthClient)?;
+
+            if waiting_for < block_number {
+                return self
+                    .eth_client
+                    .send(GetBlockByNumber {
+                        block_number: waiting_for,
+                    })
+                    .await
+                    .map_err(Error::EthClient);
+            } else {
+                log::debug!("waiting for next block...");
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+
+    async fn wait_and_insert_block(&self, block: Block) -> Result<()> {
+        let block_number = block.number.0 as usize;
+
+        loop {
+            let min_block_number = self.db.get_min_block_number().await?.unwrap();
+            if block_number - min_block_number <= self.cfg.block_window_size {
+                self.db.insert_block(block).await?;
+                return Ok(());
+            } else {
+                log::debug!("waiting for parquet writer to write tail...");
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+
     pub async fn run(&self) -> Result<()> {
-        let block_number = match self.db.get_max_block_number().await? {
-            Some(block_number) => block_number,
+        let mut block_number = match self.db.get_max_block_number().await? {
+            Some(block_number) => block_number + 1,
             None => {
                 let block_number = self
                     .eth_client
                     .get_best_block()
                     .await
                     .map_err(Error::EthClient)?;
-                if block_number >= self.cfg.block_window_size {
+                if block_number <= self.cfg.block_window_size {
                     return Err(Error::BlockWindowBiggerThanBestblock);
                 }
+
                 block_number - self.cfg.block_window_size
             }
         };
 
+        log::info!("ingester starting from block {}", block_number);
+
         loop {
-            let block = self
-                .retry
-                .retry(move || {
-                    let eth_client = self.eth_client.clone();
-                    async move {
-                        eth_client
-                            .send(GetBlockByNumber { block_number })
-                            .await
-                            .map_err(Error::EthClient)
-                    }
-                })
-                .await
-                .map_err(Error::GetBlock)?;
+            let block = self.wait_for_next_block(block_number).await?;
 
-            self.db.insert_block(block).await?;
+            self.wait_and_insert_block(block).await?;
 
-            todo!();
+            block_number += 1;
         }
     }
 }
