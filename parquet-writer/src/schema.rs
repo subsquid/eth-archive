@@ -95,46 +95,23 @@ fn options() -> WriteOptions {
 #[derive(Debug, Default)]
 pub struct Blocks {
     pub number: UInt64Vec,
-    pub hash: MutableUtf8Array<i64>,
-    pub parent_hash: MutableUtf8Array<i64>,
-    pub nonce: MutableUtf8Array<i64>,
-    pub sha3_uncles: MutableUtf8Array<i64>,
-    pub logs_bloom: MutableUtf8Array<i64>,
-    pub transactions_root: MutableUtf8Array<i64>,
-    pub state_root: MutableUtf8Array<i64>,
-    pub receipts_root: MutableUtf8Array<i64>,
-    pub miner: MutableUtf8Array<i64>,
-    pub difficulty: MutableUtf8Array<i64>,
-    pub total_difficulty: MutableUtf8Array<i64>,
-    pub extra_data: MutableUtf8Array<i64>,
-    pub size: MutableUtf8Array<i64>,
-    pub gas_limit: MutableUtf8Array<i64>,
-    pub gas_used: MutableUtf8Array<i64>,
-    pub timestamp: MutableUtf8Array<i64>,
+    pub hash: MutableFixedSizeBinaryArray,
+    pub parent_hash: MutableFixedSizeBinaryArray,
+    pub nonce: UInt64Vec,
+    pub sha3_uncles: MutableFixedSizeBinaryArray,
+    pub logs_bloom: MutableFixedSizeBinaryArray,
+    pub transactions_root: MutableFixedSizeBinaryArray,
+    pub state_root: MutableFixedSizeBinaryArray,
+    pub receipts_root: MutableFixedSizeBinaryArray,
+    pub miner: MutableFixedSizeBinaryArray,
+    pub difficulty: UInt64Vec,
+    pub total_difficulty: UInt64Vec,
+    pub extra_data: MutableBinaryArray,
+    pub size: UInt64Vec,
+    pub gas_limit: UInt64Vec,
+    pub gas_used: UInt64Vec,
+    pub timestamp:UInt64Vec,
     pub len: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Block {
-    pub number: Option<String>,
-    pub hash: Option<String>,
-    pub parent_hash: String,
-    pub nonce: String,
-    pub sha3_uncles: String,
-    pub logs_bloom: String,
-    pub transactions_root: String,
-    pub state_root: String,
-    pub receipts_root: String,
-    pub miner: Option<String>,
-    pub difficulty: String,
-    pub total_difficulty: Option<String>,
-    pub extra_data: String,
-    pub size: String,
-    pub gas_limit: String,
-    pub gas_used: String,
-    pub timestamp: String,
-    pub transactions: Vec<Transaction>,
 }
 
 type RowGroups = RowGroupIterator<Box<dyn Array>, std::vec::IntoIter<StdResult<Chunk, ArrowError>>>;
@@ -234,40 +211,21 @@ impl IntoRowGroups for Blocks {
 
 #[derive(Debug, Default)]
 pub struct Transactions {
-    pub block_hash: MutableUtf8Array<i64>,
+    pub block_hash: MutableFixedSizeBinaryArray,
     pub block_number: UInt64Vec,
-    pub from: MutableUtf8Array<i64>,
-    pub gas: MutableUtf8Array<i64>,
-    pub gas_price: MutableUtf8Array<i64>,
-    pub hash: MutableUtf8Array<i64>,
-    pub input: MutableUtf8Array<i64>,
-    pub nonce: MutableUtf8Array<i64>,
-    pub to: MutableUtf8Array<i64>,
-    pub transaction_index: MutableUtf8Array<i64>,
-    pub value: MutableUtf8Array<i64>,
-    pub v: MutableUtf8Array<i64>,
-    pub r: MutableUtf8Array<i64>,
-    pub s: MutableUtf8Array<i64>,
+    pub from: MutableFixedSizeBinaryArray,
+    pub gas: UInt64Vec,
+    pub gas_price: UInt64Vec,
+    pub hash: MutableFixedSizeBinaryArray,
+    pub input: MutableBinaryArray,
+    pub nonce: UInt64Vec,
+    pub to: MutableFixedSizeBinaryArray,
+    pub transaction_index: UInt64Vec,
+    pub value: MutableBinaryArray,
+    pub v: UInt64Vec,
+    pub r: MutableBinaryArray,
+    pub s: MutableBinaryArray,
     pub len: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Transaction {
-    pub block_hash: Option<String>,
-    pub block_number: Option<String>,
-    pub from: String,
-    pub gas: String,
-    pub gas_price: String,
-    pub hash: String,
-    pub input: String,
-    pub nonce: String,
-    pub to: Option<String>,
-    pub transaction_index: Option<String>,
-    pub value: String,
-    pub v: String,
-    pub r: String,
-    pub s: String,
 }
 
 impl IntoRowGroups for Transactions {
@@ -370,33 +328,19 @@ impl IntoRowGroups for Transactions {
 
 #[derive(Debug, Default)]
 pub struct Logs {
-    pub address: MutableUtf8Array<i64>,
-    pub block_hash: MutableUtf8Array<i64>,
+    pub address: MutableFixedSizeBinaryArray,
+    pub block_hash: MutableFixedSizeBinaryArray,
     pub block_number: UInt64Vec,
-    pub data: MutableUtf8Array<i64>,
-    pub log_index: MutableUtf8Array<i64>,
+    pub data: MutableBinaryArray,
+    pub log_index: UInt64Vec,
     pub removed: MutableBooleanArray,
-    pub topic0: MutableUtf8Array<i64>,
-    pub topic1: MutableUtf8Array<i64>,
-    pub topic2: MutableUtf8Array<i64>,
-    pub topic3: MutableUtf8Array<i64>,
-    pub transaction_hash: MutableUtf8Array<i64>,
-    pub transaction_index: MutableUtf8Array<i64>,
+    pub topic0: MutableFixedSizeBinaryArray,
+    pub topic1: MutableFixedSizeBinaryArray,
+    pub topic2: MutableFixedSizeBinaryArray,
+    pub topic3: MutableFixedSizeBinaryArray,
+    pub transaction_hash: MutableFixedSizeBinaryArray,
+    pub transaction_index: UInt64Vec,
     pub len: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Log {
-    pub address: String,
-    pub block_hash: String,
-    pub block_number: String,
-    pub data: String,
-    pub log_index: String,
-    pub removed: bool,
-    pub topics: Vec<String>,
-    pub transaction_hash: String,
-    pub transaction_index: Option<String>,
 }
 
 impl IntoRowGroups for Logs {
