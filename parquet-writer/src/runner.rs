@@ -145,7 +145,7 @@ impl ParquetWriterRunner {
                     }
                 };
 
-                todo!()
+                self.block_writer.send(batch).await;
             }
             log::info!(
                 "inserted {} blocks in {}ms",
