@@ -9,6 +9,7 @@ use eth_archive_core::eth_request::GetBlockByNumber;
 use eth_archive_core::retry::Retry;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::time::{sleep, Duration};
 
 pub struct ParquetWriterRunner {
     db: Arc<DbHandle>,
@@ -59,21 +60,24 @@ impl ParquetWriterRunner {
         todo!();
     }
 
+    async fn get_start_block_number(&self) -> Result<usize> {
+        loop {
+            match self.db.get_min_block_number().await? {
+                Some(min_num) => return Ok(min_num),
+                None => {
+                    log::info!("no blocks in database, waiting...");
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    }
+
     pub async fn initial_sync(&self) -> Result<usize> {
-        let from_block = 0;
-        let to_block = self
-            .db
-            .get_min_block_number()
-            .await?
-            .ok_or(Error::NoBlocksInDb)?;
-        log::info!(
-            "starting initial sync. from: {}, to: {}.",
-            from_block,
-            to_block
-        );
+        let to_block = self.get_start_block_number().await?;
+        log::info!("starting initial sync up to: {}.", to_block);
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
-        for block_num in (from_block..to_block).step_by(step) {
+        for block_num in (0..to_block).step_by(step) {
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.block_batch_size;
             let start_time = Instant::now();
