@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use arrow2::array::{
-    Array, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
-    MutableFixedSizeBinaryArray, MutableUtf8Array, UInt64Vec,
+    Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
+    MutableBooleanArray, MutableFixedSizeBinaryArray, MutableUtf8Array, UInt64Vec,
 };
 use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
@@ -34,7 +34,7 @@ fn address() -> DataType {
 
 fn block_schema() -> Schema {
     Schema::from(vec![
-        Field::new("number", DataType::UInt64, true),
+        Field::new("number", DataType::Int64, true),
         Field::new("hash", bytes32(), false),
         Field::new("parent_hash", bytes32(), false),
         Field::new("nonce", DataType::UInt64, false),
@@ -44,30 +44,30 @@ fn block_schema() -> Schema {
         Field::new("state_root", bytes32(), false),
         Field::new("receipts_root", bytes32(), false),
         Field::new("miner", address(), false),
-        Field::new("difficulty", DataType::UInt64, false),
-        Field::new("total_difficulty", DataType::UInt64, false),
+        Field::new("difficulty", DataType::Int64, false),
+        Field::new("total_difficulty", DataType::Int64, false),
         Field::new("extra_data", DataType::Binary, false),
-        Field::new("size", DataType::UInt64, false),
-        Field::new("gas_limit", DataType::UInt64, false),
-        Field::new("gas_used", DataType::UInt64, false),
-        Field::new("timestamp", DataType::UInt64, false),
+        Field::new("size", DataType::Int64, false),
+        Field::new("gas_limit", DataType::Int64, false),
+        Field::new("gas_used", DataType::Int64, false),
+        Field::new("timestamp", DataType::Int64, false),
     ])
 }
 
 fn transaction_schema() -> Schema {
     Schema::from(vec![
         Field::new("block_hash", bytes32(), true),
-        Field::new("block_number", DataType::UInt64, false),
+        Field::new("block_number", DataType::Int64, false),
         Field::new("from", address(), false),
-        Field::new("gas", DataType::UInt64, false),
-        Field::new("gas_price", DataType::UInt64, false),
+        Field::new("gas", DataType::Int64, false),
+        Field::new("gas_price", DataType::Int64, false),
         Field::new("hash", bytes32(), false),
         Field::new("input", DataType::Binary, false),
         Field::new("nonce", DataType::UInt64, false),
         Field::new("to", address(), true),
-        Field::new("transaction_index", DataType::UInt64, false),
+        Field::new("transaction_index", DataType::Int64, false),
         Field::new("value", DataType::Binary, false),
-        Field::new("v", DataType::UInt64, false),
+        Field::new("v", DataType::Int64, false),
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
     ])
@@ -77,16 +77,16 @@ fn log_schema() -> Schema {
     Schema::from(vec![
         Field::new("address", address(), false),
         Field::new("block_hash", bytes32(), false),
-        Field::new("block_number", DataType::UInt64, false),
+        Field::new("block_number", DataType::Int64, false),
         Field::new("data", DataType::Binary, false),
-        Field::new("log_index", DataType::UInt64, false),
+        Field::new("log_index", DataType::Int64, false),
         Field::new("removed", DataType::Boolean, false),
         Field::new("topic0", bytes32(), true),
         Field::new("topic1", bytes32(), true),
         Field::new("topic2", bytes32(), true),
         Field::new("topic3", bytes32(), true),
         Field::new("transaction_hash", bytes32(), false),
-        Field::new("transaction_index", DataType::UInt64, false),
+        Field::new("transaction_index", DataType::Int64, false),
     ])
 }
 
@@ -112,7 +112,7 @@ fn address_arr() -> MutableFixedSizeBinaryArray {
 
 #[derive(Debug)]
 pub struct Blocks {
-    pub number: UInt64Vec,
+    pub number: Int64Vec,
     pub hash: MutableFixedSizeBinaryArray,
     pub parent_hash: MutableFixedSizeBinaryArray,
     pub nonce: UInt64Vec,
@@ -122,13 +122,13 @@ pub struct Blocks {
     pub state_root: MutableFixedSizeBinaryArray,
     pub receipts_root: MutableFixedSizeBinaryArray,
     pub miner: MutableFixedSizeBinaryArray,
-    pub difficulty: UInt64Vec,
-    pub total_difficulty: UInt64Vec,
+    pub difficulty: Int64Vec,
+    pub total_difficulty: Int64Vec,
     pub extra_data: MutableBinaryArray,
-    pub size: UInt64Vec,
-    pub gas_limit: UInt64Vec,
-    pub gas_used: UInt64Vec,
-    pub timestamp: UInt64Vec,
+    pub size: Int64Vec,
+    pub gas_limit: Int64Vec,
+    pub gas_used: Int64Vec,
+    pub timestamp: Int64Vec,
     pub len: usize,
 }
 
@@ -198,23 +198,25 @@ impl IntoRowGroups for Blocks {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.number.push(elem.number.map(|s| get_u64_from_hex(&s)));
-        self.hash.push(elem.hash);
-        self.parent_hash.push(Some(elem.parent_hash));
-        self.nonce.push(Some(elem.nonce));
-        self.sha3_uncles.push(Some(elem.sha3_uncles));
-        self.logs_bloom.push(Some(elem.logs_bloom));
-        self.transactions_root.push(Some(elem.transactions_root));
-        self.state_root.push(Some(elem.state_root));
-        self.receipts_root.push(Some(elem.receipts_root));
-        self.miner.push(elem.miner);
-        self.difficulty.push(Some(elem.difficulty));
-        self.total_difficulty.push(elem.total_difficulty);
-        self.extra_data.push(Some(elem.extra_data));
-        self.size.push(Some(elem.size));
-        self.gas_limit.push(Some(elem.gas_limit));
-        self.gas_used.push(Some(elem.gas_used));
-        self.timestamp.push(Some(elem.timestamp));
+        self.number.push(Some(elem.number.0));
+        self.hash.push(Some(elem.hash.0.as_slice()));
+        self.parent_hash.push(Some(elem.parent_hash.0.as_slice()));
+        self.nonce.push(Some(elem.nonce.0));
+        self.sha3_uncles.push(Some(elem.sha3_uncles.0.as_slice()));
+        self.logs_bloom.push(Some(elem.logs_bloom.0.as_slice()));
+        self.transactions_root
+            .push(Some(elem.transactions_root.0.as_slice()));
+        self.state_root.push(Some(elem.state_root.0.as_slice()));
+        self.receipts_root
+            .push(Some(elem.receipts_root.0.as_slice()));
+        self.miner.push(Some(elem.miner.0.as_slice()));
+        self.difficulty.push(Some(elem.difficulty.0));
+        self.total_difficulty.push(Some(elem.total_difficulty.0));
+        self.extra_data.push(Some(elem.extra_data.0));
+        self.size.push(Some(elem.size.0));
+        self.gas_limit.push(Some(elem.gas_limit.0));
+        self.gas_used.push(Some(elem.gas_used.0));
+        self.timestamp.push(Some(elem.timestamp.0));
 
         self.len += 1;
 
@@ -255,17 +257,17 @@ impl IntoRowGroups for Blocks {
 #[derive(Debug)]
 pub struct Transactions {
     pub block_hash: MutableFixedSizeBinaryArray,
-    pub block_number: UInt64Vec,
+    pub block_number: Int64Vec,
     pub from: MutableFixedSizeBinaryArray,
-    pub gas: UInt64Vec,
-    pub gas_price: UInt64Vec,
+    pub gas: Int64Vec,
+    pub gas_price: Int64Vec,
     pub hash: MutableFixedSizeBinaryArray,
     pub input: MutableBinaryArray,
     pub nonce: UInt64Vec,
     pub to: MutableFixedSizeBinaryArray,
-    pub transaction_index: UInt64Vec,
+    pub transaction_index: Int64Vec,
     pub value: MutableBinaryArray,
-    pub v: UInt64Vec,
+    pub v: Int64Vec,
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
     pub len: usize,
@@ -342,21 +344,23 @@ impl IntoRowGroups for Transactions {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.block_hash.push(elem.block_hash);
-        self.block_number
-            .push(elem.block_number.map(|s| get_u64_from_hex(&s)));
-        self.from.push(Some(elem.from));
-        self.gas.push(Some(elem.gas));
-        self.gas_price.push(Some(elem.gas_price));
-        self.hash.push(Some(elem.hash));
-        self.input.push(Some(elem.input));
-        self.nonce.push(Some(elem.nonce));
-        self.to.push(elem.to);
-        self.transaction_index.push(elem.transaction_index);
-        self.value.push(Some(elem.value));
-        self.v.push(Some(elem.v));
-        self.r.push(Some(elem.r));
-        self.s.push(Some(elem.s));
+        self.block_hash.push(Some(elem.block_hash.0.as_slice()));
+        self.block_number.push(Some(elem.block_number.0));
+        self.from.push(Some(elem.from.0.as_slice()));
+        self.gas.push(Some(elem.gas.0));
+        self.gas_price.push(Some(elem.gas_price.0));
+        self.hash.push(Some(elem.hash.0.as_slice()));
+        self.input.push(Some(elem.input.0));
+        self.nonce.push(Some(elem.nonce.0));
+        match elem.to {
+            Some(to) => self.to.push(Some(to.0.as_slice())),
+            None => self.to.push::<&[u8]>(None),
+        }
+        self.transaction_index.push(Some(elem.transaction_index.0));
+        self.value.push(Some(elem.value.0));
+        self.v.push(Some(elem.v.0));
+        self.r.push(Some(elem.r.0));
+        self.s.push(Some(elem.s.0));
 
         self.len += 1;
 
@@ -395,16 +399,16 @@ impl IntoRowGroups for Transactions {
 pub struct Logs {
     pub address: MutableFixedSizeBinaryArray,
     pub block_hash: MutableFixedSizeBinaryArray,
-    pub block_number: UInt64Vec,
+    pub block_number: Int64Vec,
     pub data: MutableBinaryArray,
-    pub log_index: UInt64Vec,
+    pub log_index: Int64Vec,
     pub removed: MutableBooleanArray,
     pub topic0: MutableFixedSizeBinaryArray,
     pub topic1: MutableFixedSizeBinaryArray,
     pub topic2: MutableFixedSizeBinaryArray,
     pub topic3: MutableFixedSizeBinaryArray,
     pub transaction_hash: MutableFixedSizeBinaryArray,
-    pub transaction_index: UInt64Vec,
+    pub transaction_index: Int64Vec,
     pub len: usize,
 }
 
@@ -482,19 +486,19 @@ impl IntoRowGroups for Logs {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.address.push(Some(elem.address));
-        self.block_hash.push(Some(elem.block_hash));
-        self.block_number
-            .push(Some(get_u64_from_hex(&elem.block_number)));
-        self.data.push(Some(elem.data));
-        self.log_index.push(Some(elem.log_index));
+        self.address.push(Some(elem.address.0.as_slice()));
+        self.block_hash.push(Some(elem.block_hash.0.as_slice()));
+        self.block_number.push(Some(elem.block_number.0));
+        self.data.push(Some(elem.data.0));
+        self.log_index.push(Some(elem.log_index.0));
         self.removed.push(Some(elem.removed));
-        self.topic0.push(elem.topics.get(0));
-        self.topic1.push(elem.topics.get(1));
-        self.topic2.push(elem.topics.get(2));
-        self.topic3.push(elem.topics.get(3));
-        self.transaction_hash.push(Some(elem.transaction_hash));
-        self.transaction_index.push(elem.transaction_index);
+        self.topic0.push(elem.topics.get(0).map(|t| t.0.as_slice()));
+        self.topic1.push(elem.topics.get(1).map(|t| t.0.as_slice()));
+        self.topic2.push(elem.topics.get(2).map(|t| t.0.as_slice()));
+        self.topic3.push(elem.topics.get(3).map(|t| t.0.as_slice()));
+        self.transaction_hash
+            .push(Some(elem.transaction_hash.0.as_slice()));
+        self.transaction_index.push(Some(elem.transaction_index.0));
 
         self.len += 1;
 
@@ -553,9 +557,4 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-}
-
-fn get_u64_from_hex(hex: &str) -> u64 {
-    let without_prefix = hex.trim_start_matches("0x");
-    u64::from_str_radix(without_prefix, 16).unwrap()
 }
