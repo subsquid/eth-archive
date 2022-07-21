@@ -51,7 +51,7 @@ pub struct Log {
     pub data: Bytes,
     pub log_index: BigInt,
     pub removed: bool,
-    pub topics: [Option<Bytes32>; 4],
+    pub topics: Vec<Bytes32>,
     pub transaction_hash: Bytes32,
     pub transaction_index: BigInt,
 }

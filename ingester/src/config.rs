@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub struct Config {
     pub db: DbConfig,
     pub ingest: IngestConfig,
+    pub retry: RetryConfig,
 }
 
 #[derive(Deserialize)]
@@ -19,10 +20,4 @@ pub struct DbConfig {
 #[derive(Deserialize)]
 pub struct IngestConfig {
     pub eth_rpc_url: url::Url,
-    pub from_block: Option<usize>,
-    pub to_block: Option<usize>,
-    pub tx_batch_size: usize,
-    pub log_batch_size: usize,
-    pub http_req_concurrency: usize,
-    pub retry: RetryConfig,
 }

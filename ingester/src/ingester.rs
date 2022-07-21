@@ -40,10 +40,9 @@ impl Ingester {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let from_block = self.initial_sync().await?;
         todo!();
     }
-
+    /*
     pub async fn initial_sync(&self) -> Result<usize> {
         let from_block = self.db.get_max_block_number().await?.map(|a| a + 1);
 
@@ -148,4 +147,5 @@ impl Ingester {
 
         Ok(to_block)
     }
+    */
 }

@@ -1,0 +1,27 @@
+[retry]
+secs_between_tries = 3
+
+[db]
+user = "eth-archive-user"
+password = "password"
+dbname = "eth-archive-db"
+host = "localhost"
+port = 5432
+
+[ingest]
+eth_rpc_url = "http://195.201.56.33:8545"
+block_batch_size = 50
+log_batch_size = 50
+http_req_concurrency = 100
+
+[block]
+items_per_file = 1200000
+items_per_row_group = 12000
+
+[transaction]
+items_per_file = 3300000
+items_per_row_group = 33000
+
+[log]
+items_per_file = 8000000
+items_per_row_group = 80000

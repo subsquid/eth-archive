@@ -4,3 +4,27 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
+tokio = { version = "1.18.0", features = ["full"] }
+serde = { version = "1.0.137", features = ["derive"] }
+serde_json = "1.0.81"
+futures = "0.3.21"
+toml = "0.5.9"
+url = { version = "2.2.2", features = ["serde"] } 
+rocksdb = { version = "0.18.0", default-features = false }
+rayon = "1.5.3"
+snmalloc-rs = "0.3.3"
+
+eth-archive-core = { path = "../core" }
+
+[dependencies.arrow2]
+version = "0.11.2"
+features = [ "io_parquet", "io_parquet_compression", "compute" ]
+
+[dependencies.reqwest]
+version = "0.11.10"
+default-features = false
+features = ["json", "rustls-tls", "gzip"]
+
+[profile.release]
+lto = true
+codegen-units = 1
