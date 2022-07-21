@@ -20,9 +20,7 @@ pub enum Error {
     InitDb(tokio_postgres::Error),
     #[error("failed to get bestblock from ethereum node")]
     GetBestBlock,
-    #[error("failed to insert blocks to database:\n{0:#?}")]
-    InsertBlocks(Vec<Error>),
-    #[error("failed to insert a block to database:\n{0}")]
+    #[error("failed to insert block to database:\n{0:#?}")]
     InsertBlock(tokio_postgres::Error),
     #[error("failed to execute database query:\n{0}")]
     DbQuery(tokio_postgres::Error),
@@ -34,6 +32,10 @@ pub enum Error {
     CreateEthClient(eth_archive_core::Error),
     #[error("ethereum rpc client error:\n{0}")]
     EthClient(eth_archive_core::Error),
+    #[error("block window size is bigger than bestblock acquired from eth node")]
+    BlockWindowBiggerThanBestblock,
+    #[error("failed to get block from ethereum rpc:\n{0:#?}")]
+    GetBlock(Vec<Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;

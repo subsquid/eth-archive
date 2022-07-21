@@ -12,4 +12,5 @@ pub struct Config {
 #[derive(Deserialize)]
 pub struct IngestConfig {
     pub eth_rpc_url: url::Url,
+    pub block_window_size: usize,
 }

@@ -1,7 +1,6 @@
 use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use arrow2::io::parquet::write::*;
-use std::path::{Path, PathBuf};
 use std::{fs, mem};
 use tokio::sync::mpsc;
 

@@ -1,16 +1,13 @@
-use crate::options::Options;
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
 use eth_archive_core::config::DbConfig;
-use eth_archive_core::types::Block;
-use std::sync::Arc;
 
 pub struct DbHandle {
     pool: Pool,
 }
 
 impl DbHandle {
-    pub async fn new(options: &Options, cfg: &DbConfig) -> Result<Self> {
+    pub async fn new(cfg: &DbConfig) -> Result<Self> {
         use deadpool_postgres::{Config, Runtime};
 
         let cfg = Config {

@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use arrow2::array::{
     Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
-    MutableBooleanArray, MutableFixedSizeBinaryArray, MutableUtf8Array, UInt64Vec,
+    MutableBooleanArray, MutableFixedSizeBinaryArray, UInt64Vec,
 };
 use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
@@ -13,7 +13,6 @@ use arrow2::io::parquet::write::{
 };
 use eth_archive_core::types::{Block, Log, Transaction};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 
 type Chunk = ArrowChunk<Box<dyn Array>>;

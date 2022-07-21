@@ -1,4 +1,3 @@
-use std::error::Error as StdError;
 use std::result::Result as StdResult;
 
 use thiserror::Error as ThisError;

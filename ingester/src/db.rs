@@ -3,7 +3,6 @@ use crate::{Error, Result};
 use deadpool_postgres::Pool;
 use eth_archive_core::config::DbConfig;
 use eth_archive_core::types::Block;
-use std::sync::Arc;
 
 pub struct DbHandle {
     pool: Pool,
@@ -60,7 +59,7 @@ impl DbHandle {
         }
     }
 
-    pub async fn insert_blocks(&self, blocks: Arc<[Block]>) -> Result<()> {
+    pub async fn insert_block(&self, block: Block) -> Result<()> {
         let mut conn = self.get_conn().await?;
 
         let tx = conn
@@ -68,68 +67,66 @@ impl DbHandle {
             .await
             .map_err(Error::CreateDbTransaction)?;
 
-        for block in blocks.iter() {
-            tx.execute(
-                "INSERT INTO eth_block (
-                number,
-                hash,
-                parent_hash,
-                nonce,
-                sha3_uncles,
-                logs_bloom,
-                transactions_root,
-                state_root,
-                receipts_root,
-                miner,
-                difficulty,
-                total_difficulty,
-                extra_data,
-                size,
-                gas_limit,
-                gas_used,
-                timestamp
-            ) VALUES (
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7,
-                $8,
-                $9,
-                $10,
-                $11,
-                $12,
-                $13,
-                $14,
-                $15,
-                $16,
-                $17
-            );",
-                &[
-                    &*block.number,
-                    &block.hash.as_slice(),
-                    &block.parent_hash.as_slice(),
-                    &block.nonce.0.to_be_bytes().as_slice(),
-                    &block.sha3_uncles.as_slice(),
-                    &block.logs_bloom.as_slice(),
-                    &block.transactions_root.as_slice(),
-                    &block.state_root.as_slice(),
-                    &block.receipts_root.as_slice(),
-                    &block.miner.as_slice(),
-                    &*block.difficulty,
-                    &*block.total_difficulty,
-                    &block.extra_data.as_slice(),
-                    &*block.size,
-                    &*block.gas_limit,
-                    &*block.gas_used,
-                    &*block.timestamp,
-                ],
-            )
-            .await
-            .map_err(Error::InsertBlock)?;
-        }
+        tx.execute(
+            "INSERT INTO eth_block (
+            number,
+            hash,
+            parent_hash,
+            nonce,
+            sha3_uncles,
+            logs_bloom,
+            transactions_root,
+            state_root,
+            receipts_root,
+            miner,
+            difficulty,
+            total_difficulty,
+            extra_data,
+            size,
+            gas_limit,
+            gas_used,
+            timestamp
+        ) VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17
+        );",
+            &[
+                &*block.number,
+                &block.hash.as_slice(),
+                &block.parent_hash.as_slice(),
+                &block.nonce.0.to_be_bytes().as_slice(),
+                &block.sha3_uncles.as_slice(),
+                &block.logs_bloom.as_slice(),
+                &block.transactions_root.as_slice(),
+                &block.state_root.as_slice(),
+                &block.receipts_root.as_slice(),
+                &block.miner.as_slice(),
+                &*block.difficulty,
+                &*block.total_difficulty,
+                &block.extra_data.as_slice(),
+                &*block.size,
+                &*block.gas_limit,
+                &*block.gas_used,
+                &*block.timestamp,
+            ],
+        )
+        .await
+        .map_err(Error::InsertBlock)?;
 
         tx.commit().await.map_err(Error::CommitDbTx)?;
 
