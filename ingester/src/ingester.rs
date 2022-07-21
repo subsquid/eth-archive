@@ -70,8 +70,10 @@ impl Ingester {
         let block_number = block.number.0 as usize;
 
         loop {
-            let min_block_number = self.db.get_min_block_number().await?.unwrap();
-            if block_number - min_block_number <= self.cfg.block_window_size {
+            let min_block_number = self.db.get_min_block_number().await?;
+            if min_block_number.is_none()
+                || block_number - min_block_number.unwrap() <= self.cfg.block_window_size
+            {
                 self.db.insert_block(block).await?;
                 return Ok(());
             } else {
@@ -104,6 +106,10 @@ impl Ingester {
             let block = self.wait_for_next_block(block_number).await?;
 
             self.wait_and_insert_block(block).await?;
+
+            if block_number % 50 == 0 {
+                log::info!("wrote block {}", block_number);
+            }
 
             block_number += 1;
         }
