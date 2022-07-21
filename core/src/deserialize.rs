@@ -1,18 +1,43 @@
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer};
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
+impl Bytes32 {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(Box::new(bytes.try_into().unwrap()))
+    }
+}
+
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct Address(pub Box<[u8; 20]>);
+
+impl Address {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(Box::new(bytes.try_into().unwrap()))
+    }
+}
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct Nonce(pub u64);
 
+impl Nonce {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(u64::from_be_bytes(bytes.try_into().unwrap()))
+    }
+}
+
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
+
+impl BloomFilterBytes {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(Box::new(bytes.try_into().unwrap()))
+    }
+}
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct BigInt(pub i64);
