@@ -103,6 +103,7 @@ impl ParquetWriterRunner {
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
         for block_num in (0..to_block).step_by(step) {
+            log::info!("current block num is {}", block_num);
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.block_batch_size;
             let start_time = Instant::now();
@@ -135,7 +136,6 @@ impl ParquetWriterRunner {
                 step,
                 start_time.elapsed().as_millis()
             );
-            let start_time = Instant::now();
             for batch in group {
                 let batch = match batch {
                     Ok(batch) => batch,
@@ -147,11 +147,6 @@ impl ParquetWriterRunner {
 
                 self.block_writer.send(batch).await;
             }
-            log::info!(
-                "inserted {} blocks in {}ms",
-                step,
-                start_time.elapsed().as_millis()
-            );
         }
         log::info!("finished initial sync up to block {}", to_block);
         Ok(to_block)
