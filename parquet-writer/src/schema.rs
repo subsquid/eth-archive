@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use arrow2::array::{
     Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
-    MutableBooleanArray, MutableFixedSizeBinaryArray, UInt64Vec,
+    MutableBooleanArray, UInt64Vec,
 };
 use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
@@ -20,15 +20,15 @@ type Chunk = ArrowChunk<Box<dyn Array>>;
 type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
 
 fn bytes32() -> DataType {
-    DataType::FixedSizeBinary(32)
+    DataType::Binary
 }
 
 fn bloom_filter_bytes() -> DataType {
-    DataType::FixedSizeBinary(256)
+    DataType::Binary
 }
 
 fn address() -> DataType {
-    DataType::FixedSizeBinary(20)
+    DataType::Binary
 }
 
 fn block_schema() -> Schema {
@@ -97,30 +97,30 @@ fn options() -> WriteOptions {
     }
 }
 
-fn bytes32_arr() -> MutableFixedSizeBinaryArray {
-    MutableFixedSizeBinaryArray::new(32)
+fn bytes32_arr() -> MutableBinaryArray {
+    MutableBinaryArray::default()
 }
 
-fn bloom_filter_arr() -> MutableFixedSizeBinaryArray {
-    MutableFixedSizeBinaryArray::new(256)
+fn bloom_filter_arr() -> MutableBinaryArray {
+    MutableBinaryArray::default()
 }
 
-fn address_arr() -> MutableFixedSizeBinaryArray {
-    MutableFixedSizeBinaryArray::new(20)
+fn address_arr() -> MutableBinaryArray {
+    MutableBinaryArray::default()
 }
 
 #[derive(Debug)]
 pub struct Blocks {
     pub number: Int64Vec,
-    pub hash: MutableFixedSizeBinaryArray,
-    pub parent_hash: MutableFixedSizeBinaryArray,
+    pub hash: MutableBinaryArray,
+    pub parent_hash: MutableBinaryArray,
     pub nonce: UInt64Vec,
-    pub sha3_uncles: MutableFixedSizeBinaryArray,
-    pub logs_bloom: MutableFixedSizeBinaryArray,
-    pub transactions_root: MutableFixedSizeBinaryArray,
-    pub state_root: MutableFixedSizeBinaryArray,
-    pub receipts_root: MutableFixedSizeBinaryArray,
-    pub miner: MutableFixedSizeBinaryArray,
+    pub sha3_uncles: MutableBinaryArray,
+    pub logs_bloom: MutableBinaryArray,
+    pub transactions_root: MutableBinaryArray,
+    pub state_root: MutableBinaryArray,
+    pub receipts_root: MutableBinaryArray,
+    pub miner: MutableBinaryArray,
     pub difficulty: MutableBinaryArray,
     pub total_difficulty: MutableBinaryArray,
     pub extra_data: MutableBinaryArray,
@@ -255,15 +255,15 @@ impl IntoRowGroups for Blocks {
 
 #[derive(Debug)]
 pub struct Transactions {
-    pub block_hash: MutableFixedSizeBinaryArray,
+    pub block_hash: MutableBinaryArray,
     pub block_number: Int64Vec,
-    pub from: MutableFixedSizeBinaryArray,
+    pub from: MutableBinaryArray,
     pub gas: Int64Vec,
     pub gas_price: Int64Vec,
-    pub hash: MutableFixedSizeBinaryArray,
+    pub hash: MutableBinaryArray,
     pub input: MutableBinaryArray,
     pub nonce: UInt64Vec,
-    pub to: MutableFixedSizeBinaryArray,
+    pub to: MutableBinaryArray,
     pub transaction_index: Int64Vec,
     pub value: MutableBinaryArray,
     pub v: Int64Vec,
@@ -396,17 +396,17 @@ impl IntoRowGroups for Transactions {
 
 #[derive(Debug)]
 pub struct Logs {
-    pub address: MutableFixedSizeBinaryArray,
-    pub block_hash: MutableFixedSizeBinaryArray,
+    pub address: MutableBinaryArray,
+    pub block_hash: MutableBinaryArray,
     pub block_number: Int64Vec,
     pub data: MutableBinaryArray,
     pub log_index: Int64Vec,
     pub removed: MutableBooleanArray,
-    pub topic0: MutableFixedSizeBinaryArray,
-    pub topic1: MutableFixedSizeBinaryArray,
-    pub topic2: MutableFixedSizeBinaryArray,
-    pub topic3: MutableFixedSizeBinaryArray,
-    pub transaction_hash: MutableFixedSizeBinaryArray,
+    pub topic0: MutableBinaryArray,
+    pub topic1: MutableBinaryArray,
+    pub topic2: MutableBinaryArray,
+    pub topic3: MutableBinaryArray,
+    pub transaction_hash: MutableBinaryArray,
     pub transaction_index: Int64Vec,
     pub len: usize,
 }
