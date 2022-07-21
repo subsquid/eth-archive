@@ -69,7 +69,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
     }
 
     pub async fn send(&self, elems: Vec<T::Elem>) {
-        self.tx.send(elems).await.unwrap();
+        if self.tx.send(elems).await.is_err() {
+            panic!("failed to send elems to parquet writer");
+        }
     }
 
     pub fn join(self) {
