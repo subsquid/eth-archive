@@ -34,7 +34,7 @@ fn address() -> DataType {
 
 fn block_schema() -> Schema {
     Schema::from(vec![
-        Field::new("number", DataType::Int64, true),
+        Field::new("number", DataType::Int64, false),
         Field::new("hash", bytes32(), false),
         Field::new("parent_hash", bytes32(), false),
         Field::new("nonce", DataType::UInt64, false),
@@ -56,7 +56,7 @@ fn block_schema() -> Schema {
 
 fn transaction_schema() -> Schema {
     Schema::from(vec![
-        Field::new("block_hash", bytes32(), true),
+        Field::new("block_hash", bytes32(), false),
         Field::new("block_number", DataType::Int64, false),
         Field::new("from", address(), false),
         Field::new("gas", DataType::Int64, false),
