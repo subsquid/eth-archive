@@ -567,7 +567,7 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     fn schema() -> Schema;
     fn into_chunk(self) -> Chunk;
     fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions, BlockRange) {
-        let block_range = elems.iter().fold(BlockRange::default(), |range, x| {
+        let block_range = elems.iter().fold(elems[0].block_range(), |range, x| {
             range.merge(x.block_range())
         });
 

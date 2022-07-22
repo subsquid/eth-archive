@@ -2,6 +2,8 @@ use std::result::Result as StdResult;
 
 use thiserror::Error as ThisError;
 
+use std::io;
+
 #[derive(Debug, ThisError)]
 pub enum Error {
     #[error("failed to read config file:\n{0}")]
@@ -26,6 +28,10 @@ pub enum Error {
     CreateEthClient(eth_archive_core::Error),
     #[error("ethereum rpc client error:\n{0}")]
     EthClient(eth_archive_core::Error),
+    #[error("failed to read parquet directory:\n{0}")]
+    ReadParquetDir(io::Error),
+    #[error("invalid parquet file name.")]
+    InvalidParquetFileName,
 }
 
 pub type Result<T> = StdResult<T, Error>;

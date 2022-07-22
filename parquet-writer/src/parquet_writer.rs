@@ -7,11 +7,14 @@ use tokio::sync::mpsc;
 pub struct ParquetWriter<T: IntoRowGroups> {
     tx: mpsc::Sender<Vec<T::Elem>>,
     _join_handle: std::thread::JoinHandle<()>,
+    pub cfg: ParquetConfig,
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new(cfg: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
-        let (tx, mut rx) = mpsc::channel(cfg.channel_size);
+    pub fn new(config: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
+        let cfg = config.clone();
+
+        let (tx, mut rx) = mpsc::channel(config.channel_size);
 
         fs::create_dir_all(&cfg.path).unwrap();
 
@@ -73,6 +76,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         Self {
             tx,
             _join_handle: join_handle,
+            cfg: config,
         }
     }
 

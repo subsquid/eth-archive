@@ -13,7 +13,7 @@ pub struct Config {
     pub db: DbConfig,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ParquetConfig {
     pub name: String,
     pub items_per_file: usize,

@@ -8,6 +8,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::GetBlockByNumber;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
+use std::cmp;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -71,12 +72,13 @@ impl ParquetWriterRunner {
     }
 
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
+        log::info!("waiting for next block...");
+
         loop {
             let block = self.db.get_block(waiting_for as i64).await?;
             if let Some(block) = block {
                 return Ok(block);
             } else {
-                log::debug!("waiting for next block...");
                 sleep(Duration::from_secs(1)).await;
             }
         }
@@ -110,12 +112,33 @@ impl ParquetWriterRunner {
         }
     }
 
+    async fn get_start_block(&self) -> Result<usize> {
+        let mut dir = tokio::fs::read_dir(&self.block_writer.cfg.path)
+            .await
+            .map_err(Error::ReadParquetDir)?;
+        let mut block_num = 0;
+        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
+            let file_name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| Error::InvalidParquetFileName)?;
+            let num = file_name.split('_').last().unwrap();
+            let num = &num[..num.len() - ".parquet".len()];
+            let num = num.parse::<usize>().unwrap() + 1;
+            block_num = cmp::max(block_num, num);
+        }
+
+        Ok(block_num)
+    }
+
     pub async fn initial_sync(&self) -> Result<usize> {
+        let from_block = self.get_start_block().await?;
+
         let to_block = self.wait_for_start_block_number().await?;
         log::info!("starting initial sync up to: {}.", to_block);
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
-        for block_num in (0..to_block).step_by(step) {
+        for block_num in (from_block..to_block).step_by(step) {
             log::info!("current block num is {}", block_num);
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.block_batch_size;
