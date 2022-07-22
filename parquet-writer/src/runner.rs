@@ -72,13 +72,12 @@ impl ParquetWriterRunner {
     }
 
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
-        log::info!("waiting for next block...");
-
         loop {
             let block = self.db.get_block(waiting_for as i64).await?;
             if let Some(block) = block {
                 return Ok(block);
             } else {
+                log::debug!("waiting for next block...");
                 sleep(Duration::from_secs(1)).await;
             }
         }
@@ -92,8 +91,8 @@ impl ParquetWriterRunner {
 
             self.block_writer.send(vec![block]).await;
 
-            if block_number % 50 == 0 {
-                log::info!("deleting block {}", block_number);
+            if block_number % 5000 == 0 {
+                log::info!("sent block {} to writer", block_number);
             }
 
             block_number += 1;

@@ -54,26 +54,26 @@ impl DbHandle {
             .get_conn()
             .await?
             .query(
-                "SELECT (
-                number,
-                hash,
-                parent_hash,
-                nonce,
-                sha3_uncles,
-                logs_bloom,
-                transactions_root,
-                state_root,
-                receipts_root,
-                miner,
-                difficulty,
-                total_difficulty,
-                extra_data,
-                size,
-                gas_limit,
-                gas_used,
-                timestamp
-            ) from eth_block
-            WHERE number = $1;",
+                "SELECT 
+                    number,
+                    hash,
+                    parent_hash,
+                    nonce,
+                    sha3_uncles,
+                    logs_bloom,
+                    transactions_root,
+                    state_root,
+                    receipts_root,
+                    miner,
+                    difficulty,
+                    total_difficulty,
+                    extra_data,
+                    size,
+                    gas_limit,
+                    gas_used,
+                    timestamp
+                from eth_block
+                WHERE number = $1;",
                 &[&block_number],
             )
             .await
@@ -84,23 +84,23 @@ impl DbHandle {
         };
 
         Ok(Some(Block {
-            number: BigInt(row.get("number")),
-            hash: Bytes32::new(row.get("hash")),
-            parent_hash: Bytes32::new(row.get("parent_hash")),
-            nonce: Nonce::new(row.get("nonce")),
-            sha3_uncles: Bytes32::new(row.get("sha3_uncles")),
-            logs_bloom: BloomFilterBytes::new(row.get("logs_bloom")),
-            transactions_root: Bytes32::new(row.get("transactions_root")),
-            state_root: Bytes32::new(row.get("state_root")),
-            receipts_root: Bytes32::new(row.get("receipts_root")),
-            miner: Address::new(row.get("miner")),
-            difficulty: Bytes(row.get("difficulty")),
-            total_difficulty: Bytes(row.get("total_difficulty")),
-            extra_data: Bytes(row.get("extra_data")),
-            size: BigInt(row.get("size")),
-            gas_limit: Bytes(row.get("gas_limit")),
-            gas_used: Bytes(row.get("gas_used")),
-            timestamp: BigInt(row.get("timestamp")),
+            number: BigInt(row.get(0)),
+            hash: Bytes32::new(row.get(1)),
+            parent_hash: Bytes32::new(row.get(2)),
+            nonce: Nonce::new(row.get(3)),
+            sha3_uncles: Bytes32::new(row.get(4)),
+            logs_bloom: BloomFilterBytes::new(row.get(5)),
+            transactions_root: Bytes32::new(row.get(6)),
+            state_root: Bytes32::new(row.get(7)),
+            receipts_root: Bytes32::new(row.get(8)),
+            miner: Address::new(row.get(9)),
+            difficulty: Bytes(row.get(10)),
+            total_difficulty: Bytes(row.get(11)),
+            extra_data: Bytes(row.get(12)),
+            size: BigInt(row.get(13)),
+            gas_limit: Bytes(row.get(14)),
+            gas_used: Bytes(row.get(15)),
+            timestamp: BigInt(row.get(16)),
         }))
     }
 
