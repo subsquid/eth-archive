@@ -101,7 +101,6 @@ impl DbHandle {
             gas_limit: Bytes(row.get(14)),
             gas_used: Bytes(row.get(15)),
             timestamp: BigInt(row.get(16)),
-            transactions: Vec::new(),
         }))
     }
 

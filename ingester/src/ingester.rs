@@ -45,6 +45,8 @@ impl Ingester {
     }
 
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
+        log::info!("waiting for next block...");
+
         loop {
             let block_number = self
                 .eth_client
@@ -62,7 +64,6 @@ impl Ingester {
                     .map_err(Error::EthClient)?;
                 return Ok(block);
             } else {
-                log::debug!("waiting for next block...");
                 sleep(Duration::from_secs(1)).await;
             }
         }
@@ -164,19 +165,22 @@ impl Ingester {
             }
         };
 
-        log::info!("ingester starting from block {}", block_number);
+        log::info!("starting to ingest from block {}", block_number);
 
         loop {
-            let best_block = self
-                .eth_client
-                .get_best_block()
-                .await
-                .map_err(Error::EthClient)?;
+            let min_block_number = self
+                .db
+                .get_min_block_number()
+                .await?
+                .unwrap_or(block_number);
+            let max_block_number = block_number - 1;
 
-            if block_number + self.cfg.block_window_size < best_block {
-                self.fast_sync(block_number, best_block).await?;
-                block_number = best_block;
-                continue;
+            let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
+            if max_block_number + step < min_block_number + self.cfg.block_window_size {
+                self.fast_sync(block_number, min_block_number + self.cfg.block_window_size)
+                    .await?;
+
+                block_number = min_block_number + self.cfg.block_window_size;
             }
 
             let block = self.wait_for_next_block(block_number).await?;
