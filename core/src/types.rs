@@ -1,5 +1,6 @@
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
 use serde::Deserialize;
+use std::cmp;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,4 +56,32 @@ pub struct Log {
     pub topics: Vec<Bytes32>,
     pub transaction_hash: Bytes32,
     pub transaction_index: BigInt,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BlockRange {
+    pub from: usize,
+    pub to: usize,
+}
+
+impl BlockRange {
+    pub fn merge(&self, other: Self) -> Self {
+        Self {
+            from: cmp::min(self.from, other.from),
+            to: cmp::max(self.to, other.to),
+        }
+    }
+
+    pub fn add(left: Option<Self>, block_number: usize) -> Self {
+        match left {
+            Some(block_range) => BlockRange {
+                from: cmp::min(block_number, block_range.from),
+                to: cmp::max(block_number, block_range.to),
+            },
+            None => BlockRange {
+                from: block_number,
+                to: block_number,
+            },
+        }
+    }
 }

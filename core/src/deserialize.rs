@@ -1,6 +1,6 @@
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer};
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::fmt;
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]

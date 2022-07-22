@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 pub struct ParquetWriter<T: IntoRowGroups> {
     tx: mpsc::Sender<Vec<T::Elem>>,
-    join_handle: std::thread::JoinHandle<()>,
+    _join_handle: std::thread::JoinHandle<()>,
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
@@ -17,14 +17,16 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
         let join_handle = std::thread::spawn(move || {
             let mut row_group = vec![T::default()];
-            let mut file_idx = 0;
 
-            let mut write_group = |row_group: &mut Vec<T>| {
+            let write_group = |row_group: &mut Vec<T>| {
                 let row_group = mem::take(row_group);
-                let (row_groups, schema, options) = T::into_row_groups(row_group);
+                let (row_groups, schema, options, block_range) = T::into_row_groups(row_group);
 
                 let mut temp_path = cfg.path.clone();
-                temp_path.push(format!("{}{}.temp", &cfg.name, file_idx));
+                temp_path.push(format!(
+                    "{}{}_{}.temp",
+                    &cfg.name, block_range.from, block_range.to
+                ));
                 let file = fs::File::create(&temp_path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
@@ -35,10 +37,11 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 writer.end(None).unwrap();
 
                 let mut final_path = cfg.path.clone();
-                final_path.push(format!("{}{}.parquet", &cfg.name, file_idx));
+                final_path.push(format!(
+                    "{}{}_{}.parquet",
+                    &cfg.name, block_range.from, block_range.to
+                ));
                 fs::rename(&temp_path, final_path).unwrap();
-
-                file_idx += 1;
             };
 
             while let Some(elems) = rx.blocking_recv() {
@@ -65,7 +68,10 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             }
         });
 
-        Self { tx, join_handle }
+        Self {
+            tx,
+            _join_handle: join_handle,
+        }
     }
 
     pub async fn send(&self, elems: Vec<T::Elem>) {
@@ -74,8 +80,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         }
     }
 
-    pub fn join(self) {
+    pub fn _join(self) {
         mem::drop(self.tx);
-        self.join_handle.join().unwrap();
+        self._join_handle.join().unwrap();
     }
 }
