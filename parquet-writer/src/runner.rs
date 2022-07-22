@@ -18,8 +18,8 @@ pub struct ParquetWriterRunner {
     cfg: IngestConfig,
     eth_client: Arc<EthClient>,
     block_writer: ParquetWriter<Blocks>,
-    transaction_writer: ParquetWriter<Transactions>,
-    log_writer: ParquetWriter<Logs>,
+    _transaction_writer: ParquetWriter<Transactions>,
+    _log_writer: ParquetWriter<Logs>,
     retry: Retry,
 }
 
@@ -64,8 +64,8 @@ impl ParquetWriterRunner {
             cfg: config.ingest,
             eth_client,
             block_writer,
-            transaction_writer,
-            log_writer,
+            _transaction_writer: transaction_writer,
+            _log_writer: log_writer,
             retry,
         })
     }
