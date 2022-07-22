@@ -10,7 +10,7 @@ pub struct ParquetWriter<T: IntoRowGroups> {
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new(cfg: ParquetConfig) -> Self {
+    pub fn new(cfg: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
         let (tx, mut rx) = mpsc::channel(cfg.channel_size);
 
         fs::create_dir_all(&cfg.path).unwrap();
@@ -42,6 +42,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                     &cfg.name, block_range.from, block_range.to
                 ));
                 fs::rename(&temp_path, final_path).unwrap();
+
+                delete_tx.send(block_range.to).unwrap();
             };
 
             while let Some(elems) = rx.blocking_recv() {

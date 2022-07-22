@@ -10,6 +10,7 @@ use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 pub struct ParquetWriterRunner {
@@ -39,9 +40,22 @@ impl ParquetWriterRunner {
             EthClient::new(config.ingest.eth_rpc_url.clone()).map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
-        let block_writer = ParquetWriter::new(config.block);
-        let transaction_writer = ParquetWriter::new(config.transaction);
-        let log_writer = ParquetWriter::new(config.log);
+        let (delete_tx, mut delete_rx) = mpsc::unbounded_channel();
+
+        {
+            let db = db.clone();
+            tokio::spawn(async move {
+                while let Some(block_number) = delete_rx.recv().await {
+                    if let Err(e) = db.delete_blocks_up_to(block_number as i64).await {
+                        log::error!("failed to delete blocks up to {}:\n{}", block_number, e);
+                    }
+                }
+            });
+        }
+
+        let block_writer = ParquetWriter::new(config.block, delete_tx.clone());
+        let transaction_writer = ParquetWriter::new(config.transaction, delete_tx.clone());
+        let log_writer = ParquetWriter::new(config.log, delete_tx);
 
         let retry = Retry::new(config.retry);
 
@@ -75,7 +89,6 @@ impl ParquetWriterRunner {
             let block = self.wait_for_next_block(block_number).await?;
 
             self.block_writer.send(vec![block]).await;
-            self.db.delete_block(block_number as i64).await?;
 
             if block_number % 50 == 0 {
                 log::info!("deleting block {}", block_number);
