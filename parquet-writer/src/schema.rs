@@ -91,7 +91,7 @@ fn log_schema() -> Schema {
 
 fn options() -> WriteOptions {
     WriteOptions {
-        write_statistics: true,
+        write_statistics: false,
         compression: CompressionOptions::Snappy,
         version: Version::V2,
     }
