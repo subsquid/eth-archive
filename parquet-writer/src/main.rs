@@ -1,5 +1,5 @@
-use clap::Parser;
-use eth_archive_parquet_writer::{Options, ParquetWriterRunner};
+use eth_archive_core::options::Options;
+use eth_archive_parquet_writer::ParquetWriterRunner;
 
 #[tokio::main]
 async fn main() {

@@ -9,25 +9,9 @@ pub enum Error {
     #[error("failed to parse config:\n{0}")]
     ParseConfig(toml::de::Error),
     #[error("failed to create database handle:\n{0}")]
-    CreateDbHandle(Box<Error>),
-    #[error("failed to create database connection pool:\n{0}")]
-    CreatePool(deadpool_postgres::CreatePoolError),
-    #[error("failed to get a database connection from pool:\n{0}")]
-    GetDbConnection(deadpool_postgres::PoolError),
-    #[error("failed to reset database:\n{0}")]
-    ResetDb(tokio_postgres::Error),
-    #[error("failed to initialize database tables:\n{0}")]
-    InitDb(tokio_postgres::Error),
+    CreateDbHandle(Box<eth_archive_core::Error>),
     #[error("failed to get bestblock from ethereum node")]
     GetBestBlock,
-    #[error("failed to insert block to database:\n{0:#?}")]
-    InsertBlock(tokio_postgres::Error),
-    #[error("failed to execute database query:\n{0}")]
-    DbQuery(tokio_postgres::Error),
-    #[error("failed to create database transaction:\n{0}")]
-    CreateDbTransaction(tokio_postgres::Error),
-    #[error("failed to commit database transaction:\n{0}")]
-    CommitDbTx(tokio_postgres::Error),
     #[error("failed to crate ethereum rpc client for ingestion:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
     #[error("ethereum rpc client error:\n{0}")]
@@ -36,6 +20,12 @@ pub enum Error {
     BlockWindowBiggerThanBestblock,
     #[error("failed to get block from ethereum rpc:\n{0:#?}")]
     GetBlock(Vec<Error>),
+    #[error("failed get minimum block number from database:\n{0}")]
+    GetMinBlockNumber(eth_archive_core::Error),
+    #[error("failed get maximum block number from database:\n{0}")]
+    GetMaxBlockNumber(eth_archive_core::Error),
+    #[error("failed to insert blocks to database:\n{0}")]
+    InsertBlocks(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

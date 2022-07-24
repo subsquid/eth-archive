@@ -1,9 +1,9 @@
 use crate::config::Config;
-use crate::db::DbHandle;
-use crate::options::Options;
 use crate::{Error, Result};
+use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::GetBlockByNumber;
+use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
 use std::sync::Arc;
@@ -73,11 +73,18 @@ impl Ingester {
         let block_number = block.number.0 as usize;
 
         loop {
-            let min_block_number = self.db.get_min_block_number().await?;
+            let min_block_number = self
+                .db
+                .get_min_block_number()
+                .await
+                .map_err(Error::GetMinBlockNumber)?;
             if min_block_number.is_none()
                 || block_number - min_block_number.unwrap() <= self.cfg.block_window_size
             {
-                self.db.insert_blocks(&[block]).await?;
+                self.db
+                    .insert_blocks(&[block])
+                    .await
+                    .map_err(Error::InsertBlocks)?;
                 return Ok(());
             } else {
                 log::debug!("waiting for parquet writer to write tail...");
@@ -134,7 +141,10 @@ impl Ingester {
                     }
                 };
 
-                self.db.insert_blocks(&batch).await?;
+                self.db
+                    .insert_blocks(&batch)
+                    .await
+                    .map_err(Error::InsertBlocks)?;
             }
             log::info!(
                 "inserted {} blocks in {}ms",
@@ -149,7 +159,12 @@ impl Ingester {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let mut block_number = match self.db.get_max_block_number().await? {
+        let max_block_number = self
+            .db
+            .get_max_block_number()
+            .await
+            .map_err(Error::GetMaxBlockNumber)?;
+        let mut block_number = match max_block_number {
             Some(block_number) => block_number + 1,
             None => {
                 let block_number = self
@@ -171,7 +186,8 @@ impl Ingester {
             let min_block_number = self
                 .db
                 .get_min_block_number()
-                .await?
+                .await
+                .map_err(Error::GetMinBlockNumber)?
                 .unwrap_or(block_number);
             let max_block_number = block_number - 1;
 

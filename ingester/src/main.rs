@@ -1,5 +1,5 @@
-use clap::Parser;
-use eth_archive_ingester::{Ingester, Options};
+use eth_archive_core::options::Options;
+use eth_archive_ingester::Ingester;
 
 #[tokio::main]
 async fn main() {

@@ -1,12 +1,12 @@
 use crate::config::Config;
-use crate::db::DbHandle;
-use crate::options::Options;
 use crate::parquet_writer::ParquetWriter;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
 use eth_archive_core::config::IngestConfig;
+use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::GetBlockByNumber;
+use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
 use std::cmp;
@@ -33,7 +33,7 @@ impl ParquetWriterRunner {
 
         let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
 
-        let db = DbHandle::new(&config.db)
+        let db = DbHandle::new(options, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
@@ -74,7 +74,11 @@ impl ParquetWriterRunner {
 
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
         loop {
-            let block = self.db.get_block(waiting_for as i64).await?;
+            let block = self
+                .db
+                .get_block(waiting_for as i64)
+                .await
+                .map_err(Error::GetBlockFromDb)?;
             if let Some(block) = block {
                 return Ok(block);
             } else {
@@ -102,7 +106,12 @@ impl ParquetWriterRunner {
 
     async fn wait_for_start_block_number(&self) -> Result<usize> {
         loop {
-            match self.db.get_min_block_number().await? {
+            match self
+                .db
+                .get_min_block_number()
+                .await
+                .map_err(Error::GetMinBlockNumber)?
+            {
                 Some(min_num) => return Ok(min_num),
                 None => {
                     log::info!("no blocks in database, waiting...");

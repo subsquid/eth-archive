@@ -484,6 +484,7 @@ dependencies = [
 name = "eth-archive-core"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "deadpool-postgres",
  "derive_more",
  "futures",
@@ -503,8 +504,6 @@ dependencies = [
 name = "eth-archive-ingester"
 version = "0.1.0"
 dependencies = [
- "clap",
- "deadpool-postgres",
  "env_logger",
  "eth-archive-core",
  "futures",
@@ -514,7 +513,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "tokio-postgres",
  "toml",
  "url",
 ]
@@ -524,8 +522,6 @@ name = "eth-archive-parquet-writer"
 version = "0.0.1"
 dependencies = [
  "arrow2",
- "clap",
- "deadpool-postgres",
  "env_logger",
  "eth-archive-core",
  "futures",
@@ -537,7 +533,6 @@ dependencies = [
  "snmalloc-rs",
  "thiserror",
  "tokio",
- "tokio-postgres",
  "toml",
  "url",
 ]

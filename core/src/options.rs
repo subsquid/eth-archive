@@ -4,7 +4,13 @@ use clap::Parser;
 #[clap(author, version, about, long_about = None)]
 pub struct Options {
     #[clap(short, long, value_parser)]
-    pub(crate) reset_db: bool,
+    pub reset_db: bool,
     #[clap(short, long, value_parser, default_value = "EthIngester.toml")]
-    pub(crate) cfg_path: String,
+    pub cfg_path: String,
+}
+
+impl Options {
+    pub fn parse() -> Self {
+        <Self as Parser>::parse()
+    }
 }
