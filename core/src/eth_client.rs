@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::eth_request::{EthRequest, GetBestBlock};
 use serde_json::Value as JsonValue;
 
@@ -8,7 +8,7 @@ pub struct EthClient {
 }
 
 impl EthClient {
-    pub fn new(rpc_url: url::Url) -> Result<EthClient, Error> {
+    pub fn new(rpc_url: url::Url) -> Result<EthClient> {
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)
             .build()
@@ -20,7 +20,7 @@ impl EthClient {
         })
     }
 
-    pub async fn send<R: EthRequest>(&self, req: R) -> Result<R::Resp, Error> {
+    pub async fn send<R: EthRequest>(&self, req: R) -> Result<R::Resp> {
         let resp = self
             .http_client
             .post(self.rpc_url.clone())
@@ -31,10 +31,8 @@ impl EthClient {
 
         let resp_status = resp.status();
         if !resp_status.is_success() {
-            if let Ok(body) = resp.text().await {
-                eprintln!("rpc response error: {}", body);
-            }
-            return Err(Error::RpcResponseStatus(resp_status.as_u16()));
+            let body = resp.text().await.ok();
+            return Err(Error::RpcResponseStatus(resp_status.as_u16(), body));
         }
 
         let rpc_result = resp.json().await.map_err(Error::RpcResponseParse)?;
@@ -53,7 +51,7 @@ impl EthClient {
         Ok(rpc_result)
     }
 
-    pub async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>, Error> {
+    pub async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>> {
         let req_body = requests
             .iter()
             .enumerate()
@@ -71,7 +69,8 @@ impl EthClient {
 
         let resp_status = resp.status();
         if !resp_status.is_success() {
-            return Err(Error::RpcResponseStatus(resp_status.as_u16()));
+            let body = resp.text().await.ok();
+            return Err(Error::RpcResponseStatus(resp_status.as_u16(), body));
         }
 
         let resp_body = resp
@@ -81,28 +80,24 @@ impl EthClient {
 
         let rpc_results = resp_body
             .into_iter()
-            .filter_map(|rpc_result| {
+            .map(|rpc_result| {
                 let mut rpc_result = match rpc_result {
                     JsonValue::Object(rpc_result) => rpc_result,
-                    _ => return None,
+                    _ => return Err(Error::InvalidRpcResponse),
                 };
 
-                let rpc_result = rpc_result.remove("result")?;
+                let rpc_result = rpc_result
+                    .remove("result")
+                    .ok_or(Error::InvalidRpcResponse)?;
 
-                match serde_json::from_value(rpc_result) {
-                    Ok(v) => Some(v),
-                    Err(e) => {
-                        eprintln!("failed to parse block in rpc response: {:#?}", e,);
-                        None
-                    }
-                }
+                serde_json::from_value(rpc_result).map_err(Error::RpcResponseParseJson)
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(rpc_results)
     }
 
-    pub async fn get_best_block(&self) -> Result<usize, Error> {
+    pub async fn get_best_block(&self) -> Result<usize> {
         let num = self.send(GetBestBlock {}).await?;
         Ok(get_usize_from_hex(&num))
     }
