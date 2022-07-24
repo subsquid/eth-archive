@@ -1,9 +1,10 @@
-use crate::config::{Config, IngestConfig};
+use crate::config::Config;
 use crate::db::DbHandle;
 use crate::options::Options;
 use crate::parquet_writer::ParquetWriter;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
+use eth_archive_core::config::IngestConfig;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::GetBlockByNumber;
 use eth_archive_core::retry::Retry;

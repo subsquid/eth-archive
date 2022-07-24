@@ -1,4 +1,5 @@
 pub mod config;
+pub mod db;
 pub mod deserialize;
 pub mod error;
 pub mod eth_client;

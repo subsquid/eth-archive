@@ -1,19 +1,10 @@
-use eth_archive_core::config::DbConfig;
-use eth_archive_core::config::RetryConfig;
+use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Config {
     pub db: DbConfig,
     pub ingest: IngestConfig,
     pub retry: RetryConfig,
-}
-
-#[derive(Deserialize)]
-pub struct IngestConfig {
-    pub eth_rpc_url: url::Url,
-    pub block_batch_size: usize,
-    pub log_batch_size: usize,
-    pub http_req_concurrency: usize,
     pub block_window_size: usize,
 }

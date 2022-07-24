@@ -1,5 +1,4 @@
-use eth_archive_core::config::DbConfig;
-use eth_archive_core::config::RetryConfig;
+use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -20,12 +19,4 @@ pub struct ParquetConfig {
     pub items_per_row_group: usize,
     pub path: PathBuf,
     pub channel_size: usize,
-}
-
-#[derive(Deserialize)]
-pub struct IngestConfig {
-    pub eth_rpc_url: url::Url,
-    pub block_batch_size: usize,
-    pub log_batch_size: usize,
-    pub http_req_concurrency: usize,
 }

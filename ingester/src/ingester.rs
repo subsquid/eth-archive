@@ -1,4 +1,4 @@
-use crate::config::{Config, IngestConfig};
+use crate::config::Config;
 use crate::db::DbHandle;
 use crate::options::Options;
 use crate::{Error, Result};
@@ -12,7 +12,7 @@ use tokio::time::{sleep, Duration};
 
 pub struct Ingester {
     db: Arc<DbHandle>,
-    cfg: IngestConfig,
+    cfg: Config,
     eth_client: Arc<EthClient>,
     retry: Retry,
 }
@@ -38,7 +38,7 @@ impl Ingester {
 
         Ok(Self {
             db,
-            cfg: config.ingest,
+            cfg: config,
             eth_client,
             retry,
         })
@@ -89,11 +89,11 @@ impl Ingester {
     async fn fast_sync(&self, from_block: usize, to_block: usize) -> Result<()> {
         log::info!("starting fast sync up to: {}.", to_block);
 
-        let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
+        let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
         for block_num in (from_block..to_block).step_by(step) {
             log::info!("current block num is {}", block_num);
-            let concurrency = self.cfg.http_req_concurrency;
-            let batch_size = self.cfg.block_batch_size;
+            let concurrency = self.cfg.ingest.http_req_concurrency;
+            let batch_size = self.cfg.ingest.block_batch_size;
             let start_time = Instant::now();
             let group = (0..concurrency)
                 .map(|step| {
@@ -175,7 +175,7 @@ impl Ingester {
                 .unwrap_or(block_number);
             let max_block_number = block_number - 1;
 
-            let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
+            let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
             if max_block_number + step < min_block_number + self.cfg.block_window_size {
                 self.fast_sync(block_number, min_block_number + self.cfg.block_window_size)
                     .await?;
