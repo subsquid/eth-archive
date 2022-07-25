@@ -25,11 +25,10 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let row_group = mem::take(row_group);
                 let (row_groups, schema, options, block_range) = T::into_row_groups(row_group);
 
+                let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to + 1);
+
                 let mut temp_path = cfg.path.clone();
-                temp_path.push(format!(
-                    "{}{}_{}.temp",
-                    &cfg.name, block_range.from, block_range.to
-                ));
+                temp_path.push(format!("{}.temp", &file_name));
                 let file = fs::File::create(&temp_path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
@@ -40,10 +39,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 writer.end(None).unwrap();
 
                 let mut final_path = cfg.path.clone();
-                final_path.push(format!(
-                    "{}{}_{}.parquet",
-                    &cfg.name, block_range.from, block_range.to
-                ));
+                final_path.push(format!("{}.parquet", &file_name));
                 fs::rename(&temp_path, final_path).unwrap();
 
                 delete_tx.send(block_range.to).unwrap();

@@ -1,6 +1,8 @@
 use crate::error::{Error, Result};
 use crate::eth_request::{EthRequest, GetBestBlock};
+use crate::retry::Retry;
 use serde_json::Value as JsonValue;
+use std::sync::Arc;
 
 pub struct EthClient {
     http_client: reqwest::Client,
@@ -95,6 +97,22 @@ impl EthClient {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(rpc_results)
+    }
+
+    pub async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
+        self: Arc<Self>,
+        batches: &[B],
+        retry: Retry,
+    ) -> Result<Vec<Vec<R::Resp>>> {
+        let group = batches.iter().map(|batch| {
+            let client = self.clone();
+            retry.retry(move || {
+                let client = client.clone();
+                async move { client.send_batch(batch.as_ref()).await }
+            })
+        });
+        let group = futures::future::join_all(group).await;
+        group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
     pub async fn get_best_block(&self) -> Result<usize> {

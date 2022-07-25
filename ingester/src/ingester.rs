@@ -8,6 +8,7 @@ use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 pub struct Ingester {
@@ -97,61 +98,84 @@ impl Ingester {
         log::info!("starting fast sync up to: {}.", to_block);
 
         let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
-        for block_num in (from_block..to_block).step_by(step) {
-            log::info!("current block num is {}", block_num);
-            let concurrency = self.cfg.ingest.http_req_concurrency;
-            let batch_size = self.cfg.ingest.block_batch_size;
-            let start_time = Instant::now();
-            let group = (0..concurrency)
-                .map(|step| {
-                    let eth_client = self.eth_client.clone();
-                    let start = block_num + step * batch_size;
-                    let end = start + batch_size;
-                    async move {
-                        self.retry
+
+        let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, _, _)>(32);
+
+        let write_task = tokio::spawn({
+            let db = self.db.clone();
+            let retry = self.retry;
+            async move {
+                while let Some((batches, from, to)) = rx.recv().await {
+                    let start_time = Instant::now();
+
+                    for batch in batches.iter() {
+                        let db = db.clone();
+
+                        retry
                             .retry(move || {
-                                let eth_client = eth_client.clone();
+                                let db = db.clone();
                                 async move {
-                                    let batch = (start..end)
-                                        .map(|i| GetBlockByNumber { block_number: i })
-                                        .collect::<Vec<_>>();
-                                    eth_client
-                                        .send_batch(&batch)
-                                        .await
-                                        .map_err(Error::EthClient)
+                                    db.insert_blocks(batch).await.map_err(Error::InsertBlocks)
                                 }
                             })
                             .await
+                            .map_err(Error::Retry)?;
                     }
+
+                    log::info!(
+                        "inserted blocks {}-{} in {}ms",
+                        from,
+                        to,
+                        start_time.elapsed().as_millis()
+                    );
+                }
+
+                Ok(())
+            }
+        });
+
+        for block_num in (from_block..to_block).step_by(step) {
+            let concurrency = self.cfg.ingest.http_req_concurrency;
+            let batch_size = self.cfg.ingest.block_batch_size;
+
+            let batches = (0..concurrency)
+                .map(|step_no| {
+                    let start = block_num + step_no * batch_size;
+                    let end = start + batch_size;
+                    (start..end)
+                        .map(|i| GetBlockByNumber { block_number: i })
+                        .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
-            let group = futures::future::join_all(group).await;
-            log::info!(
-                "downloaded {} blocks in {}ms",
-                step,
-                start_time.elapsed().as_millis()
-            );
-            let start_time = Instant::now();
-            for batch in group {
-                let batch = match batch {
-                    Ok(batch) => batch,
-                    Err(e) => {
-                        log::error!("failed batch block req: {:#?}", e);
-                        continue;
-                    }
-                };
 
-                self.db
-                    .insert_blocks(&batch)
-                    .await
-                    .map_err(Error::InsertBlocks)?;
-            }
+            let start_time = Instant::now();
+
+            let batches = self
+                .eth_client
+                .clone()
+                .send_batches(&batches, self.retry)
+                .await
+                .map_err(Error::EthClient)?;
+
             log::info!(
-                "inserted {} blocks in {}ms",
-                step,
+                "downloaded blocks {}-{} in {}ms",
+                block_num,
+                block_num + step,
                 start_time.elapsed().as_millis()
             );
+
+            if tx
+                .send((batches, block_num, block_num + step))
+                .await
+                .is_err()
+            {
+                unreachable!();
+            }
         }
+
+        log::info!("fast_sync: finished downloding, waiting for writing to end...");
+
+        write_task.await.map_err(Error::JoinError)??;
 
         log::info!("finished fast sync up to block {}", to_block);
 

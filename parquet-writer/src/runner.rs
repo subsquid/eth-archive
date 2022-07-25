@@ -157,48 +157,36 @@ impl ParquetWriterRunner {
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
         for block_num in (from_block..to_block).step_by(step) {
-            log::info!("current block num is {}", block_num);
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.block_batch_size;
-            let start_time = Instant::now();
-            let group = (0..concurrency)
-                .map(|step| {
-                    let eth_client = self.eth_client.clone();
-                    let start = block_num + step * batch_size;
+
+            let batches = (0..concurrency)
+                .map(|step_no| {
+                    let start = block_num + step_no * batch_size;
                     let end = start + batch_size;
-                    async move {
-                        self.retry
-                            .retry(move || {
-                                let eth_client = eth_client.clone();
-                                async move {
-                                    let batch = (start..end)
-                                        .map(|i| GetBlockByNumber { block_number: i })
-                                        .collect::<Vec<_>>();
-                                    eth_client
-                                        .send_batch(&batch)
-                                        .await
-                                        .map_err(Error::EthClient)
-                                }
-                            })
-                            .await
-                    }
+                    (start..end)
+                        .map(|i| GetBlockByNumber { block_number: i })
+                        .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
-            let group = futures::future::join_all(group).await;
+
+            let start_time = Instant::now();
+
+            let batches = self
+                .eth_client
+                .clone()
+                .send_batches(&batches, self.retry)
+                .await
+                .map_err(Error::EthClient)?;
+
             log::info!(
-                "downloaded {} blocks in {}ms",
-                step,
+                "downloaded blocks {}-{} in {}ms",
+                block_num,
+                block_num + step,
                 start_time.elapsed().as_millis()
             );
-            for batch in group {
-                let batch = match batch {
-                    Ok(batch) => batch,
-                    Err(e) => {
-                        log::error!("failed batch block req: {:#?}", e);
-                        continue;
-                    }
-                };
 
+            for batch in batches {
                 self.block_writer.send(batch).await;
             }
         }

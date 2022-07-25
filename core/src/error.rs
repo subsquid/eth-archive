@@ -32,8 +32,10 @@ pub enum Error {
     CreateDbTransaction(tokio_postgres::Error),
     #[error("failed to commit database transaction:\n{0}")]
     CommitDbTx(tokio_postgres::Error),
-    #[error("failed to insert block to database:\n{0:#?}")]
+    #[error("failed to insert block to database:\n{0}")]
     InsertBlock(tokio_postgres::Error),
+    #[error("failed operation after retrying:\n{0:#?}")]
+    Retry(Vec<Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;

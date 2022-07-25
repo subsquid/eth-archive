@@ -26,6 +26,10 @@ pub enum Error {
     GetMaxBlockNumber(eth_archive_core::Error),
     #[error("failed to insert blocks to database:\n{0}")]
     InsertBlocks(eth_archive_core::Error),
+    #[error("failed operation after retrying:\n{0:#?}")]
+    Retry(Vec<Error>),
+    #[error("failed to join tokio task:\n{0}")]
+    JoinError(tokio::task::JoinError),
 }
 
 pub type Result<T> = StdResult<T, Error>;
