@@ -30,6 +30,8 @@ pub enum Error {
     GetMinBlockNumber(eth_archive_core::Error),
     #[error("failed to get block from database:\n{0}")]
     GetBlockFromDb(eth_archive_core::Error),
+    #[error("failed to get blocks from database:\n{0}")]
+    GetBlocksFromDb(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

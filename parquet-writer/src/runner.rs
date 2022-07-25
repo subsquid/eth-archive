@@ -72,15 +72,21 @@ impl ParquetWriterRunner {
         })
     }
 
-    async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
+    async fn wait_for_next_blocks(&self, waiting_for: usize, step: usize) -> Result<Vec<Block>> {
+        let start = waiting_for as i64;
+        let end = (waiting_for + step) as i64;
         loop {
             let block = self
                 .db
-                .get_block(waiting_for as i64)
+                .get_block(end)
                 .await
                 .map_err(Error::GetBlockFromDb)?;
-            if let Some(block) = block {
-                return Ok(block);
+            if block.is_some() {
+                return self
+                    .db
+                    .get_blocks(start, end)
+                    .await
+                    .map_err(Error::GetBlocksFromDb);
             } else {
                 log::debug!("waiting for next block...");
                 sleep(Duration::from_secs(1)).await;
@@ -91,16 +97,17 @@ impl ParquetWriterRunner {
     pub async fn run(&self) -> Result<()> {
         let mut block_number = self.initial_sync().await?;
 
+        let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
         loop {
-            let block = self.wait_for_next_block(block_number).await?;
+            let blocks = self.wait_for_next_blocks(block_number, step).await?;
 
-            self.block_writer.send(vec![block]).await;
+            self.block_writer.send(blocks).await;
 
             if block_number % 5000 == 0 {
                 log::info!("sent block {} to writer", block_number);
             }
 
-            block_number += 1;
+            block_number += step;
         }
     }
 

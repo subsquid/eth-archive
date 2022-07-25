@@ -187,25 +187,42 @@ impl DbHandle {
             None => return Ok(None),
         };
 
-        Ok(Some(Block {
-            number: BigInt(row.get(0)),
-            hash: Bytes32::new(row.get(1)),
-            parent_hash: Bytes32::new(row.get(2)),
-            nonce: Nonce::new(row.get(3)),
-            sha3_uncles: Bytes32::new(row.get(4)),
-            logs_bloom: BloomFilterBytes::new(row.get(5)),
-            transactions_root: Bytes32::new(row.get(6)),
-            state_root: Bytes32::new(row.get(7)),
-            receipts_root: Bytes32::new(row.get(8)),
-            miner: Address::new(row.get(9)),
-            difficulty: Bytes(row.get(10)),
-            total_difficulty: Bytes(row.get(11)),
-            extra_data: Bytes(row.get(12)),
-            size: BigInt(row.get(13)),
-            gas_limit: Bytes(row.get(14)),
-            gas_used: Bytes(row.get(15)),
-            timestamp: BigInt(row.get(16)),
-        }))
+        Ok(Some(block_from_row(row)))
+    }
+
+    pub async fn get_blocks(&self, start: i64, end: i64) -> Result<Vec<Block>> {
+        let rows = self
+            .get_conn()
+            .await?
+            .query(
+                "SELECT 
+                    number,
+                    hash,
+                    parent_hash,
+                    nonce,
+                    sha3_uncles,
+                    logs_bloom,
+                    transactions_root,
+                    state_root,
+                    receipts_root,
+                    miner,
+                    difficulty,
+                    total_difficulty,
+                    extra_data,
+                    size,
+                    gas_limit,
+                    gas_used,
+                    timestamp
+                from eth_block
+                WHERE number >= $1 AND number < $2;",
+                &[&start, &end],
+            )
+            .await
+            .map_err(Error::DbQuery)?;
+
+        let blocks = rows.iter().map(block_from_row).collect();
+
+        Ok(blocks)
     }
 
     pub async fn delete_blocks_up_to(&self, block_number: i64) -> Result<()> {
@@ -215,6 +232,28 @@ impl DbHandle {
             .await
             .map_err(Error::DbQuery)?;
         Ok(())
+    }
+}
+
+fn block_from_row(row: &tokio_postgres::Row) -> Block {
+    Block {
+        number: BigInt(row.get(0)),
+        hash: Bytes32::new(row.get(1)),
+        parent_hash: Bytes32::new(row.get(2)),
+        nonce: Nonce::new(row.get(3)),
+        sha3_uncles: Bytes32::new(row.get(4)),
+        logs_bloom: BloomFilterBytes::new(row.get(5)),
+        transactions_root: Bytes32::new(row.get(6)),
+        state_root: Bytes32::new(row.get(7)),
+        receipts_root: Bytes32::new(row.get(8)),
+        miner: Address::new(row.get(9)),
+        difficulty: Bytes(row.get(10)),
+        total_difficulty: Bytes(row.get(11)),
+        extra_data: Bytes(row.get(12)),
+        size: BigInt(row.get(13)),
+        gas_limit: Bytes(row.get(14)),
+        gas_used: Bytes(row.get(15)),
+        timestamp: BigInt(row.get(16)),
     }
 }
 
