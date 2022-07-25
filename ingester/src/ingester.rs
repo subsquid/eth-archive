@@ -169,7 +169,8 @@ impl Ingester {
                 .await
                 .is_err()
             {
-                unreachable!();
+                log::error!("fast_sync: write_task stopped exiting download loop");
+                break;
             }
         }
 
