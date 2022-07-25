@@ -1,6 +1,7 @@
 use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use arrow2::io::parquet::write::*;
+use std::time::Instant;
 use std::{fs, mem};
 use tokio::sync::mpsc;
 
@@ -27,6 +28,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
                 let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to + 1);
 
+                let start_time = Instant::now();
+
                 let mut temp_path = cfg.path.clone();
                 temp_path.push(format!("{}.temp", &file_name));
                 let file = fs::File::create(&temp_path).unwrap();
@@ -42,7 +45,14 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 final_path.push(format!("{}.parquet", &file_name));
                 fs::rename(&temp_path, final_path).unwrap();
 
-                delete_tx.send(block_range.to).unwrap();
+                log::info!(
+                    "wrote blocks {}-{} to parquet file in {}ms",
+                    block_range.from,
+                    block_range.to + 1,
+                    start_time.elapsed().as_millis()
+                );
+
+                delete_tx.send(block_range.to + 1).unwrap();
             };
 
             while let Some(elems) = rx.blocking_recv() {

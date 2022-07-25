@@ -228,7 +228,7 @@ impl DbHandle {
     pub async fn delete_blocks_up_to(&self, block_number: i64) -> Result<()> {
         self.get_conn()
             .await?
-            .execute("DELETE FROM eth_block WHERE number <= $1", &[&block_number])
+            .execute("DELETE FROM eth_block WHERE number < $1", &[&block_number])
             .await
             .map_err(Error::DbQuery)?;
         Ok(())
