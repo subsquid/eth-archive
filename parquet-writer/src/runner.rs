@@ -103,9 +103,11 @@ impl ParquetWriterRunner {
 
             self.block_writer.send(blocks).await;
 
-            if block_number % 5000 == 0 {
-                log::info!("sent block {} to writer", block_number);
-            }
+            log::info!(
+                "sent blocks {}-{} to writer",
+                block_number,
+                block_number + step
+            );
 
             block_number += step;
         }
