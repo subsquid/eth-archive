@@ -9,9 +9,9 @@ use eth_archive_core::eth_request::GetBlockByNumber;
 use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
-use std::cmp;
 use std::sync::Arc;
 use std::time::Instant;
+use std::{cmp, mem};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
@@ -20,7 +20,7 @@ pub struct ParquetWriterRunner {
     cfg: IngestConfig,
     eth_client: Arc<EthClient>,
     block_writer: ParquetWriter<Blocks>,
-    _transaction_writer: ParquetWriter<Transactions>,
+    transaction_writer: ParquetWriter<Transactions>,
     _log_writer: ParquetWriter<Logs>,
     retry: Retry,
 }
@@ -77,7 +77,7 @@ impl ParquetWriterRunner {
             cfg: config.ingest,
             eth_client,
             block_writer,
-            _transaction_writer: transaction_writer,
+            transaction_writer,
             _log_writer: log_writer,
             retry,
         })
@@ -86,6 +86,9 @@ impl ParquetWriterRunner {
     async fn wait_for_next_blocks(&self, waiting_for: usize, step: usize) -> Result<Vec<Block>> {
         let start = waiting_for as i64;
         let end = (waiting_for + step) as i64;
+
+        log::info!("waiting for block {}", end);
+
         loop {
             let block = self
                 .db
@@ -111,6 +114,15 @@ impl ParquetWriterRunner {
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
         loop {
             let blocks = self.wait_for_next_blocks(block_number, step).await?;
+
+            for block in blocks.iter() {
+                let transactions = self
+                    .db
+                    .get_txs_of_block(block.number.0 as i64)
+                    .await
+                    .map_err(Error::GetTxsFromDb)?;
+                self.transaction_writer.send(transactions).await;
+            }
 
             self.block_writer.send(blocks).await;
 
@@ -197,7 +209,12 @@ impl ParquetWriterRunner {
                 start_time.elapsed().as_millis()
             );
 
-            for batch in batches {
+            for mut batch in batches {
+                for block in batch.iter_mut() {
+                    let transactions = mem::take(&mut block.transactions);
+                    self.transaction_writer.send(transactions).await;
+                }
+
                 self.block_writer.send(batch).await;
             }
         }

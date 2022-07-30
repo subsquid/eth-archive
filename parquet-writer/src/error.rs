@@ -32,6 +32,8 @@ pub enum Error {
     GetBlockFromDb(eth_archive_core::Error),
     #[error("failed to get blocks from database:\n{0}")]
     GetBlocksFromDb(eth_archive_core::Error),
+    #[error("failed to get transactions from database:\n{0}")]
+    GetTxsFromDb(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

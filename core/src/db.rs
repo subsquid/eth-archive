@@ -1,7 +1,7 @@
 use crate::config::DbConfig;
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
 use crate::options::Options;
-use crate::types::Block;
+use crate::types::{Block, Transaction};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
 
@@ -225,6 +225,38 @@ impl DbHandle {
         Ok(blocks)
     }
 
+    pub async fn get_txs_of_block(&self, block_number: i64) -> Result<Vec<Transaction>> {
+        let rows = self
+            .get_conn()
+            .await?
+            .query(
+                "SELECT 
+                    block_hash,
+                    block_number,
+                    from,
+                    gas,
+                    gas_price,
+                    hash,
+                    input,
+                    nonce,
+                    to,
+                    transaction_index,
+                    value,
+                    v,
+                    r,
+                    s,
+                from eth_tx
+                WHERE block_number = $1;",
+                &[&block_number],
+            )
+            .await
+            .map_err(Error::DbQuery)?;
+
+        let transactions = rows.iter().map(transaction_from_row).collect();
+
+        Ok(transactions)
+    }
+
     pub async fn delete_blocks_up_to(&self, block_number: i64) -> Result<()> {
         self.get_conn()
             .await?
@@ -254,6 +286,26 @@ fn block_from_row(row: &tokio_postgres::Row) -> Block {
         gas_limit: Bytes(row.get(14)),
         gas_used: Bytes(row.get(15)),
         timestamp: BigInt(row.get(16)),
+        transactions: Vec::new(),
+    }
+}
+
+fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
+    Transaction {
+        block_hash: Bytes32::new(row.get(0)),
+        block_number: BigInt(row.get(1)),
+        from: Address::new(row.get(2)),
+        gas: BigInt(row.get(3)),
+        gas_price: BigInt(row.get(4)),
+        hash: Bytes32::new(row.get(5)),
+        input: Bytes(row.get(6)),
+        nonce: Nonce::new(row.get(7)),
+        to: row.get::<_, Option<_>>(8).map(Address::new),
+        transaction_index: BigInt(row.get(9)),
+        value: Bytes(row.get(10)),
+        v: BigInt(row.get(11)),
+        r: Bytes(row.get(12)),
+        s: Bytes(row.get(13)),
     }
 }
 

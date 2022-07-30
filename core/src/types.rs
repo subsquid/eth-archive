@@ -22,6 +22,7 @@ pub struct Block {
     pub gas_limit: Bytes,
     pub gas_used: Bytes,
     pub timestamp: BigInt,
+    pub transactions: Vec<Transaction>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

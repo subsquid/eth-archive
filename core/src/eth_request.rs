@@ -22,7 +22,7 @@ impl EthRequest for GetBlockByNumber {
             "method": "eth_getBlockByNumber",
             "params": [
                 block_number_to_hex(self.block_number),
-                false,
+                true,
             ],
             "id": id,
         })
