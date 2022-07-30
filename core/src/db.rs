@@ -214,7 +214,7 @@ impl DbHandle {
 
 async fn insert_block(tx: &tokio_postgres::Transaction, block: &Block) -> Result<()> {
     tx.execute(
-                "INSERT INTO eth_block (
+        "INSERT INTO eth_block (
                     number,
                     hash,
                     parent_hash,
@@ -251,35 +251,38 @@ async fn insert_block(tx: &tokio_postgres::Transaction, block: &Block) -> Result
                     $16,
                     $17
                 );",
-                &[
-                    &*block.number,
-                    &block.hash.as_slice(),
-                    &block.parent_hash.as_slice(),
-                    &block.nonce.0.to_be_bytes().as_slice(),
-                    &block.sha3_uncles.as_slice(),
-                    &block.logs_bloom.as_slice(),
-                    &block.transactions_root.as_slice(),
-                    &block.state_root.as_slice(),
-                    &block.receipts_root.as_slice(),
-                    &block.miner.as_slice(),
-                    &block.difficulty.as_slice(),
-                    &block.total_difficulty.as_slice(),
-                    &block.extra_data.as_slice(),
-                    &*block.size,
-                    &block.gas_limit.as_slice(),
-                    &block.gas_used.as_slice(),
-                    &*block.timestamp,
-                ],
-            )
-            .await
-            .map_err(Error::InsertBlock)?;
+        &[
+            &*block.number,
+            &block.hash.as_slice(),
+            &block.parent_hash.as_slice(),
+            &block.nonce.0.to_be_bytes().as_slice(),
+            &block.sha3_uncles.as_slice(),
+            &block.logs_bloom.as_slice(),
+            &block.transactions_root.as_slice(),
+            &block.state_root.as_slice(),
+            &block.receipts_root.as_slice(),
+            &block.miner.as_slice(),
+            &block.difficulty.as_slice(),
+            &block.total_difficulty.as_slice(),
+            &block.extra_data.as_slice(),
+            &*block.size,
+            &block.gas_limit.as_slice(),
+            &block.gas_used.as_slice(),
+            &*block.timestamp,
+        ],
+    )
+    .await
+    .map_err(Error::InsertBlock)?;
 
     Ok(())
 }
 
-async fn insert_transaction(tx: &tokio_postgres::Transaction, transaction: &Transaction) -> Result<()> {
+async fn insert_transaction(
+    tx: &tokio_postgres::Transaction,
+    transaction: &Transaction,
+) -> Result<()> {
     tx.execute(
-                "INSERT INTO eth_tx (
+        "INSERT INTO eth_tx (
                     block_hash,
                     block_number,
                     from,
@@ -310,29 +313,29 @@ async fn insert_transaction(tx: &tokio_postgres::Transaction, transaction: &Tran
                     $13,
                     $14
                 );",
-                &[
-                    &transaction.block_hash.as_slice(),
-                    &*transaction.block_number,
-                    &transaction.from.as_slice(),
-                    &transaction.gas.0.to_be_bytes().as_slice(),
-                    &transaction.nonce.0.to_be_bytes().as_slice(),
-                    &block.sha3_uncles.as_slice(),
-                    &block.logs_bloom.as_slice(),
-                    &block.transactions_root.as_slice(),
-                    &block.state_root.as_slice(),
-                    &block.receipts_root.as_slice(),
-                    &block.miner.as_slice(),
-                    &block.difficulty.as_slice(),
-                    &block.total_difficulty.as_slice(),
-                    &block.extra_data.as_slice(),
-                    &*block.size,
-                    &block.gas_limit.as_slice(),
-                    &block.gas_used.as_slice(),
-                    &*block.timestamp,
-                ],
-            )
-            .await
-            .map_err(Error::InsertBlock)?;
+        &[
+            &transaction.block_hash.as_slice(),
+            &*transaction.block_number,
+            &transaction.from.as_slice(),
+            &transaction.gas.0.to_be_bytes().as_slice(),
+            &transaction.nonce.0.to_be_bytes().as_slice(),
+            &block.sha3_uncles.as_slice(),
+            &block.logs_bloom.as_slice(),
+            &block.transactions_root.as_slice(),
+            &block.state_root.as_slice(),
+            &block.receipts_root.as_slice(),
+            &block.miner.as_slice(),
+            &block.difficulty.as_slice(),
+            &block.total_difficulty.as_slice(),
+            &block.extra_data.as_slice(),
+            &*block.size,
+            &block.gas_limit.as_slice(),
+            &block.gas_used.as_slice(),
+            &*block.timestamp,
+        ],
+    )
+    .await
+    .map_err(Error::InsertBlock)?;
 
     Ok(())
 }
@@ -418,24 +421,22 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
         
         CREATE TABLE IF NOT EXISTS eth_tx (
             row_id BIGSERIAL PRIMARY KEY,
-            
-            nonce bytea,
             block_hash bytea,
             block_number bigint REFERENCES eth_block(number) ON DELETE CASCADE,
-            transaction_index bytea,
-            sender bytea,
-            receiver bytea,
-            value bytea,
-            gas_price bytea,
+            from bytea,
+            gas bigint,
+            gas_price bigint,
             hash bytea,
-            gas bytea,
             input bytea,
-            v bytea,
-            standard_v boolean,
+            nonce bytea,
+            to bytea,
+            transaction_index bigint,
+            value bytea,
+            kind bigint,
+            chain_id bigint,
+            v bigint,
             r bytea,
-            raw bytea,
-            public_key bytea,
-            chain_id bytea
+            s bytea
         );
         
         CREATE TABLE IF NOT EXISTS eth_log (

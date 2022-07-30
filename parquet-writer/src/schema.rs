@@ -66,6 +66,8 @@ fn transaction_schema() -> Schema {
         Field::new("to", address(), true),
         Field::new("transaction_index", DataType::Int64, false),
         Field::new("value", DataType::Binary, false),
+        Field::new("kind", DataType::Int64, false),
+        Field::new("chain_id", DataType::Int64, false),
         Field::new("v", DataType::Int64, false),
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
@@ -274,6 +276,8 @@ pub struct Transactions {
     pub to: MutableBinaryArray,
     pub transaction_index: Int64Vec,
     pub value: MutableBinaryArray,
+    pub kind: Int64Vec,
+    pub chain_id: Int64Vec,
     pub v: Int64Vec,
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
@@ -295,6 +299,8 @@ impl Default for Transactions {
             to: bytes32_arr(),
             transaction_index: Default::default(),
             value: Default::default(),
+            kind: Default::default(),
+            chain_id: Default::default(),
             v: Default::default(),
             r: Default::default(),
             s: Default::default(),
@@ -346,6 +352,8 @@ impl IntoRowGroups for Transactions {
             arrow_take(self.to.as_box().as_ref(), &indices).unwrap(),
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
             arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.kind.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.chain_id.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
@@ -372,6 +380,8 @@ impl IntoRowGroups for Transactions {
         }
         self.transaction_index.push(Some(elem.transaction_index.0));
         self.value.push(Some(elem.value.0));
+        self.kind.push(Some(elem.kind.0));
+        self.chain_id.push(Some(elem.chain_id.0));
         self.v.push(Some(elem.v.0));
         self.r.push(Some(elem.r.0));
         self.s.push(Some(elem.s.0));
@@ -387,6 +397,8 @@ impl IntoRowGroups for Transactions {
 
     fn encoding() -> Vec<Encoding> {
         vec![
+            Encoding::Plain,
+            Encoding::Plain,
             Encoding::Plain,
             Encoding::Plain,
             Encoding::Plain,

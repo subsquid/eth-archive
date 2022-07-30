@@ -39,7 +39,8 @@ pub struct Transaction {
     pub to: Option<Address>,
     pub transaction_index: BigInt,
     pub value: Bytes,
-    pub type: BigInt,
+    #[serde(alias = "type")]
+    pub kind: BigInt,
     pub chain_id: BigInt,
     pub v: BigInt,
     pub r: Bytes,

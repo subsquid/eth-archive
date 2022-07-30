@@ -42,12 +42,6 @@ impl BloomFilterBytes {
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct BigInt(pub i64);
 
-impl BigInt {
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Self(i64::from_be_bytes(bytes.try_into().unwrap()))
-    }
-}
-
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct Bytes(pub Vec<u8>);
 
