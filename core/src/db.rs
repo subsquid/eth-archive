@@ -187,6 +187,8 @@ impl DbHandle {
                     to,
                     transaction_index,
                     value,
+                    kind,
+                    chain_id,
                     v,
                     r,
                     s
@@ -212,7 +214,7 @@ impl DbHandle {
     }
 }
 
-async fn insert_block(tx: &tokio_postgres::Transaction, block: &Block) -> Result<()> {
+async fn insert_block<'a>(tx: &tokio_postgres::Transaction<'a>, block: &Block) -> Result<()> {
     tx.execute(
         "INSERT INTO eth_block (
                     number,
@@ -277,8 +279,8 @@ async fn insert_block(tx: &tokio_postgres::Transaction, block: &Block) -> Result
     Ok(())
 }
 
-async fn insert_transaction(
-    tx: &tokio_postgres::Transaction,
+async fn insert_transaction<'a>(
+    tx: &tokio_postgres::Transaction<'a>,
     transaction: &Transaction,
 ) -> Result<()> {
     tx.execute(
@@ -294,6 +296,8 @@ async fn insert_transaction(
                     to,
                     transaction_index,
                     value,
+                    kind,
+                    chain_id,
                     v,
                     r,
                     s
@@ -311,31 +315,31 @@ async fn insert_transaction(
                     $11,
                     $12,
                     $13,
-                    $14
+                    $14,
+                    $15,
+                    $16
                 );",
         &[
             &transaction.block_hash.as_slice(),
             &*transaction.block_number,
             &transaction.from.as_slice(),
-            &transaction.gas.0.to_be_bytes().as_slice(),
+            &*transaction.gas,
+            &*transaction.gas_price,
+            &transaction.hash.as_slice(),
+            &transaction.input.as_slice(),
             &transaction.nonce.0.to_be_bytes().as_slice(),
-            &block.sha3_uncles.as_slice(),
-            &block.logs_bloom.as_slice(),
-            &block.transactions_root.as_slice(),
-            &block.state_root.as_slice(),
-            &block.receipts_root.as_slice(),
-            &block.miner.as_slice(),
-            &block.difficulty.as_slice(),
-            &block.total_difficulty.as_slice(),
-            &block.extra_data.as_slice(),
-            &*block.size,
-            &block.gas_limit.as_slice(),
-            &block.gas_used.as_slice(),
-            &*block.timestamp,
+            &transaction.to.as_ref().map(|to| to.as_slice()),
+            &*transaction.transaction_index,
+            &transaction.value.as_slice(),
+            &*transaction.kind,
+            &*transaction.chain_id,
+            &*transaction.v,
+            &transaction.r.as_slice(),
+            &transaction.s.as_slice(),
         ],
     )
     .await
-    .map_err(Error::InsertBlock)?;
+    .map_err(Error::InsertTransaction)?;
 
     Ok(())
 }
@@ -368,17 +372,19 @@ fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
         block_hash: Bytes32::new(row.get(0)),
         block_number: BigInt(row.get(1)),
         from: Address::new(row.get(2)),
-        gas: BigInt::new(row.get(3)),
-        gas_price: BigInt::new(row.get(4)),
+        gas: BigInt(row.get(3)),
+        gas_price: BigInt(row.get(4)),
         hash: Bytes32::new(row.get(5)),
         input: Bytes(row.get(6)),
         nonce: Nonce::new(row.get(7)),
         to: row.get::<_, Option<_>>(8).map(Address::new),
         transaction_index: BigInt(row.get(9)),
         value: Bytes(row.get(10)),
-        v: BigInt(row.get(11)),
-        r: Bytes(row.get(12)),
-        s: Bytes(row.get(13)),
+        kind: BigInt(row.get(11)),
+        chain_id: BigInt(row.get(12)),
+        v: BigInt(row.get(13)),
+        r: Bytes(row.get(14)),
+        s: Bytes(row.get(15)),
     }
 }
 
