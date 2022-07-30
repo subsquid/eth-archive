@@ -30,13 +30,15 @@ pub struct Block {
 pub struct Transaction {
     pub block_hash: Bytes32,
     pub block_number: BigInt,
-    pub from: Address,
+    #[serde(alias = "from")]
+    pub source: Address,
     pub gas: BigInt,
     pub gas_price: BigInt,
     pub hash: Bytes32,
     pub input: Bytes,
     pub nonce: Nonce,
-    pub to: Option<Address>,
+    #[serde(alias = "to")]
+    pub dest: Option<Address>,
     pub transaction_index: BigInt,
     pub value: Bytes,
     #[serde(alias = "type")]

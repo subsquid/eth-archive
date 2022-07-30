@@ -267,13 +267,13 @@ impl IntoRowGroups for Blocks {
 pub struct Transactions {
     pub block_hash: MutableBinaryArray,
     pub block_number: Int64Vec,
-    pub from: MutableBinaryArray,
+    pub source: MutableBinaryArray,
     pub gas: Int64Vec,
     pub gas_price: Int64Vec,
     pub hash: MutableBinaryArray,
     pub input: MutableBinaryArray,
     pub nonce: UInt64Vec,
-    pub to: MutableBinaryArray,
+    pub dest: MutableBinaryArray,
     pub transaction_index: Int64Vec,
     pub value: MutableBinaryArray,
     pub kind: Int64Vec,
@@ -290,13 +290,13 @@ impl Default for Transactions {
         Self {
             block_hash: bytes32_arr(),
             block_number: Default::default(),
-            from: bytes32_arr(),
+            source: bytes32_arr(),
             gas: Default::default(),
             gas_price: Default::default(),
             hash: bytes32_arr(),
             input: Default::default(),
             nonce: Default::default(),
-            to: bytes32_arr(),
+            dest: bytes32_arr(),
             transaction_index: Default::default(),
             value: Default::default(),
             kind: Default::default(),
@@ -316,7 +316,7 @@ impl IntoRowGroups for Transactions {
     fn into_chunk(mut self) -> Chunk {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
-        let from = self.from.as_box();
+        let source = self.source.as_box();
 
         let indices = lexsort_to_indices::<i64>(
             &[
@@ -343,13 +343,13 @@ impl IntoRowGroups for Transactions {
         Chunk::new(vec![
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(block_number.as_ref(), &indices).unwrap(),
-            arrow_take(from.as_ref(), &indices).unwrap(),
+            arrow_take(source.as_ref(), &indices).unwrap(),
             arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.to.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.dest.as_box().as_ref(), &indices).unwrap(),
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
             arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.kind.as_box().as_ref(), &indices).unwrap(),
@@ -368,15 +368,15 @@ impl IntoRowGroups for Transactions {
 
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
-        self.from.push(Some(elem.from.0.as_slice()));
+        self.source.push(Some(elem.source.0.as_slice()));
         self.gas.push(Some(elem.gas.0));
         self.gas_price.push(Some(elem.gas_price.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
         self.input.push(Some(elem.input.0));
         self.nonce.push(Some(elem.nonce.0));
-        match elem.to {
-            Some(to) => self.to.push(Some(to.0.as_slice())),
-            None => self.to.push::<&[u8]>(None),
+        match elem.dest {
+            Some(dest) => self.dest.push(Some(dest.0.as_slice())),
+            None => self.dest.push::<&[u8]>(None),
         }
         self.transaction_index.push(Some(elem.transaction_index.0));
         self.value.push(Some(elem.value.0));

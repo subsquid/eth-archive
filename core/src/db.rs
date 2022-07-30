@@ -29,9 +29,7 @@ impl DbHandle {
         let conn = pool.get().await.map_err(Error::GetDbConnection)?;
 
         if options.reset_db {
-            if let Err(e) = reset_db(&conn).await {
-                log::error!("{}", e);
-            }
+            reset_db(&conn).await;
         }
 
         init_db(&conn).await?;
@@ -184,7 +182,7 @@ impl DbHandle {
                     hash,
                     input,
                     nonce,
-                    to,
+                    dest,
                     transaction_index,
                     value,
                     kind,
@@ -287,13 +285,13 @@ async fn insert_transaction<'a>(
         "INSERT INTO eth_tx (
                     block_hash,
                     block_number,
-                    from,
+                    source,
                     gas,
                     gas_price,
                     hash,
                     input,
                     nonce,
-                    to,
+                    dest,
                     transaction_index,
                     value,
                     kind,
@@ -322,13 +320,13 @@ async fn insert_transaction<'a>(
         &[
             &transaction.block_hash.as_slice(),
             &*transaction.block_number,
-            &transaction.from.as_slice(),
+            &transaction.source.as_slice(),
             &*transaction.gas,
             &*transaction.gas_price,
             &transaction.hash.as_slice(),
             &transaction.input.as_slice(),
             &transaction.nonce.0.to_be_bytes().as_slice(),
-            &transaction.to.as_ref().map(|to| to.as_slice()),
+            &transaction.dest.as_ref().map(|to| to.as_slice()),
             &*transaction.transaction_index,
             &transaction.value.as_slice(),
             &*transaction.kind,
@@ -371,13 +369,13 @@ fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
     Transaction {
         block_hash: Bytes32::new(row.get(0)),
         block_number: BigInt(row.get(1)),
-        from: Address::new(row.get(2)),
+        source: Address::new(row.get(2)),
         gas: BigInt(row.get(3)),
         gas_price: BigInt(row.get(4)),
         hash: Bytes32::new(row.get(5)),
         input: Bytes(row.get(6)),
         nonce: Nonce::new(row.get(7)),
-        to: row.get::<_, Option<_>>(8).map(Address::new),
+        dest: row.get::<_, Option<_>>(8).map(Address::new),
         transaction_index: BigInt(row.get(9)),
         value: Bytes(row.get(10)),
         kind: BigInt(row.get(11)),
@@ -388,18 +386,45 @@ fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
     }
 }
 
-async fn reset_db(conn: &deadpool_postgres::Object) -> Result<()> {
-    conn.batch_execute(
-        "
+async fn reset_db(conn: &deadpool_postgres::Object) {
+    let res = conn
+        .execute(
+            "
         DROP TABLE eth_log;
+    ",
+            &[],
+        )
+        .await;
+
+    if let Err(e) = res {
+        log::warn!("failed to delete log table {}", e);
+    }
+
+    let res = conn
+        .execute(
+            "
         DROP TABLE eth_tx;
+    ",
+            &[],
+        )
+        .await;
+
+    if let Err(e) = res {
+        log::warn!("failed to delete transaction table {}", e);
+    }
+
+    let res = conn
+        .execute(
+            "
         DROP TABLE eth_block;
     ",
-    )
-    .await
-    .map_err(Error::ResetDb)?;
+            &[],
+        )
+        .await;
 
-    Ok(())
+    if let Err(e) = res {
+        log::warn!("failed to delete block table {}", e);
+    }
 }
 
 async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
@@ -429,13 +454,13 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             row_id BIGSERIAL PRIMARY KEY,
             block_hash bytea,
             block_number bigint REFERENCES eth_block(number) ON DELETE CASCADE,
-            from bytea,
+            source bytea,
             gas bigint,
             gas_price bigint,
             hash bytea,
             input bytea,
             nonce bytea,
-            to bytea,
+            dest bytea,
             transaction_index bigint,
             value bytea,
             kind bigint,
