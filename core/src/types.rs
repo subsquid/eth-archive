@@ -39,6 +39,8 @@ pub struct Transaction {
     pub to: Option<Address>,
     pub transaction_index: BigInt,
     pub value: Bytes,
+    pub type: BigInt,
+    pub chain_id: BigInt,
     pub v: BigInt,
     pub r: Bytes,
     pub s: Bytes,
