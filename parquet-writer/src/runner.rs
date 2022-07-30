@@ -48,8 +48,14 @@ impl ParquetWriterRunner {
             let db = db.clone();
             tokio::spawn(async move {
                 while let Some(block_number) = delete_rx.recv().await {
-                    if let Err(e) = db.delete_blocks_up_to(block_number as i64).await {
-                        log::error!("failed to delete blocks up to {}:\n{}", block_number, e);
+                    if block_number <= config.block_overlap_size {
+                        continue;
+                    }
+
+                    let delete_up_to = block_number - config.block_overlap_size;
+
+                    if let Err(e) = db.delete_blocks_up_to(delete_up_to as i64).await {
+                        log::error!("failed to delete blocks up to {}:\n{}", delete_up_to, e);
                     }
                 }
             });

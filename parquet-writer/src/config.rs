@@ -10,6 +10,7 @@ pub struct Config {
     pub ingest: IngestConfig,
     pub retry: RetryConfig,
     pub db: DbConfig,
+    pub block_overlap_size: usize,
 }
 
 #[derive(Deserialize, Clone)]
