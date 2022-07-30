@@ -5,8 +5,8 @@ use clap::Parser;
 pub struct Options {
     #[clap(short, long, value_parser)]
     pub reset_db: bool,
-    #[clap(short, long, value_parser, default_value = "EthIngester.toml")]
-    pub cfg_path: String,
+    #[clap(short, long, value_parser)]
+    pub cfg_path: Option<String>,
 }
 
 impl Options {

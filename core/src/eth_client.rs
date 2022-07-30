@@ -76,23 +76,41 @@ impl EthClient {
         }
 
         let resp_body = resp
-            .json::<Vec<JsonValue>>()
+            .json::<JsonValue>()
             .await
             .map_err(Error::RpcResponseParse)?;
 
+        let resp_body = match resp_body {
+            JsonValue::Array(resp) => resp,
+            _ => {
+                let body = serde_json::to_string_pretty(&resp_body).unwrap();
+                log::error!("invalid rpc response, body was:\n{}", body);
+                return Err(Error::InvalidRpcResponse);
+            }
+        };
+
         let rpc_results = resp_body
             .into_iter()
-            .map(|rpc_result| {
-                let mut rpc_result = match rpc_result {
-                    JsonValue::Object(rpc_result) => rpc_result,
+            .map(|rpc_response| {
+                let mut rpc_response = match rpc_response {
+                    JsonValue::Object(rpc_response) => rpc_response,
                     _ => return Err(Error::InvalidRpcResponse),
                 };
 
-                let rpc_result = rpc_result
+                let rpc_result = rpc_response
                     .remove("result")
                     .ok_or(Error::InvalidRpcResponse)?;
 
-                serde_json::from_value(rpc_result).map_err(Error::RpcResponseParseJson)
+                match serde_json::from_value(rpc_result) {
+                    Ok(res) => Ok(res),
+                    Err(e) => {
+                        log::error!(
+                            "failed to parse rpc response, body was:\n{}",
+                            serde_json::to_string_pretty(&rpc_response).unwrap()
+                        );
+                        Err(Error::RpcResponseParseJson(e))
+                    }
+                }
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -117,7 +135,9 @@ impl EthClient {
 
     pub async fn get_best_block(&self) -> Result<usize> {
         let num = self.send(GetBestBlock {}).await?;
-        Ok(get_usize_from_hex(&num))
+        let best_block = get_usize_from_hex(&num);
+        log::info!("best block is {}", best_block);
+        Ok(best_block)
     }
 }
 

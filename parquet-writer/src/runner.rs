@@ -27,9 +27,14 @@ pub struct ParquetWriterRunner {
 
 impl ParquetWriterRunner {
     pub async fn new(options: &Options) -> Result<Self> {
-        let config = tokio::fs::read_to_string(&options.cfg_path)
-            .await
-            .map_err(Error::ReadConfigFile)?;
+        let config = tokio::fs::read_to_string(
+            options
+                .cfg_path
+                .as_deref()
+                .unwrap_or("EthParquetWriter.toml"),
+        )
+        .await
+        .map_err(Error::ReadConfigFile)?;
 
         let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
 

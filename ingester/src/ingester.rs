@@ -8,6 +8,7 @@ use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
 use std::sync::Arc;
 use std::time::Instant;
+use std::{cmp, mem};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
@@ -20,9 +21,10 @@ pub struct Ingester {
 
 impl Ingester {
     pub async fn new(options: &Options) -> Result<Self> {
-        let config = tokio::fs::read_to_string(&options.cfg_path)
-            .await
-            .map_err(Error::ReadConfigFile)?;
+        let config =
+            tokio::fs::read_to_string(options.cfg_path.as_deref().unwrap_or("EthIngester.toml"))
+                .await
+                .map_err(Error::ReadConfigFile)?;
 
         let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
 
@@ -46,7 +48,7 @@ impl Ingester {
     }
 
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
-        log::info!("waiting for next block...");
+        log::info!("waiting for block {}", waiting_for);
 
         loop {
             let block_number = self
@@ -86,9 +88,12 @@ impl Ingester {
                     .insert_blocks(&[block])
                     .await
                     .map_err(Error::InsertBlocks)?;
+
+                log::info!("wrote block {}", block_number);
+
                 return Ok(());
             } else {
-                log::debug!("waiting for parquet writer to write tail...");
+                log::debug!("waiting for parquet writer to delete tail...");
                 sleep(Duration::from_secs(1)).await;
             }
         }
@@ -134,17 +139,30 @@ impl Ingester {
             }
         });
 
+        let best_block = self
+            .eth_client
+            .get_best_block()
+            .await
+            .map_err(Error::EthClient)?;
+
         for block_num in (from_block..to_block).step_by(step) {
             let concurrency = self.cfg.ingest.http_req_concurrency;
             let batch_size = self.cfg.ingest.block_batch_size;
 
             let batches = (0..concurrency)
-                .map(|step_no| {
+                .filter_map(|step_no| {
                     let start = block_num + step_no * batch_size;
-                    let end = start + batch_size;
-                    (start..end)
+                    let end = cmp::min(start + batch_size, best_block);
+
+                    let batch = (start..end)
                         .map(|i| GetBlockByNumber { block_number: i })
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>();
+
+                    if batch.is_empty() {
+                        None
+                    } else {
+                        Some(batch)
+                    }
                 })
                 .collect::<Vec<_>>();
 
@@ -173,6 +191,8 @@ impl Ingester {
                 break;
             }
         }
+
+        mem::drop(tx);
 
         log::info!("fast_sync: finished downloding, waiting for writing to end...");
 
@@ -216,21 +236,31 @@ impl Ingester {
                 .unwrap_or(block_number);
             let max_block_number = block_number - 1;
 
+            let best_block = self
+                .eth_client
+                .get_best_block()
+                .await
+                .map_err(Error::EthClient)?;
+
             let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
-            if max_block_number + step < min_block_number + self.cfg.block_window_size {
+            if max_block_number + step
+                < cmp::min(min_block_number + self.cfg.block_window_size, best_block)
+            {
                 self.fast_sync(block_number, min_block_number + self.cfg.block_window_size)
                     .await?;
 
-                block_number = min_block_number + self.cfg.block_window_size;
+                block_number = self
+                    .db
+                    .get_max_block_number()
+                    .await
+                    .map_err(Error::GetMaxBlockNumber)?
+                    .unwrap()
+                    + 1;
             }
 
             let block = self.wait_for_next_block(block_number).await?;
 
             self.wait_and_insert_block(block).await?;
-
-            if block_number % 50 == 0 {
-                log::info!("wrote block {}", block_number);
-            }
 
             block_number += 1;
         }

@@ -26,7 +26,7 @@ impl Retry {
                 match action().await {
                     Ok(r) => return Ok(r),
                     Err(e) => {
-                        log::error!("failed to run operation: {:#?}, retrying", e);
+                        log::error!("failed to run operation: {}, retrying", e);
                         tokio::time::sleep(std::time::Duration::from_secs(self.secs_between_tries))
                             .await;
                         errs.push(e);
@@ -39,7 +39,7 @@ impl Retry {
                 match action().await {
                     Ok(r) => return Ok(r),
                     Err(e) => {
-                        log::error!("failed to run operation: {:#?}, retrying", e);
+                        log::error!("failed to run operation: {}, retrying", e);
                         tokio::time::sleep(std::time::Duration::from_secs(self.secs_between_tries))
                             .await;
                     }
