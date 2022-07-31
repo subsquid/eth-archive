@@ -111,6 +111,8 @@ impl ParquetWriterRunner {
                 .await
                 .map_err(Error::GetBlockFromDb)?;
             if block.is_some() {
+                log::info!("getting blocks {}-{} from db", start, end);
+
                 return self
                     .db
                     .get_blocks(start, end)
