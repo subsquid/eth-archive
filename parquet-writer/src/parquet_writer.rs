@@ -46,7 +46,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 fs::rename(&temp_path, final_path).unwrap();
 
                 log::info!(
-                    "wrote blocks {}-{} to parquet file in {}ms",
+                    "wrote {}s {}-{} to parquet file in {}ms",
+                    &cfg.name,
                     block_range.from,
                     block_range.to + 1,
                     start_time.elapsed().as_millis()

@@ -68,6 +68,8 @@ impl ParquetWriterRunner {
         }
 
         if options.reset_data {
+            log::info!("resetting parquet data");
+
             if let Err(e) = fs::remove_dir_all(&config.block.path).await {
                 log::warn!("failed to remove block parquet directory:\n{}", e);
             }

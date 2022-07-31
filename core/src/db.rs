@@ -28,6 +28,8 @@ impl DbHandle {
         let conn = pool.get().await.map_err(Error::GetDbConnection)?;
 
         if reset_data {
+            log::info!("resetting database");
+
             reset_db(&conn).await;
         }
 
