@@ -1,6 +1,5 @@
 use crate::config::DbConfig;
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
-use crate::options::Options;
 use crate::types::{Block, Transaction};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
@@ -10,7 +9,7 @@ pub struct DbHandle {
 }
 
 impl DbHandle {
-    pub async fn new(options: &Options, cfg: &DbConfig) -> Result<Self> {
+    pub async fn new(reset_data: bool, cfg: &DbConfig) -> Result<Self> {
         use deadpool_postgres::{Config, Runtime};
 
         let cfg = Config {
@@ -28,7 +27,7 @@ impl DbHandle {
 
         let conn = pool.get().await.map_err(Error::GetDbConnection)?;
 
-        if options.reset_db {
+        if reset_data {
             reset_db(&conn).await;
         }
 

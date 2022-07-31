@@ -28,7 +28,7 @@ impl Ingester {
 
         let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
 
-        let db = DbHandle::new(options, &config.db)
+        let db = DbHandle::new(options.reset_data, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);

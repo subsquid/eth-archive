@@ -12,6 +12,7 @@ use eth_archive_core::types::Block;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
+use tokio::fs;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
@@ -38,7 +39,7 @@ impl ParquetWriterRunner {
 
         let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
 
-        let db = DbHandle::new(options, &config.db)
+        let db = DbHandle::new(false, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
@@ -64,6 +65,18 @@ impl ParquetWriterRunner {
                     }
                 }
             });
+        }
+
+        if options.reset_data {
+            if let Err(e) = fs::remove_dir_all(&config.block.path).await {
+                log::warn!("failed to remove block parquet directory:\n{}", e);
+            }
+            if let Err(e) = fs::remove_dir_all(&config.transaction.path).await {
+                log::warn!("failed to remove transaction parquet directory:\n{}", e);
+            }
+            if let Err(e) = fs::remove_dir_all(&config.log.path).await {
+                log::warn!("failed to remove log parquet directory:\n{}", e);
+            }
         }
 
         let block_writer = ParquetWriter::new(config.block, delete_tx.clone());
