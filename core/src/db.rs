@@ -79,20 +79,20 @@ impl DbHandle {
     pub async fn insert_blocks(&self, blocks: &[Block]) -> Result<()> {
         let mut conn = self.get_conn().await?;
 
-        for block in blocks.iter() {
-            let tx = conn
-                .transaction()
-                .await
-                .map_err(Error::CreateDbTransaction)?;
+        let tx = conn
+            .transaction()
+            .await
+            .map_err(Error::CreateDbTransaction)?;
 
+        for block in blocks.iter() {
             insert_block(&tx, block).await?;
 
             for transaction in block.transactions.iter() {
                 insert_transaction(&tx, transaction).await?;
             }
-
-            tx.commit().await.map_err(Error::CommitDbTx)?;
         }
+
+        tx.commit().await.map_err(Error::CommitDbTx)?;
 
         Ok(())
     }
