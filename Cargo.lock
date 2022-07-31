@@ -511,6 +511,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "snmalloc-rs",
  "thiserror",
  "tokio",
  "toml",

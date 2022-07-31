@@ -4,3 +4,7 @@ members = [
     "parquet-writer",
     "core",
 ]
+
+[profile.release]
+lto = true
+codegen-units = 1

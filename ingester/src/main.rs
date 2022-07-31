@@ -1,6 +1,9 @@
 use eth_archive_core::options::Options;
 use eth_archive_ingester::Ingester;
 
+#[global_allocator]
+static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
