@@ -47,15 +47,21 @@ impl Ingester {
         })
     }
 
+    async fn get_best_block(&self) -> Result<usize> {
+        let num = self
+            .eth_client
+            .get_best_block()
+            .await
+            .map_err(Error::GetBestBlock)?;
+
+        Ok(if num < 20 { 0 } else { num - 20 })
+    }
+
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
         log::info!("waiting for block {}", waiting_for);
 
         loop {
-            let block_number = self
-                .eth_client
-                .get_best_block()
-                .await
-                .map_err(Error::EthClient)?;
+            let block_number = self.get_best_block().await?;
 
             if waiting_for < block_number {
                 let block = self
@@ -139,11 +145,7 @@ impl Ingester {
             }
         });
 
-        let best_block = self
-            .eth_client
-            .get_best_block()
-            .await
-            .map_err(Error::EthClient)?;
+        let best_block = self.get_best_block().await?;
 
         for block_num in (from_block..to_block).step_by(step) {
             let concurrency = self.cfg.ingest.http_req_concurrency;
@@ -212,11 +214,7 @@ impl Ingester {
         let mut block_number = match max_block_number {
             Some(block_number) => block_number + 1,
             None => {
-                let block_number = self
-                    .eth_client
-                    .get_best_block()
-                    .await
-                    .map_err(Error::EthClient)?;
+                let block_number = self.get_best_block().await?;
                 if block_number <= self.cfg.block_window_size {
                     return Err(Error::BlockWindowBiggerThanBestblock);
                 }
@@ -236,11 +234,7 @@ impl Ingester {
                 .unwrap_or(block_number);
             let max_block_number = block_number - 1;
 
-            let best_block = self
-                .eth_client
-                .get_best_block()
-                .await
-                .map_err(Error::EthClient)?;
+            let best_block = self.get_best_block().await?;
 
             let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
             if max_block_number + step

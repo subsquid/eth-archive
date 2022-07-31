@@ -10,12 +10,12 @@ pub enum Error {
     ParseConfig(toml::de::Error),
     #[error("failed to create database handle:\n{0}")]
     CreateDbHandle(Box<eth_archive_core::Error>),
-    #[error("failed to get bestblock from ethereum node")]
-    GetBestBlock,
     #[error("failed to crate ethereum rpc client for ingestion:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
     #[error("ethereum rpc client error:\n{0}")]
     EthClient(eth_archive_core::Error),
+    #[error("failed to get best block from rpc api:\n{0}")]
+    GetBestBlock(eth_archive_core::Error),
     #[error("block window size is bigger than bestblock acquired from eth node")]
     BlockWindowBiggerThanBestblock,
     #[error("failed to get block from ethereum rpc:\n{0:#?}")]

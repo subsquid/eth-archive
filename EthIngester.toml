@@ -1,4 +1,5 @@
 block_window_size = 1000000
+block_depth_offset = 20
 
 [retry]
 secs_between_tries = 3
