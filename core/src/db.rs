@@ -470,6 +470,8 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             r bytea,
             s bytea
         );
+
+        CREATE INDEX IF NOT EXISTS tx_bn_idx ON eth_tx USING btree (block_number);
         
         CREATE TABLE IF NOT EXISTS eth_log (
             row_id BIGSERIAL PRIMARY KEY,
@@ -486,6 +488,8 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             topic2 bytea,
             topic3 bytea
         );
+
+        CREATE INDEX IF NOT EXISTS log_bn_idx ON eth_log USING btree (block_number);
     ",
     )
     .await

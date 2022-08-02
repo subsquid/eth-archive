@@ -138,6 +138,7 @@ impl ParquetWriterRunner {
                     .get_txs_of_block(block.number.0 as i64)
                     .await
                     .map_err(Error::GetTxsFromDb)?;
+
                 self.transaction_writer.send(transactions).await;
             }
 
@@ -193,6 +194,7 @@ impl ParquetWriterRunner {
         let from_block = self.get_start_block().await?;
 
         let to_block = self.wait_for_start_block_number().await?;
+
         log::info!("starting initial sync up to: {}.", to_block);
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
