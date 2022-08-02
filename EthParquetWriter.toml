@@ -4,9 +4,9 @@ block_overlap_size = 500000
 secs_between_tries = 3
 
 [db]
-user = "eth-archive-user"
-password = "password"
-dbname = "eth-archive-db"
+user = "postgres"
+password = "12345"
+dbname = "eth_archive_db"
 host = "localhost"
 port = 5432
 
