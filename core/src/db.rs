@@ -3,6 +3,7 @@ use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonc
 use crate::types::{Block, Transaction};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
+use tokio_postgres::types::ToSql;
 
 pub struct DbHandle {
     pool: Pool,
@@ -84,11 +85,239 @@ impl DbHandle {
             .await
             .map_err(Error::CreateDbTransaction)?;
 
-        for block in blocks.iter() {
-            insert_block(&tx, block).await?;
+        let mut block_params: Vec<&(dyn ToSql + Sync)> = Vec::with_capacity(blocks.len() * 17);
 
-            for transaction in block.transactions.iter() {
-                insert_transaction(&tx, transaction).await?;
+        for block in blocks.iter() {
+            block_params.extend_from_slice(&[
+                &block.number,
+                &block.hash,
+                &block.parent_hash,
+                &block.nonce,
+                &block.sha3_uncles,
+                &block.logs_bloom,
+                &block.transactions_root,
+                &block.state_root,
+                &block.receipts_root,
+                &block.miner,
+                &block.difficulty,
+                &block.total_difficulty,
+                &block.extra_data,
+                &block.size,
+                &block.gas_limit,
+                &block.gas_used,
+                &block.timestamp,
+            ]);
+        }
+
+        let block_query = format!(
+            "
+            INSERT INTO eth_block (
+                number,
+                hash,
+                parent_hash,
+                nonce,
+                sha3_uncles,
+                logs_bloom,
+                transactions_root,
+                state_root,
+                receipts_root,
+                miner,
+                difficulty,
+                total_difficulty,
+                extra_data,
+                size,
+                gas_limit,
+                gas_used,
+                timestamp
+            ) VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17
+            ) {};
+        ",
+            (1..blocks.len())
+                .map(|i| {
+                    let i = i * 17;
+
+                    format!(
+                        ", (
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${},
+                ${}
+            )",
+                        i + 1,
+                        i + 2,
+                        i + 3,
+                        i + 4,
+                        i + 5,
+                        i + 6,
+                        i + 7,
+                        i + 8,
+                        i + 9,
+                        i + 10,
+                        i + 11,
+                        i + 12,
+                        i + 13,
+                        i + 14,
+                        i + 15,
+                        i + 16,
+                        i + 17
+                    )
+                })
+                .fold(String::new(), |a, b| a + &b)
+        );
+
+        tx.execute(&block_query, &block_params)
+            .await
+            .map_err(Error::InsertBlocks)?;
+
+        let transactions = blocks
+            .iter()
+            .flat_map(|b| b.transactions.iter())
+            .collect::<Vec<_>>();
+
+        if !transactions.is_empty() {
+            for chunk in transactions.chunks(i16::MAX as usize / 16) {
+                let transaction_query = format!(
+                    "
+                INSERT INTO eth_tx (
+                        block_hash,
+                        block_number,
+                        source,
+                        gas,
+                        gas_price,
+                        hash,
+                        input,
+                        nonce,
+                        dest,
+                        transaction_index,
+                        value,
+                        kind,
+                        chain_id,
+                        v,
+                        r,
+                        s
+                    ) VALUES (
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        $7,
+                        $8,
+                        $9,
+                        $10,
+                        $11,
+                        $12,
+                        $13,
+                        $14,
+                        $15,
+                        $16
+                    ) {};
+        ",
+                    (1..chunk.len())
+                        .map(|i| {
+                            let i = i * 16;
+
+                            format!(
+                                ", (
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${},
+                            ${}
+                        )",
+                                i + 1,
+                                i + 2,
+                                i + 3,
+                                i + 4,
+                                i + 5,
+                                i + 6,
+                                i + 7,
+                                i + 8,
+                                i + 9,
+                                i + 10,
+                                i + 11,
+                                i + 12,
+                                i + 13,
+                                i + 14,
+                                i + 15,
+                                i + 16
+                            )
+                        })
+                        .fold(String::new(), |a, b| a + &b)
+                );
+
+                let transaction_params = chunk
+                    .iter()
+                    .map(|transaction| -> [&(dyn ToSql + Sync); 16] {
+                        [
+                            &transaction.block_hash,
+                            &transaction.block_number,
+                            &transaction.source,
+                            &transaction.gas,
+                            &transaction.gas_price,
+                            &transaction.hash,
+                            &transaction.input,
+                            &transaction.nonce,
+                            &transaction.dest,
+                            &transaction.transaction_index,
+                            &transaction.value,
+                            &transaction.kind,
+                            &transaction.chain_id,
+                            &transaction.v,
+                            &transaction.r,
+                            &transaction.s,
+                        ]
+                    })
+                    .fold(Vec::with_capacity(chunk.len() * 16), |mut a, b| {
+                        a.extend_from_slice(&b);
+                        a
+                    });
+
+                tx.execute(&transaction_query, &transaction_params)
+                    .await
+                    .map_err(Error::InsertTransactions)?;
             }
         }
 
@@ -211,136 +440,6 @@ impl DbHandle {
             .map_err(Error::DbQuery)?;
         Ok(())
     }
-}
-
-async fn insert_block<'a>(tx: &tokio_postgres::Transaction<'a>, block: &Block) -> Result<()> {
-    tx.execute(
-        "INSERT INTO eth_block (
-                    number,
-                    hash,
-                    parent_hash,
-                    nonce,
-                    sha3_uncles,
-                    logs_bloom,
-                    transactions_root,
-                    state_root,
-                    receipts_root,
-                    miner,
-                    difficulty,
-                    total_difficulty,
-                    extra_data,
-                    size,
-                    gas_limit,
-                    gas_used,
-                    timestamp
-                ) VALUES (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    $17
-                );",
-        &[
-            &*block.number,
-            &block.hash.as_slice(),
-            &block.parent_hash.as_slice(),
-            &block.nonce.0.to_be_bytes().as_slice(),
-            &block.sha3_uncles.as_slice(),
-            &block.logs_bloom.as_slice(),
-            &block.transactions_root.as_slice(),
-            &block.state_root.as_slice(),
-            &block.receipts_root.as_slice(),
-            &block.miner.as_slice(),
-            &block.difficulty.as_slice(),
-            &block.total_difficulty.as_slice(),
-            &block.extra_data.as_slice(),
-            &*block.size,
-            &block.gas_limit.as_slice(),
-            &block.gas_used.as_slice(),
-            &*block.timestamp,
-        ],
-    )
-    .await
-    .map_err(Error::InsertBlock)?;
-
-    Ok(())
-}
-
-async fn insert_transaction<'a>(
-    tx: &tokio_postgres::Transaction<'a>,
-    transaction: &Transaction,
-) -> Result<()> {
-    tx.execute(
-        "INSERT INTO eth_tx (
-                    block_hash,
-                    block_number,
-                    source,
-                    gas,
-                    gas_price,
-                    hash,
-                    input,
-                    nonce,
-                    dest,
-                    transaction_index,
-                    value,
-                    kind,
-                    chain_id,
-                    v,
-                    r,
-                    s
-                ) VALUES (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16
-                );",
-        &[
-            &transaction.block_hash.as_slice(),
-            &*transaction.block_number,
-            &transaction.source.as_slice(),
-            &*transaction.gas,
-            &*transaction.gas_price,
-            &transaction.hash.as_slice(),
-            &transaction.input.as_slice(),
-            &transaction.nonce.0.to_be_bytes().as_slice(),
-            &transaction.dest.as_ref().map(|to| to.as_slice()),
-            &*transaction.transaction_index,
-            &transaction.value.as_slice(),
-            &*transaction.kind,
-            &*transaction.chain_id,
-            &*transaction.v,
-            &transaction.r.as_slice(),
-            &transaction.s.as_slice(),
-        ],
-    )
-    .await
-    .map_err(Error::InsertTransaction)?;
-
-    Ok(())
 }
 
 fn block_from_row(row: &tokio_postgres::Row) -> Block {

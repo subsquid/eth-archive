@@ -32,10 +32,10 @@ pub enum Error {
     CreateDbTransaction(tokio_postgres::Error),
     #[error("failed to commit database transaction:\n{0}")]
     CommitDbTx(tokio_postgres::Error),
-    #[error("failed to insert block to database:\n{0}")]
-    InsertBlock(tokio_postgres::Error),
-    #[error("failed to insert transaction to database:\n{0}")]
-    InsertTransaction(tokio_postgres::Error),
+    #[error("failed to insert blocks to database:\n{0}")]
+    InsertBlocks(tokio_postgres::Error),
+    #[error("failed to insert transactions to database:\n{0}")]
+    InsertTransactions(tokio_postgres::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
     Retry(Vec<Error>),
 }
