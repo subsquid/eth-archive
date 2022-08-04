@@ -10,6 +10,7 @@ use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
 use eth_archive_core::types::BlockRange;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
@@ -180,8 +181,8 @@ impl ParquetWriterRunner {
         }
     }
 
-    async fn get_start_block(&self) -> Result<usize> {
-        let mut dir = tokio::fs::read_dir(&self.block_writer.cfg.path)
+    async fn get_start_block<P: AsRef<Path>>(&self, path: P) -> Result<usize> {
+        let mut dir = tokio::fs::read_dir(path)
             .await
             .map_err(Error::ReadParquetDir)?;
         let mut block_num = 0;
@@ -200,7 +201,12 @@ impl ParquetWriterRunner {
     }
 
     pub async fn initial_sync(&self) -> Result<usize> {
-        let from_block = self.get_start_block().await?;
+        let from_block = self
+            .get_start_block(cmp::min(
+                &self.transaction_writer.cfg.path,
+                &self.block_writer.cfg.path,
+            ))
+            .await?;
 
         let to_block = self.wait_for_start_block_number().await?;
 
