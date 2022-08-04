@@ -9,6 +9,7 @@ use eth_archive_core::eth_request::GetBlockByNumber;
 use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::Block;
+use eth_archive_core::types::BlockRange;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
@@ -129,8 +130,14 @@ impl ParquetWriterRunner {
         let mut block_number = self.initial_sync().await?;
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
+
         loop {
             let blocks = self.wait_for_next_blocks(block_number, step).await?;
+
+            let block_range = BlockRange {
+                from: block_number,
+                to: block_number + step,
+            };
 
             for block in blocks.iter() {
                 let transactions = self
@@ -139,15 +146,17 @@ impl ParquetWriterRunner {
                     .await
                     .map_err(Error::GetTxsFromDb)?;
 
-                self.transaction_writer.send(transactions).await;
+                self.transaction_writer
+                    .send((block_range, transactions))
+                    .await;
             }
 
-            self.block_writer.send(blocks).await;
+            self.block_writer.send((block_range, blocks)).await;
 
             log::info!(
                 "sent blocks {}-{} to writer",
-                block_number,
-                block_number + step
+                block_range.from,
+                block_range.to,
             );
 
             block_number += step;
@@ -202,6 +211,11 @@ impl ParquetWriterRunner {
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.block_batch_size;
 
+            let block_range = BlockRange {
+                from: block_num,
+                to: block_num + step,
+            };
+
             let batches = (0..concurrency)
                 .map(|step_no| {
                     let start = block_num + step_no * batch_size;
@@ -223,18 +237,20 @@ impl ParquetWriterRunner {
 
             log::info!(
                 "downloaded blocks {}-{} in {}ms",
-                block_num,
-                block_num + step,
+                block_range.from,
+                block_range.to,
                 start_time.elapsed().as_millis()
             );
 
             for mut batch in batches {
                 for block in batch.iter_mut() {
                     let transactions = mem::take(&mut block.transactions);
-                    self.transaction_writer.send(transactions).await;
+                    self.transaction_writer
+                        .send((block_range, transactions))
+                        .await;
                 }
 
-                self.block_writer.send(batch).await;
+                self.block_writer.send((block_range, batch)).await;
             }
         }
         log::info!("finished initial sync up to block {}", to_block);

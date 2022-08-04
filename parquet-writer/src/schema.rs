@@ -11,7 +11,7 @@ use arrow2::error::ArrowError;
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
-use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
+use eth_archive_core::types::{Block, Log, Transaction};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::result::Result as StdResult;
 
@@ -131,7 +131,6 @@ pub struct Blocks {
     pub gas_used: MutableBinaryArray,
     pub timestamp: Int64Vec,
     pub len: usize,
-    pub block_range: Option<BlockRange>,
 }
 
 impl Default for Blocks {
@@ -155,7 +154,6 @@ impl Default for Blocks {
             gas_used: Default::default(),
             timestamp: Default::default(),
             len: 0,
-            block_range: None,
         }
     }
 }
@@ -201,8 +199,6 @@ impl IntoRowGroups for Blocks {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.block_range = Some(BlockRange::add(self.block_range, elem.number.0 as usize));
-
         self.number.push(Some(elem.number.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
         self.parent_hash.push(Some(elem.parent_hash.0.as_slice()));
@@ -257,10 +253,6 @@ impl IntoRowGroups for Blocks {
     fn schema() -> Schema {
         block_schema()
     }
-
-    fn block_range(&self) -> BlockRange {
-        self.block_range.unwrap()
-    }
 }
 
 #[derive(Debug)]
@@ -282,7 +274,6 @@ pub struct Transactions {
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
     pub len: usize,
-    pub block_range: Option<BlockRange>,
 }
 
 impl Default for Transactions {
@@ -305,7 +296,6 @@ impl Default for Transactions {
             r: Default::default(),
             s: Default::default(),
             len: 0,
-            block_range: None,
         }
     }
 }
@@ -361,11 +351,6 @@ impl IntoRowGroups for Transactions {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.block_range = Some(BlockRange::add(
-            self.block_range,
-            elem.block_number.0 as usize,
-        ));
-
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
         self.source.push(Some(elem.source.0.as_slice()));
@@ -419,10 +404,6 @@ impl IntoRowGroups for Transactions {
     fn schema() -> Schema {
         transaction_schema()
     }
-
-    fn block_range(&self) -> BlockRange {
-        self.block_range.unwrap()
-    }
 }
 
 #[derive(Debug)]
@@ -440,7 +421,6 @@ pub struct Logs {
     pub transaction_hash: MutableBinaryArray,
     pub transaction_index: Int64Vec,
     pub len: usize,
-    pub block_range: Option<BlockRange>,
 }
 
 impl Default for Logs {
@@ -459,7 +439,6 @@ impl Default for Logs {
             transaction_hash: bytes32_arr(),
             transaction_index: Default::default(),
             len: 0,
-            block_range: None,
         }
     }
 }
@@ -518,11 +497,6 @@ impl IntoRowGroups for Logs {
     }
 
     fn push(&mut self, elem: Self::Elem) -> Result<()> {
-        self.block_range = Some(BlockRange::add(
-            self.block_range,
-            elem.block_number.0 as usize,
-        ));
-
         self.address.push(Some(elem.address.0.as_slice()));
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
@@ -566,10 +540,6 @@ impl IntoRowGroups for Logs {
     fn schema() -> Schema {
         log_schema()
     }
-
-    fn block_range(&self) -> BlockRange {
-        self.block_range.unwrap()
-    }
 }
 
 pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
@@ -578,11 +548,7 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     fn encoding() -> Vec<Encoding>;
     fn schema() -> Schema;
     fn into_chunk(self) -> Chunk;
-    fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions, BlockRange) {
-        let block_range = elems.iter().fold(elems[0].block_range(), |range, x| {
-            range.merge(x.block_range())
-        });
-
+    fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
         let row_groups = RowGroupIterator::try_new(
             elems
                 .into_par_iter()
@@ -595,12 +561,11 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
         )
         .unwrap();
 
-        (row_groups, Self::schema(), options(), block_range)
+        (row_groups, Self::schema(), options())
     }
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    fn block_range(&self) -> BlockRange;
 }

@@ -1,12 +1,13 @@
 use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use arrow2::io::parquet::write::*;
+use eth_archive_core::types::BlockRange;
 use std::time::Instant;
 use std::{fs, mem};
 use tokio::sync::mpsc;
 
 pub struct ParquetWriter<T: IntoRowGroups> {
-    tx: mpsc::Sender<Vec<T::Elem>>,
+    tx: mpsc::Sender<(BlockRange, Vec<T::Elem>)>,
     _join_handle: std::thread::JoinHandle<()>,
     pub cfg: ParquetConfig,
 }
@@ -21,12 +22,14 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
         let join_handle = std::thread::spawn(move || {
             let mut row_group = vec![T::default()];
+            let mut block_range = None;
 
-            let write_group = |row_group: &mut Vec<T>| {
+            let write_group = |row_group: &mut Vec<T>, block_range: &mut Option<BlockRange>| {
                 let row_group = mem::take(row_group);
-                let (row_groups, schema, options, block_range) = T::into_row_groups(row_group);
+                let block_range = block_range.take().unwrap();
+                let (row_groups, schema, options) = T::into_row_groups(row_group);
 
-                let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to + 1);
+                let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
 
                 let start_time = Instant::now();
 
@@ -49,25 +52,30 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                     "wrote {}s {}-{} to parquet file in {}ms",
                     &cfg.name,
                     block_range.from,
-                    block_range.to + 1,
+                    block_range.to,
                     start_time.elapsed().as_millis()
                 );
 
-                delete_tx.send(block_range.to + 1).unwrap();
+                delete_tx.send(block_range.to).unwrap();
             };
 
-            while let Some(elems) = rx.blocking_recv() {
+            while let Some((other_range, elems)) = rx.blocking_recv() {
                 let row = row_group.last_mut().unwrap();
 
                 let row = if row.len() >= cfg.items_per_row_group {
                     if row_group.iter().map(IntoRowGroups::len).sum::<usize>() >= cfg.items_per_file
                     {
-                        write_group(&mut row_group);
+                        write_group(&mut row_group, &mut block_range);
                     }
                     row_group.push(T::default());
                     row_group.last_mut().unwrap()
                 } else {
                     row
+                };
+
+                block_range = match block_range {
+                    Some(block_range) => Some(block_range.merge(other_range)),
+                    None => Some(other_range),
                 };
 
                 for elem in elems {
@@ -76,7 +84,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             }
 
             if row_group.last_mut().unwrap().len() > 0 {
-                write_group(&mut row_group);
+                write_group(&mut row_group, &mut block_range);
             }
         });
 
@@ -87,9 +95,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         }
     }
 
-    pub async fn send(&self, elems: Vec<T::Elem>) {
-        if self.tx.send(elems).await.is_err() {
-            panic!("failed to send elems to parquet writer");
+    pub async fn send(&self, msg: (BlockRange, Vec<T::Elem>)) {
+        if self.tx.send(msg).await.is_err() {
+            panic!("failed to send msg to parquet writer");
         }
     }
 
