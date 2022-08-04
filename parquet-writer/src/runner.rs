@@ -50,20 +50,41 @@ impl ParquetWriterRunner {
             EthClient::new(config.ingest.eth_rpc_url.clone()).map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
-        let (delete_tx, mut delete_rx) = mpsc::unbounded_channel();
+        let (block_delete_tx, mut block_delete_rx) = mpsc::unbounded_channel();
+        let (tx_delete_tx, mut tx_delete_rx) = mpsc::unbounded_channel();
+        let (log_delete_tx, mut log_delete_rx) = mpsc::unbounded_channel();
 
         {
             let db = db.clone();
             tokio::spawn(async move {
-                while let Some(block_number) = delete_rx.recv().await {
-                    if block_number <= config.block_overlap_size {
-                        continue;
+                let mut block_block_num = 0;
+                let mut tx_block_num = 0;
+                let mut log_block_num = 0;
+                let mut prev_min = 0;
+
+                loop {
+                    tokio::select! {
+                        block_num = block_delete_rx.recv() => {
+                            block_block_num = block_num.unwrap();
+                        }
+                        block_num = tx_delete_rx.recv() => {
+                            tx_block_num = block_num.unwrap();
+                        }
+                        block_num = log_delete_rx.recv() => {
+                            log_block_num = block_num.unwrap();
+                        }
                     }
 
-                    let delete_up_to = block_number - config.block_overlap_size;
+                    let new_min = cmp::min(cmp::min(block_block_num, tx_block_num), log_block_num);
 
-                    if let Err(e) = db.delete_blocks_up_to(delete_up_to as i64).await {
-                        log::error!("failed to delete blocks up to {}:\n{}", delete_up_to, e);
+                    if new_min != prev_min {
+                        let delete_up_to = new_min - config.block_overlap_size;
+
+                        if let Err(e) = db.delete_blocks_up_to(delete_up_to as i64).await {
+                            log::error!("failed to delete blocks up to {}:\n{}", delete_up_to, e);
+                        }
+
+                        prev_min = new_min;
                     }
                 }
             });
@@ -83,9 +104,9 @@ impl ParquetWriterRunner {
             }
         }
 
-        let block_writer = ParquetWriter::new(config.block, delete_tx.clone());
-        let transaction_writer = ParquetWriter::new(config.transaction, delete_tx.clone());
-        let log_writer = ParquetWriter::new(config.log, delete_tx);
+        let block_writer = ParquetWriter::new(config.block, block_delete_tx);
+        let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx);
+        let log_writer = ParquetWriter::new(config.log, log_delete_tx);
 
         let retry = Retry::new(config.retry);
 
