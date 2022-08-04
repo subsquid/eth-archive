@@ -136,7 +136,7 @@ impl EthClient {
     pub async fn get_best_block(&self) -> Result<usize> {
         let num = self.send(GetBestBlock {}).await?;
         let best_block = get_usize_from_hex(&num);
-        log::info!("best block is {}", best_block);
+        log::debug!("best block is {}", best_block);
         Ok(best_block)
     }
 }
