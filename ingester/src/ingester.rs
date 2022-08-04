@@ -79,6 +79,8 @@ impl Ingester {
     }
 
     async fn wait_and_insert_block(&self, block: Block) -> Result<()> {
+        log::info!("waiting for parquet writer to delete tail...");
+
         let block_number = block.number.0 as usize;
 
         loop {
@@ -99,7 +101,6 @@ impl Ingester {
 
                 return Ok(());
             } else {
-                log::debug!("waiting for parquet writer to delete tail...");
                 sleep(Duration::from_secs(1)).await;
             }
         }
