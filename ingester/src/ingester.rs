@@ -54,7 +54,9 @@ impl Ingester {
             .await
             .map_err(Error::GetBestBlock)?;
 
-        Ok(if num < 20 { 0 } else { num - 20 })
+        let offset = self.cfg.block_depth_offset;
+
+        Ok(if num < offset { 0 } else { num - offset })
     }
 
     async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
