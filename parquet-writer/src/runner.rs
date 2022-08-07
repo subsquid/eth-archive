@@ -24,7 +24,7 @@ pub struct ParquetWriterRunner {
     eth_client: Arc<EthClient>,
     block_writer: ParquetWriter<Blocks>,
     transaction_writer: ParquetWriter<Transactions>,
-    _log_writer: ParquetWriter<Logs>,
+    log_writer: ParquetWriter<Logs>,
     retry: Retry,
 }
 
@@ -116,7 +116,7 @@ impl ParquetWriterRunner {
             eth_client,
             block_writer,
             transaction_writer,
-            _log_writer: log_writer,
+            log_writer,
             retry,
         })
     }

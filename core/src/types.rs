@@ -76,17 +76,4 @@ impl BlockRange {
             to: cmp::max(self.to, other.to),
         }
     }
-
-    pub fn add(left: Option<Self>, block_number: usize) -> Self {
-        match left {
-            Some(block_range) => BlockRange {
-                from: cmp::min(block_number, block_range.from),
-                to: cmp::max(block_number, block_range.to),
-            },
-            None => BlockRange {
-                from: block_number,
-                to: block_number,
-            },
-        }
-    }
 }
