@@ -501,6 +501,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "eth-archive-gateway"
+version = "0.1.0"
+
+[[package]]
 name = "eth-archive-ingester"
 version = "0.1.0"
 dependencies = [

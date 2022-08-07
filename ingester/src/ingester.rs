@@ -123,7 +123,7 @@ impl Ingester {
 
         let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
 
-        let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(4);
+        let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(2);
 
         let write_task = tokio::spawn({
             let db = self.db.clone();

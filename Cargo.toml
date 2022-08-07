@@ -3,6 +3,7 @@ members = [
     "ingester",
     "parquet-writer",
     "core",
+    "gateway",
 ]
 
 [profile.release]
