@@ -34,6 +34,8 @@ impl DbHandle {
             reset_db(&conn).await;
         }
 
+        log::info!("initializing database schema");
+
         init_db(&conn).await?;
 
         Ok(Self { pool })
