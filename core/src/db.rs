@@ -514,6 +514,35 @@ impl DbHandle {
         Ok(transactions)
     }
 
+    pub async fn get_logs(&self, from: i64, to: i64) -> Result<Vec<Log>> {
+        let rows = self
+            .get_conn()
+            .await?
+            .query(
+                "
+            SELECT
+                address,
+                block_hash,
+                block_number,
+                data,
+                log_index,
+                removed,
+                topics,
+                transaction_hash,
+                transaction_index
+            from eth_log
+            WHERE block_number >= $1 AND block_number < $2;
+        ",
+                &[&from, &to],
+            )
+            .await
+            .map_err(Error::DbQuery)?;
+
+        let logs = rows.iter().map(log_from_row).collect();
+
+        Ok(logs)
+    }
+
     pub async fn delete_blocks_up_to(&self, block_number: i64) -> Result<()> {
         self.get_conn()
             .await?
@@ -565,6 +594,24 @@ fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
         v: BigInt(row.get(13)),
         r: Bytes(row.get(14)),
         s: Bytes(row.get(15)),
+    }
+}
+
+fn log_from_row(row: &tokio_postgres::Row) -> Log {
+    Log {
+        address: Address::new(row.get(0)),
+        block_hash: Bytes32::new(row.get(1)),
+        block_number: BigInt(row.get(2)),
+        data: Bytes(row.get(3)),
+        log_index: BigInt(row.get(4)),
+        removed: row.get(5),
+        topics: row
+            .get::<_, Vec<Vec<u8>>>(6)
+            .into_iter()
+            .map(Bytes32::new)
+            .collect(),
+        transaction_hash: Bytes32::new(row.get(7)),
+        transaction_index: BigInt(row.get(9)),
     }
 }
 

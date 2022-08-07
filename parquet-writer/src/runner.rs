@@ -5,11 +5,10 @@ use crate::{Error, Result};
 use eth_archive_core::config::IngestConfig;
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
-use eth_archive_core::eth_request::GetBlockByNumber;
+use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::types::Block;
-use eth_archive_core::types::BlockRange;
+use eth_archive_core::types::{Block, BlockRange};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
@@ -175,6 +174,14 @@ impl ParquetWriterRunner {
 
             self.block_writer.send((block_range, blocks)).await;
 
+            let logs = self
+                .db
+                .get_logs(block_number as i64, (block_number + step) as i64)
+                .await
+                .map_err(Error::GetLogsFromDb)?;
+
+            self.log_writer.send((block_range, logs)).await;
+
             log::info!(
                 "sent blocks {}-{} to writer",
                 block_range.from,
@@ -243,22 +250,51 @@ impl ParquetWriterRunner {
                 to: block_num + step,
             };
 
-            let batches = (0..concurrency)
-                .map(|step_no| {
+            let block_batches = (0..concurrency)
+                .filter_map(|step_no| {
                     let start = block_num + step_no * batch_size;
-                    let end = start + batch_size;
-                    (start..end)
+                    let end = cmp::min(start + batch_size, to_block);
+
+                    let batch = (start..end)
                         .map(|i| GetBlockByNumber { block_number: i })
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>();
+
+                    if batch.is_empty() {
+                        None
+                    } else {
+                        Some(batch)
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let log_batches = (0..concurrency)
+                .filter_map(|step_no| {
+                    let start = block_num + step_no * batch_size;
+                    let end = cmp::min(start + batch_size, to_block);
+
+                    if start < end {
+                        Some(GetLogs {
+                            from_block: start,
+                            to_block: end - 1,
+                        })
+                    } else {
+                        None
+                    }
                 })
                 .collect::<Vec<_>>();
 
             let start_time = Instant::now();
 
-            let batches = self
+            let block_batches = self
                 .eth_client
                 .clone()
-                .send_batches(&batches, self.retry)
+                .send_batches(&block_batches, self.retry)
+                .await
+                .map_err(Error::EthClient)?;
+            let log_batches = self
+                .eth_client
+                .clone()
+                .send_concurrent(&log_batches, self.retry)
                 .await
                 .map_err(Error::EthClient)?;
 
@@ -269,7 +305,7 @@ impl ParquetWriterRunner {
                 start_time.elapsed().as_millis()
             );
 
-            for mut batch in batches {
+            for mut batch in block_batches {
                 for block in batch.iter_mut() {
                     let transactions = mem::take(&mut block.transactions);
                     self.transaction_writer
@@ -278,6 +314,10 @@ impl ParquetWriterRunner {
                 }
 
                 self.block_writer.send((block_range, batch)).await;
+            }
+
+            for batch in log_batches {
+                self.log_writer.send((block_range, batch)).await;
             }
         }
         log::info!("finished initial sync up to block {}", to_block);
