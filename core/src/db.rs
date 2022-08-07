@@ -710,11 +710,11 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             block_hash bytea NOT NULL,
             block_number bigint NOT NULL REFERENCES eth_block(number) ON DELETE CASCADE,
             data bytea NOT NULL,
-            log_index bytea NOT NULL,
+            log_index bigint NOT NULL,
             removed boolean NOT NULL,
             topics bytea[],
             transaction_hash bytea NOT NULL,
-            transaction_index bytea NOT NULL
+            transaction_index bigint NOT NULL
         );
 
         CREATE INDEX IF NOT EXISTS log_bn_idx ON eth_log USING btree (block_number);
