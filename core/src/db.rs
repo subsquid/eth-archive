@@ -531,57 +531,58 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
     conn.batch_execute(
         "
         CREATE TABLE IF NOT EXISTS eth_block (
-            number bigint primary key,
-            hash bytea,
-            parent_hash bytea,
-            nonce bytea,
-            sha3_uncles bytea,
-            logs_bloom bytea,
-            transactions_root bytea,
-            state_root bytea,
-            receipts_root bytea,
-            miner bytea,
-            difficulty bytea,
-            total_difficulty bytea,
-            extra_data bytea,
-            size bigint,
-            gas_limit bytea,
-            gas_used bytea,
-            timestamp bigint
+            number bigint primary key NOT NULL,
+            hash bytea NOT NULL,
+            parent_hash bytea NOT NULL,
+            nonce bytea NOT NULL,
+            sha3_uncles bytea NOT NULL,
+            logs_bloom bytea NOT NULL,
+            transactions_root bytea NOT NULL,
+            state_root bytea NOT NULL,
+            receipts_root bytea NOT NULL,
+            miner bytea NOT NULL,
+            difficulty bytea NOT NULL,
+            total_difficulty bytea NOT NULL,
+            extra_data bytea NOT NULL,
+            size bigint NOT NULL,
+            gas_limit bytea NOT NULL,
+            gas_used bytea NOT NULL,
+            timestamp bigint NOT NULL
         );
         
         CREATE TABLE IF NOT EXISTS eth_tx (
-            row_id BIGSERIAL PRIMARY KEY,
-            block_hash bytea,
-            block_number bigint REFERENCES eth_block(number) ON DELETE CASCADE,
-            source bytea,
-            gas bigint,
-            gas_price bigint,
-            hash bytea,
-            input bytea,
-            nonce bytea,
+            row_id BIGSERIAL PRIMARY KEY NOT NULL,
+            block_hash bytea NOT NULL,
+            block_number bigint NOT NULL REFERENCES eth_block(number) ON DELETE CASCADE,
+            source bytea NOT NULL,
+            gas bigint NOT NULL,
+            gas_price bigint NOT NULL,
+            hash bytea NOT NULL,
+            input bytea NOT NULL,
+            nonce bytea NOT NULL,
             dest bytea,
-            transaction_index bigint,
-            value bytea,
-            kind bigint,
-            chain_id bigint,
-            v bigint,
-            r bytea,
-            s bytea
+            transaction_index bigint NOT NULL,
+            value bytea NOT NULL,
+            kind bigint NOT NULL,
+            chain_id bigint NOT NULL,
+            v bigint NOT NULL,
+            r bytea NOT NULL,
+            s bytea NOT NULL
         );
 
         CREATE INDEX IF NOT EXISTS tx_bn_idx ON eth_tx USING btree (block_number);
+        CREATE INDEX IF NOT EXISTS tx_idx_idx ON eth_tx USING btree (block_number, transaction_index);
         
         CREATE TABLE IF NOT EXISTS eth_log (
-            row_id BIGSERIAL PRIMARY KEY,
-            removed boolean,
-            log_index bytea,
-            transaction_index bytea,
-            transaction_hash bytea,
-            block_hash bytea,
-            block_number bigint REFERENCES eth_block(number) ON DELETE CASCADE,
-            address bytea,
-            data bytea,
+            row_id BIGSERIAL PRIMARY KEY NOT NULL,
+            removed boolean NOT NULL,
+            log_index bytea NOT NULL,
+            transaction_index bytea NOT NULL,
+            transaction_hash bytea NOT NULL,
+            block_hash bytea NOT NULL,
+            block_number bigint NOT NULL REFERENCES eth_block(number) ON DELETE CASCADE,
+            address bytea NOT NULL,
+            data bytea NOT NULL,
             topic0 bytea,
             topic1 bytea,
             topic2 bytea,
@@ -589,6 +590,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS log_bn_idx ON eth_log USING btree (block_number);
+        CREATE INDEX IF NOT EXISTS log_addr_idx ON eth_log USING btree (block_number, address);
     ",
     )
     .await
