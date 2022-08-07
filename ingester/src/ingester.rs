@@ -2,10 +2,10 @@ use crate::config::Config;
 use crate::{Error, Result};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
-use eth_archive_core::eth_request::GetBlockByNumber;
+use eth_archive_core::eth_request::{GetLogs, GetBlockByNumber};
 use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::types::Block;
+use eth_archive_core::types::{Log, Block};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
@@ -59,7 +59,7 @@ impl Ingester {
         Ok(if num < offset { 0 } else { num - offset })
     }
 
-    async fn wait_for_next_block(&self, waiting_for: usize) -> Result<Block> {
+    async fn wait_for_next_block(&self, waiting_for: usize) -> Result<(Block, Vec<Log>)> {
         log::info!("waiting for block {}", waiting_for);
 
         loop {
@@ -73,14 +73,20 @@ impl Ingester {
                     })
                     .await
                     .map_err(Error::EthClient)?;
-                return Ok(block);
+
+                let logs = self.eth_client.send(GetLogs {
+                    from_block: waiting_for,
+                    to_block: waiting_for,
+                }).await.map_err(Error::EthClient)?;
+
+                return Ok((block, logs));
             } else {
                 sleep(Duration::from_secs(1)).await;
             }
         }
     }
 
-    async fn wait_and_insert_block(&self, block: Block) -> Result<()> {
+    async fn wait_and_insert_block(&self, block: Block, logs: Vec<Log>) -> Result<()> {
         log::info!("waiting for parquet writer to delete tail...");
 
         let block_number = block.number.0 as usize;
@@ -95,7 +101,7 @@ impl Ingester {
                 || block_number - min_block_number.unwrap() <= self.cfg.block_window_size
             {
                 self.db
-                    .insert_blocks(&[block])
+                    .insert_blocks(&[block], &logs)
                     .await
                     .map_err(Error::InsertBlocks)?;
 
@@ -113,7 +119,7 @@ impl Ingester {
 
         let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
 
-        let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, _, _)>(4);
+        let (tx, mut rx) = mpsc::channel::<(Vec<(Vec<Block>, Vec<Log>)>, _, _)>(4);
 
         let write_task = tokio::spawn({
             let db = self.db.clone();
@@ -122,14 +128,14 @@ impl Ingester {
                 while let Some((batches, from, to)) = rx.recv().await {
                     let start_time = Instant::now();
 
-                    for batch in batches.iter() {
+                    for (blocks, logs) in batches.0.iter().zip(batches.1.iter()) {
                         let db = db.clone();
 
                         retry
                             .retry(move || {
                                 let db = db.clone();
                                 async move {
-                                    db.insert_blocks(batch).await.map_err(Error::InsertBlocks)
+                                    db.insert_blocks(blocks, logs).await.map_err(Error::InsertBlocks)
                                 }
                             })
                             .await
@@ -154,7 +160,7 @@ impl Ingester {
             let concurrency = self.cfg.ingest.http_req_concurrency;
             let batch_size = self.cfg.ingest.block_batch_size;
 
-            let batches = (0..concurrency)
+            let block_batches = (0..concurrency)
                 .filter_map(|step_no| {
                     let start = block_num + step_no * batch_size;
                     let end = cmp::min(start + batch_size, best_block);
@@ -171,14 +177,38 @@ impl Ingester {
                 })
                 .collect::<Vec<_>>();
 
+            let log_batches = (0..concurrency)
+                .filter_map(|step_no| {
+                    let start = block_num + step_no * batch_size;
+                    let end = cmp::min(start + batch_size, best_block);
+
+                    if start < end {
+                        Some(GetLogs {
+                            from_block: start,
+                            to_block: end - 1,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
             let start_time = Instant::now();
 
-            let batches = self
+            let block_batches = self
                 .eth_client
                 .clone()
-                .send_batches(&batches, self.retry)
+                .send_batches(&block_batches, self.retry)
                 .await
                 .map_err(Error::EthClient)?;
+            let log_batches = self
+                .eth_client
+                .clone()
+                .send_batches(&log_batches, self.retry)
+                .await
+                .map_err(Error::EthClient)?;
+
+            let batches = (block_batches, log_batches);
 
             log::info!(
                 "downloaded blocks {}-{} in {}ms",
@@ -255,9 +285,9 @@ impl Ingester {
                     + 1;
             }
 
-            let block = self.wait_for_next_block(block_number).await?;
+            let (block, logs) = self.wait_for_next_block(block_number).await?;
 
-            self.wait_and_insert_block(block).await?;
+            self.wait_and_insert_block(block, logs).await?;
 
             block_number += 1;
         }

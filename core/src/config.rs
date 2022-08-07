@@ -19,6 +19,5 @@ pub struct DbConfig {
 pub struct IngestConfig {
     pub eth_rpc_url: url::Url,
     pub block_batch_size: usize,
-    pub log_batch_size: usize,
     pub http_req_concurrency: usize,
 }

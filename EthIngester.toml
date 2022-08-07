@@ -14,5 +14,4 @@ port = 5432
 [ingest]
 eth_rpc_url = "http://195.201.56.33:8545"
 block_batch_size = 50
-log_batch_size = 50
 http_req_concurrency = 100
