@@ -36,6 +36,8 @@ pub enum Error {
     InsertBlocks(tokio_postgres::Error),
     #[error("failed to insert transactions to database:\n{0}")]
     InsertTransactions(tokio_postgres::Error),
+    #[error("failed to insert logs to database:\n{0}")]
+    InsertLogs(tokio_postgres::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
     Retry(Vec<Error>),
 }

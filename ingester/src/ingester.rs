@@ -2,10 +2,10 @@ use crate::config::Config;
 use crate::{Error, Result};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
-use eth_archive_core::eth_request::{GetLogs, GetBlockByNumber};
+use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::types::{Log, Block};
+use eth_archive_core::types::{Block, Log};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
@@ -74,10 +74,14 @@ impl Ingester {
                     .await
                     .map_err(Error::EthClient)?;
 
-                let logs = self.eth_client.send(GetLogs {
-                    from_block: waiting_for,
-                    to_block: waiting_for,
-                }).await.map_err(Error::EthClient)?;
+                let logs = self
+                    .eth_client
+                    .send(GetLogs {
+                        from_block: waiting_for,
+                        to_block: waiting_for,
+                    })
+                    .await
+                    .map_err(Error::EthClient)?;
 
                 return Ok((block, logs));
             } else {
@@ -119,23 +123,25 @@ impl Ingester {
 
         let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
 
-        let (tx, mut rx) = mpsc::channel::<(Vec<(Vec<Block>, Vec<Log>)>, _, _)>(4);
+        let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(4);
 
         let write_task = tokio::spawn({
             let db = self.db.clone();
             let retry = self.retry;
             async move {
-                while let Some((batches, from, to)) = rx.recv().await {
+                while let Some((block_batches, log_batches, from, to)) = rx.recv().await {
                     let start_time = Instant::now();
 
-                    for (blocks, logs) in batches.0.iter().zip(batches.1.iter()) {
+                    for (blocks, logs) in block_batches.iter().zip(log_batches.iter()) {
                         let db = db.clone();
 
                         retry
                             .retry(move || {
                                 let db = db.clone();
                                 async move {
-                                    db.insert_blocks(blocks, logs).await.map_err(Error::InsertBlocks)
+                                    db.insert_blocks(blocks, logs)
+                                        .await
+                                        .map_err(Error::InsertBlocks)
                                 }
                             })
                             .await
@@ -204,11 +210,9 @@ impl Ingester {
             let log_batches = self
                 .eth_client
                 .clone()
-                .send_batches(&log_batches, self.retry)
+                .send_concurrent(&log_batches, self.retry)
                 .await
                 .map_err(Error::EthClient)?;
-
-            let batches = (block_batches, log_batches);
 
             log::info!(
                 "downloaded blocks {}-{} in {}ms",
@@ -218,7 +222,7 @@ impl Ingester {
             );
 
             if tx
-                .send((batches, block_num, block_num + step))
+                .send((block_batches, log_batches, block_num, block_num + step))
                 .await
                 .is_err()
             {

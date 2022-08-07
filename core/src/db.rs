@@ -1,6 +1,6 @@
 use crate::config::DbConfig;
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
-use crate::types::{Block, Transaction};
+use crate::types::{Block, Log, Transaction};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
 use tokio_postgres::types::ToSql;
@@ -321,27 +321,20 @@ impl DbHandle {
             }
         }
 
-    if !logs.is_empty() {
-        for chunk in logs.chunks(i16::MAX as usize / 16) {
-            let log_query = format!(
-                "
+        if !logs.is_empty() {
+            for chunk in logs.chunks(i16::MAX as usize / 9) {
+                let log_query = format!(
+                    "
             INSERT INTO eth_log (
+                    address,
                     block_hash,
                     block_number,
-                    source,
-                    gas,
-                    gas_price,
-                    hash,
-                    input,
-                    nonce,
-                    dest,
-                    transaction_index,
-                    value,
-                    kind,
-                    chain_id,
-                    v,
-                    r,
-                    s
+                    data,
+                    log_index,
+                    removed,
+                    topics,
+                    transaction_hash,
+                    transaction_index
                 ) VALUES (
                     $1,
                     $2,
@@ -351,29 +344,15 @@ impl DbHandle {
                     $6,
                     $7,
                     $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16
+                    $9
                 ) {};
     ",
-                (1..chunk.len())
-                    .map(|i| {
-                        let i = i * 16;
+                    (1..chunk.len())
+                        .map(|i| {
+                            let i = i * 9;
 
-                        format!(
-                            ", (
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
+                            format!(
+                                ", (
                         ${},
                         ${},
                         ${},
@@ -384,57 +363,44 @@ impl DbHandle {
                         ${},
                         ${}
                     )",
-                            i + 1,
-                            i + 2,
-                            i + 3,
-                            i + 4,
-                            i + 5,
-                            i + 6,
-                            i + 7,
-                            i + 8,
-                            i + 9,
-                            i + 10,
-                            i + 11,
-                            i + 12,
-                            i + 13,
-                            i + 14,
-                            i + 15,
-                            i + 16
-                        )
+                                i + 1,
+                                i + 2,
+                                i + 3,
+                                i + 4,
+                                i + 5,
+                                i + 6,
+                                i + 7,
+                                i + 8,
+                                i + 9,
+                            )
+                        })
+                        .fold(String::new(), |a, b| a + &b)
+                );
+
+                let log_params = chunk
+                    .iter()
+                    .map(|log| -> [&(dyn ToSql + Sync); 9] {
+                        [
+                            &log.address,
+                            &log.block_hash,
+                            &log.block_number,
+                            &log.data,
+                            &log.log_index,
+                            &log.removed,
+                            &log.topics,
+                            &log.transaction_hash,
+                            &log.transaction_index,
+                        ]
                     })
-                    .fold(String::new(), |a, b| a + &b)
-            );
+                    .fold(Vec::with_capacity(chunk.len() * 9), |mut a, b| {
+                        a.extend_from_slice(&b);
+                        a
+                    });
 
-            let transaction_params = chunk
-                .iter()
-                .map(|transaction| -> [&(dyn ToSql + Sync); 16] {
-                    [
-                        &transaction.block_hash,
-                        &transaction.block_number,
-                        &transaction.source,
-                        &transaction.gas,
-                        &transaction.gas_price,
-                        &transaction.hash,
-                        &transaction.input,
-                        &transaction.nonce,
-                        &transaction.dest,
-                        &transaction.transaction_index,
-                        &transaction.value,
-                        &transaction.kind,
-                        &transaction.chain_id,
-                        &transaction.v,
-                        &transaction.r,
-                        &transaction.s,
-                    ]
-                })
-                .fold(Vec::with_capacity(chunk.len() * 16), |mut a, b| {
-                    a.extend_from_slice(&b);
-                    a
-                });
-
-            tx.execute(&transaction_query, &transaction_params)
-                .await
-                .map_err(Error::InsertTransactions)?;
+                tx.execute(&log_query, &log_params)
+                    .await
+                    .map_err(Error::InsertLogs)?;
+            }
         }
 
         tx.commit().await.map_err(Error::CommitDbTx)?;
@@ -697,10 +663,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             data bytea NOT NULL,
             log_index bytea NOT NULL,
             removed boolean NOT NULL,
-            topic0 bytea,
-            topic1 bytea,
-            topic2 bytea,
-            topic3 bytea,
+            topics bytea[],
             transaction_hash bytea NOT NULL,
             transaction_index bytea NOT NULL
         );

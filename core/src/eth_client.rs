@@ -133,6 +133,22 @@ impl EthClient {
         group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
+    pub async fn send_concurrent<R: EthRequest + Copy>(
+        self: Arc<Self>,
+        reqs: &[R],
+        retry: Retry,
+    ) -> Result<Vec<R::Resp>> {
+        let group = reqs.iter().map(|&req| {
+            let client = self.clone();
+            retry.retry(move || {
+                let client = client.clone();
+                async move { client.send(req).await }
+            })
+        });
+        let group = futures::future::join_all(group).await;
+        group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
+    }
+
     pub async fn get_best_block(&self) -> Result<usize> {
         let num = self.send(GetBestBlock {}).await?;
         let best_block = get_usize_from_hex(&num);

@@ -1,4 +1,4 @@
-use crate::types::Block;
+use crate::types::{Block, Log};
 use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
 
@@ -36,7 +36,7 @@ pub struct GetLogs {
 }
 
 impl EthRequest for GetLogs {
-    type Resp = String;
+    type Resp = Vec<Log>;
 
     fn to_body(&self, id: usize) -> JsonValue {
         serde_json::json!({
