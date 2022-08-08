@@ -300,53 +300,46 @@ impl ParquetWriterRunner {
                 start_time.elapsed().as_millis()
             );
 
-            for mut batch in block_batches {
+            for (step_no, mut batch) in block_batches.into_iter().enumerate() {
+                let start = block_num + step_no * batch_size;
+                let end = cmp::min(start + batch_size, to_block);
+
                 for block in batch.iter_mut() {
                     let transactions = mem::take(&mut block.transactions);
-                    self.transaction_writer
-                        .send((
-                            BlockRange {
-                                from: block.number.0 as usize,
-                                to: block.number.0 as usize + 1,
-                            },
-                            transactions,
-                        ))
-                        .await;
+
+                    if !transactions.is_empty() {
+                        self.transaction_writer
+                            .send((
+                                BlockRange {
+                                    from: block.number.0 as usize,
+                                    to: block.number.0 as usize + 1,
+                                },
+                                transactions,
+                            ))
+                            .await;
+                    }
                 }
 
                 let block_range = BlockRange {
-                    from: batch
-                        .iter()
-                        .map(|block| block.number.0 as usize)
-                        .min()
-                        .unwrap(),
-                    to: batch
-                        .iter()
-                        .map(|block| block.number.0 as usize)
-                        .max()
-                        .unwrap()
-                        + 1,
+                    from: start,
+                    to: end,
                 };
 
                 self.block_writer.send((block_range, batch)).await;
             }
 
-            for batch in log_batches {
+            for (step_no, batch) in log_batches.into_iter().enumerate() {
+                let start = block_num + step_no * batch_size;
+                let end = cmp::min(start + batch_size, to_block);
+
                 let block_range = BlockRange {
-                    from: batch
-                        .iter()
-                        .map(|log| log.block_number.0 as usize)
-                        .min()
-                        .unwrap(),
-                    to: batch
-                        .iter()
-                        .map(|log| log.block_number.0 as usize)
-                        .max()
-                        .unwrap()
-                        + 1,
+                    from: start,
+                    to: end,
                 };
 
-                self.log_writer.send((block_range, batch)).await;
+                if !batch.is_empty() {
+                    self.log_writer.send((block_range, batch)).await;
+                }
             }
         }
         log::info!("finished initial sync up to block {}", to_block);
