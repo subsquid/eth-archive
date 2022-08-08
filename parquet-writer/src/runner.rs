@@ -307,17 +307,15 @@ impl ParquetWriterRunner {
                 for block in batch.iter_mut() {
                     let transactions = mem::take(&mut block.transactions);
 
-                    if !transactions.is_empty() {
-                        self.transaction_writer
-                            .send((
-                                BlockRange {
-                                    from: block.number.0 as usize,
-                                    to: block.number.0 as usize + 1,
-                                },
-                                transactions,
-                            ))
-                            .await;
-                    }
+                    self.transaction_writer
+                        .send((
+                            BlockRange {
+                                from: block.number.0 as usize,
+                                to: block.number.0 as usize + 1,
+                            },
+                            transactions,
+                        ))
+                        .await;
                 }
 
                 let block_range = BlockRange {
@@ -337,9 +335,7 @@ impl ParquetWriterRunner {
                     to: end,
                 };
 
-                if !batch.is_empty() {
-                    self.log_writer.send((block_range, batch)).await;
-                }
+                self.log_writer.send((block_range, batch)).await;
             }
         }
         log::info!("finished initial sync up to block {}", to_block);
