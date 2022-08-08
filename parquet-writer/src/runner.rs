@@ -245,11 +245,6 @@ impl ParquetWriterRunner {
             let concurrency = self.cfg.http_req_concurrency;
             let batch_size = self.cfg.block_batch_size;
 
-            let block_range = BlockRange {
-                from: block_num,
-                to: block_num + step,
-            };
-
             let block_batches = (0..concurrency)
                 .filter_map(|step_no| {
                     let start = block_num + step_no * batch_size;
@@ -300,8 +295,8 @@ impl ParquetWriterRunner {
 
             log::info!(
                 "downloaded blocks {}-{} in {}ms",
-                block_range.from,
-                block_range.to,
+                block_num,
+                cmp::min(block_num + step, to_block),
                 start_time.elapsed().as_millis()
             );
 
@@ -309,14 +304,48 @@ impl ParquetWriterRunner {
                 for block in batch.iter_mut() {
                     let transactions = mem::take(&mut block.transactions);
                     self.transaction_writer
-                        .send((block_range, transactions))
+                        .send((
+                            BlockRange {
+                                from: block.number.0 as usize,
+                                to: block.number.0 as usize + 1,
+                            },
+                            transactions,
+                        ))
                         .await;
                 }
+
+                let block_range = BlockRange {
+                    from: batch
+                        .iter()
+                        .map(|block| block.number.0 as usize)
+                        .min()
+                        .unwrap(),
+                    to: batch
+                        .iter()
+                        .map(|block| block.number.0 as usize)
+                        .max()
+                        .unwrap()
+                        + 1,
+                };
 
                 self.block_writer.send((block_range, batch)).await;
             }
 
             for batch in log_batches {
+                let block_range = BlockRange {
+                    from: batch
+                        .iter()
+                        .map(|log| log.block_number.0 as usize)
+                        .min()
+                        .unwrap(),
+                    to: batch
+                        .iter()
+                        .map(|log| log.block_number.0 as usize)
+                        .max()
+                        .unwrap()
+                        + 1,
+                };
+
                 self.log_writer.send((block_range, batch)).await;
             }
         }
