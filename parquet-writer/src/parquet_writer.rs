@@ -1,9 +1,9 @@
 use crate::config::ParquetConfig;
-use crate::schema::IntoRowGroups;
+use crate::schema::{BlockNum, IntoRowGroups};
 use arrow2::io::parquet::write::*;
 use eth_archive_core::types::BlockRange;
 use std::time::Instant;
-use std::{fs, mem};
+use std::{cmp, fs, mem};
 use tokio::sync::mpsc;
 
 pub struct ParquetWriter<T: IntoRowGroups> {
@@ -13,10 +13,15 @@ pub struct ParquetWriter<T: IntoRowGroups> {
 }
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new(config: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
+    pub fn new(
+        config: ParquetConfig,
+        delete_tx: mpsc::UnboundedSender<usize>,
+        from_block: usize,
+    ) -> Self {
         let cfg = config.clone();
 
-        let (tx, mut rx) = mpsc::channel(config.channel_size);
+        let (tx, mut rx): (_, mpsc::Receiver<(BlockRange, Vec<T::Elem>)>) =
+            mpsc::channel(config.channel_size);
 
         fs::create_dir_all(&cfg.path).unwrap();
 
@@ -78,8 +83,14 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                     None => Some(other_range),
                 };
 
-                for elem in elems {
-                    row.push(elem).unwrap();
+                if let Some(block_range) = block_range.as_mut() {
+                    block_range.from = cmp::max(block_range.from, from_block)
+                }
+
+                for elem in elems.into_iter() {
+                    if elem.block_num() >= from_block {
+                        row.push(elem).unwrap();
+                    }
                 }
             }
 

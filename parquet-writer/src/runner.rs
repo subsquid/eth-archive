@@ -103,9 +103,14 @@ impl ParquetWriterRunner {
             }
         }
 
-        let block_writer = ParquetWriter::new(config.block, block_delete_tx);
-        let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx);
-        let log_writer = ParquetWriter::new(config.log, log_delete_tx);
+        let block_from_block = Self::get_start_block(&config.block.path).await?;
+        let tx_from_block = Self::get_start_block(&config.transaction.path).await?;
+        let log_from_block = Self::get_start_block(&config.log.path).await?;
+
+        let block_writer = ParquetWriter::new(config.block, block_delete_tx, block_from_block);
+        let transaction_writer =
+            ParquetWriter::new(config.transaction, tx_delete_tx, tx_from_block);
+        let log_writer = ParquetWriter::new(config.log, log_delete_tx, log_from_block);
 
         let retry = Retry::new(config.retry);
 
@@ -209,7 +214,7 @@ impl ParquetWriterRunner {
         }
     }
 
-    async fn get_start_block<P: AsRef<Path>>(&self, path: P) -> Result<usize> {
+    async fn get_start_block<P: AsRef<Path>>(path: P) -> Result<usize> {
         let mut dir = tokio::fs::read_dir(path)
             .await
             .map_err(Error::ReadParquetDir)?;
@@ -229,11 +234,9 @@ impl ParquetWriterRunner {
     }
 
     pub async fn initial_sync(&self) -> Result<usize> {
-        let block_from_block = self.get_start_block(&self.block_writer.cfg.path).await?;
-        let tx_from_block = self
-            .get_start_block(&self.transaction_writer.cfg.path)
-            .await?;
-        let log_from_block = self.get_start_block(&self.log_writer.cfg.path).await?;
+        let block_from_block = Self::get_start_block(&self.block_writer.cfg.path).await?;
+        let tx_from_block = Self::get_start_block(&self.transaction_writer.cfg.path).await?;
+        let log_from_block = Self::get_start_block(&self.log_writer.cfg.path).await?;
         let from_block = cmp::min(cmp::min(block_from_block, tx_from_block), log_from_block);
 
         let to_block = self.wait_for_start_block_number().await?;
@@ -305,10 +308,6 @@ impl ParquetWriterRunner {
                 let end = cmp::min(start + batch_size, to_block);
 
                 for block in batch.iter_mut() {
-                    if (block.number.0 as usize) < tx_from_block {
-                        continue;
-                    }
-
                     let transactions = mem::take(&mut block.transactions);
 
                     self.transaction_writer
@@ -322,26 +321,10 @@ impl ParquetWriterRunner {
                         .await;
                 }
 
-                let mut block_range = BlockRange {
+                let block_range = BlockRange {
                     from: start,
                     to: end,
                 };
-
-                let mut batch = batch;
-
-                if start < block_from_block {
-                    batch = batch
-                        .into_iter()
-                        .filter(|block| block.number.0 as usize >= block_from_block)
-                        .collect();
-                    if batch.is_empty() {
-                        continue;
-                    }
-                    block_range = BlockRange {
-                        from: block_from_block,
-                        to: block_range.to,
-                    };
-                }
 
                 self.block_writer.send((block_range, batch)).await;
             }
@@ -350,26 +333,10 @@ impl ParquetWriterRunner {
                 let start = block_num + step_no * batch_size;
                 let end = cmp::min(start + batch_size, to_block);
 
-                let mut block_range = BlockRange {
+                let block_range = BlockRange {
                     from: start,
                     to: end,
                 };
-
-                let mut batch = batch;
-
-                if start < log_from_block {
-                    batch = batch
-                        .into_iter()
-                        .filter(|log| log.block_number.0 as usize >= log_from_block)
-                        .collect();
-                    if batch.is_empty() {
-                        continue;
-                    }
-                    block_range = BlockRange {
-                        from: log_from_block,
-                        to: block_range.to,
-                    };
-                }
 
                 self.log_writer.send((block_range, batch)).await;
             }

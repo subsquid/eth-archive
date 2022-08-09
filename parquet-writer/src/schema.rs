@@ -543,7 +543,7 @@ impl IntoRowGroups for Logs {
 }
 
 pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
-    type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized;
+    type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized + BlockNum;
 
     fn encoding() -> Vec<Encoding>;
     fn schema() -> Schema;
@@ -567,5 +567,27 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+pub trait BlockNum {
+    fn block_num(&self) -> usize;
+}
+
+impl BlockNum for Block {
+    fn block_num(&self) -> usize {
+        self.number.0 as usize
+    }
+}
+
+impl BlockNum for Transaction {
+    fn block_num(&self) -> usize {
+        self.block_number.0 as usize
+    }
+}
+
+impl BlockNum for Log {
+    fn block_num(&self) -> usize {
+        self.block_number.0 as usize
     }
 }

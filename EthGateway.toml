@@ -16,5 +16,5 @@ blocks_path = "data/block"
 transactions_path = "data/tx"
 
 [http_server]
-ip = 127.0.0.1
+ip = "127.0.0.1"
 port = 8080

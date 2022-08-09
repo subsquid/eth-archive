@@ -1,4 +1,4 @@
-block_overlap_size = 500000
+block_overlap_size = 5000
 
 [retry]
 secs_between_tries = 3
