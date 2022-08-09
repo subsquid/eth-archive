@@ -613,7 +613,7 @@ fn log_from_row(row: &tokio_postgres::Row) -> Log {
             .map(Bytes32::new)
             .collect(),
         transaction_hash: Bytes32::new(row.get(7)),
-        transaction_index: BigInt(row.get(9)),
+        transaction_index: BigInt(row.get(8)),
     }
 }
 
