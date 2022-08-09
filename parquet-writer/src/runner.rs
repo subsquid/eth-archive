@@ -221,7 +221,7 @@ impl ParquetWriterRunner {
                 .map_err(|_| Error::InvalidParquetFileName)?;
             let num = file_name.split('_').last().unwrap();
             let num = &num[..num.len() - ".parquet".len()];
-            let num = num.parse::<usize>().unwrap() + 1;
+            let num = num.parse::<usize>().unwrap();
             block_num = cmp::max(block_num, num);
         }
 
@@ -305,6 +305,10 @@ impl ParquetWriterRunner {
                 let end = cmp::min(start + batch_size, to_block);
 
                 for block in batch.iter_mut() {
+                    if (block.number.0 as usize) < tx_from_block {
+                        continue;
+                    }
+
                     let transactions = mem::take(&mut block.transactions);
 
                     self.transaction_writer
@@ -318,10 +322,26 @@ impl ParquetWriterRunner {
                         .await;
                 }
 
-                let block_range = BlockRange {
+                let mut block_range = BlockRange {
                     from: start,
                     to: end,
                 };
+
+                let mut batch = batch;
+
+                if start < block_from_block {
+                    batch = batch
+                        .into_iter()
+                        .filter(|block| block.number.0 as usize >= block_from_block)
+                        .collect();
+                    if batch.is_empty() {
+                        continue;
+                    }
+                    block_range = BlockRange {
+                        from: block_from_block,
+                        to: block_range.to,
+                    };
+                }
 
                 self.block_writer.send((block_range, batch)).await;
             }
@@ -330,10 +350,26 @@ impl ParquetWriterRunner {
                 let start = block_num + step_no * batch_size;
                 let end = cmp::min(start + batch_size, to_block);
 
-                let block_range = BlockRange {
+                let mut block_range = BlockRange {
                     from: start,
                     to: end,
                 };
+
+                let mut batch = batch;
+
+                if start < log_from_block {
+                    batch = batch
+                        .into_iter()
+                        .filter(|log| log.block_number.0 as usize >= log_from_block)
+                        .collect();
+                    if batch.is_empty() {
+                        continue;
+                    }
+                    block_range = BlockRange {
+                        from: log_from_block,
+                        to: block_range.to,
+                    };
+                }
 
                 self.log_writer.send((block_range, batch)).await;
             }
