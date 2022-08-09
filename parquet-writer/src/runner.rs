@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::options::Options;
 use crate::parquet_writer::ParquetWriter;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
@@ -6,7 +7,6 @@ use eth_archive_core::config::IngestConfig;
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
-use eth_archive_core::options::Options;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{Block, BlockRange};
 use std::path::Path;

@@ -1,5 +1,4 @@
-use eth_archive_core::options::Options;
-use eth_archive_parquet_writer::ParquetWriterRunner;
+use eth_archive_parquet_writer::{Options, ParquetWriterRunner};
 
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;

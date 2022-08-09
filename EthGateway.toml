@@ -1,0 +1,20 @@
+[retry]
+secs_between_tries = 3
+
+[db]
+user = "postgres"
+password = "12345"
+dbname = "eth_archive_db"
+host = "localhost"
+port = 5432
+
+[datafusion]
+target_partitions = 2048
+batch_size = 8
+logs_path = "data/log"
+blocks_path = "data/block"
+transactions_path = "data/tx"
+
+[http_server]
+ip = 127.0.0.1
+port = 8080

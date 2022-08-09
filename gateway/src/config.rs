@@ -1,0 +1,27 @@
+use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
+use serde::Deserialize;
+use std::net::Ipv4Addr;
+use std::path::PathBuf;
+
+#[derive(Deserialize)]
+pub struct Config {
+    pub retry: RetryConfig,
+    pub db: DbConfig,
+    pub datafusion: DatafusionConfig,
+    pub http_server: HttpServerConfig,
+}
+
+#[derive(Deserialize)]
+pub struct DatafusionConfig {
+    pub target_partitions: usize,
+    pub batch_size: usize,
+    pub blocks_path: PathBuf,
+    pub transactions_path: PathBuf,
+    pub logs_path: PathBuf,
+}
+
+#[derive(Deserialize)]
+pub struct HttpServerConfig {
+    pub ip: Ipv4Addr,
+    pub port: u16,
+}

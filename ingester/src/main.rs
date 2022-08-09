@@ -1,5 +1,4 @@
-use eth_archive_core::options::Options;
-use eth_archive_ingester::Ingester;
+use eth_archive_ingester::{Ingester, Options};
 
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
