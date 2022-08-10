@@ -11,7 +11,7 @@ use actix_web::{middleware, web, App, HttpServer};
 pub struct Server {}
 
 impl Server {
-    pub async fn run(options: &Options) -> Result<Self> {
+    pub async fn run(options: &Options) -> Result<()> {
         let config =
             tokio::fs::read_to_string(options.cfg_path.as_deref().unwrap_or("EthGateway.toml"))
                 .await
@@ -52,7 +52,7 @@ async fn query(
     query: web::Json<QueryLogs>,
     ctx: web::Data<Arc<DataCtx>>,
 ) -> Result<web::Json<QueryResult>> {
-    let res = ctx.query(query).await?;
+    let res = ctx.query(query.into_inner()).await?;
 
     Ok(web::Json(res))
 }
