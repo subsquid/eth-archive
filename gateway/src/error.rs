@@ -6,6 +6,12 @@ use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
+    #[error("failed to read config file:\n{0}")]
+    ReadConfigFile(std::io::Error),
+    #[error("failed to parse config:\n{0}")]
+    ParseConfig(toml::de::Error),
+    #[error("failed to create database handle:\n{0}")]
+    CreateDbHandle(Box<eth_archive_core::Error>),
     #[error("failed to execute query:\n{0}")]
     ExecuteQuery(datafusion::error::DataFusionError),
     #[error("failed to build query:\n{0}")]

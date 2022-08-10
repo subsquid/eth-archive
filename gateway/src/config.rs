@@ -1,4 +1,4 @@
-use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
+use eth_archive_core::config::{DbConfig, RetryConfig};
 use serde::Deserialize;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
@@ -18,6 +18,7 @@ pub struct DatafusionConfig {
     pub blocks_path: PathBuf,
     pub transactions_path: PathBuf,
     pub logs_path: PathBuf,
+    pub max_block_range: usize,
 }
 
 #[derive(Deserialize)]

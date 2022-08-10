@@ -1,17 +1,21 @@
-#[derive(Deserialize)]
+use crate::field_selection::LogFieldSelection;
+use datafusion::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct QueryLogs {
-    from_block: u64,
-    to_block: u64,
-    addresses: Vec<AddressQuery>,
-    field_selection: LogFieldSelection,
+pub struct QueryLogs {
+    pub from_block: u64,
+    pub to_block: u64,
+    pub addresses: Vec<AddressQuery>,
+    pub field_selection: LogFieldSelection,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AddressQuery {
-    address: String,
-    topics: [Option<Vec<String>>; 4],
+pub struct AddressQuery {
+    pub address: String,
+    pub topics: [Option<Vec<String>>; 4],
 }
 
 impl From<AddressQuery> for Expr {
@@ -30,3 +34,9 @@ impl From<AddressQuery> for Expr {
         expr
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Status {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QueryResult {}

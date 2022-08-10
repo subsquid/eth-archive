@@ -14,6 +14,7 @@ batch_size = 8
 logs_path = "data/log"
 blocks_path = "data/block"
 transactions_path = "data/tx"
+max_block_range = 4000
 
 [http_server]
 ip = "127.0.0.1"

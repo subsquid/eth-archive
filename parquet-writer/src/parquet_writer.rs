@@ -7,10 +7,13 @@ use std::{cmp, fs, mem};
 use tokio::sync::mpsc;
 
 pub struct ParquetWriter<T: IntoRowGroups> {
-    tx: mpsc::Sender<(BlockRange, Vec<T::Elem>)>,
+    tx: Sender<T::Elem>,
     _join_handle: std::thread::JoinHandle<()>,
     pub cfg: ParquetConfig,
 }
+
+type Sender<E> = mpsc::Sender<(BlockRange, Vec<E>)>;
+type Receiver<E> = mpsc::Receiver<(BlockRange, Vec<E>)>;
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
     pub fn new(
@@ -20,8 +23,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
     ) -> Self {
         let cfg = config.clone();
 
-        let (tx, mut rx): (_, mpsc::Receiver<(BlockRange, Vec<T::Elem>)>) =
-            mpsc::channel(config.channel_size);
+        let (tx, mut rx): (Sender<T::Elem>, Receiver<T::Elem>) = mpsc::channel(config.channel_size);
 
         fs::create_dir_all(&cfg.path).unwrap();
 

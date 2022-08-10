@@ -927,6 +927,7 @@ dependencies = [
  "snmalloc-rs",
  "thiserror",
  "tokio",
+ "toml",
 ]
 
 [[package]]
