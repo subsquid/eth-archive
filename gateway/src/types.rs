@@ -2,6 +2,8 @@ use crate::field_selection::LogFieldSelection;
 use datafusion::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use serde_json::Value as JsonValue;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryLogs {
@@ -36,7 +38,12 @@ impl From<AddressQuery> for Expr {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Status {}
+pub struct Status {
+    pub parquet_block_number: Option<u64>,
+    pub db_block_number: Option<usize>,
+}
 
 #[derive(Serialize, Deserialize)]
-pub struct QueryResult {}
+pub struct QueryResult {
+    pub data: Vec<JsonValue>,
+}

@@ -34,6 +34,8 @@ pub enum Error {
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]
     BindHttpServer(io::Error),
+    #[error("failed get maximum block number from database:\n{0}")]
+    GetMaxBlockNumber(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

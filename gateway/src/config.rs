@@ -15,9 +15,9 @@ pub struct Config {
 pub struct DatafusionConfig {
     pub target_partitions: usize,
     pub batch_size: usize,
-    pub blocks_path: PathBuf,
-    pub transactions_path: PathBuf,
-    pub logs_path: PathBuf,
+    pub blocks_path: String,
+    pub transactions_path: String,
+    pub logs_path: String,
     pub max_block_range: usize,
 }
 
