@@ -24,7 +24,7 @@ impl Server {
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
 
-        let data_ctx = DataCtx::new(db, config.datafusion).await?;
+        let data_ctx = DataCtx::new(db, config.data).await?;
         let data_ctx = Arc::new(data_ctx);
 
         HttpServer::new(move || {

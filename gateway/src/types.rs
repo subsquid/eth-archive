@@ -45,5 +45,5 @@ pub struct Status {
 
 #[derive(Serialize, Deserialize)]
 pub struct QueryResult {
-    pub data: Vec<JsonValue>,
+    pub data: Vec<serde_json::Map<String, JsonValue>>,
 }

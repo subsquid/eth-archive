@@ -8,13 +8,14 @@ dbname = "eth_archive_db"
 host = "localhost"
 port = 5432
 
-[datafusion]
+[data]
 target_partitions = 2048
 batch_size = 8
 logs_path = "data/log"
 blocks_path = "data/block"
 transactions_path = "data/tx"
 max_block_range = 4000
+parquet_ctx_refresh_interval_secs = 5
 
 [http_server]
 ip = "127.0.0.1"
