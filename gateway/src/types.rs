@@ -15,6 +15,7 @@ pub struct QueryLogs {
 
 impl QueryLogs {
     pub fn to_sql(&self) -> String {
+        /*
         format!(
             "
             SELECT {} FROM log
@@ -23,9 +24,11 @@ impl QueryLogs {
                 transaction.block_number = log.block_number AND
                     transaction.transaction_index = log.transaction_index
             WHERE log.block_number < {} AND log.block_number >= {} AND
-                log.address IN {}
+                log.address IN {} AND log.topics
         "
         )
+        */
+        todo!()
     }
 }
 
@@ -56,7 +59,8 @@ impl From<AddressQuery> for Expr {
 #[derive(Serialize, Deserialize)]
 pub struct Status {
     pub parquet_block_number: u64,
-    pub db_block_number: usize,
+    pub db_max_block_number: usize,
+    pub db_min_block_number: usize,
 }
 
 #[derive(Serialize, Deserialize)]

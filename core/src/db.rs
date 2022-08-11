@@ -3,6 +3,7 @@ use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonc
 use crate::types::{Block, Log, Transaction};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
+use serde_json::Value as JsonValue;
 use tokio_postgres::types::ToSql;
 
 pub struct DbHandle {
@@ -43,6 +44,13 @@ impl DbHandle {
 
     async fn get_conn(&self) -> Result<deadpool_postgres::Object> {
         self.pool.get().await.map_err(Error::GetDbConnection)
+    }
+
+    pub async fn raw_query_to_json(
+        &self,
+        query: &str,
+    ) -> Result<Vec<serde_json::Map<String, JsonValue>>> {
+        todo!()
     }
 
     pub async fn get_max_block_number(&self) -> Result<Option<usize>> {

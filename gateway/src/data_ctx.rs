@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 pub struct DataCtx {
     db: Arc<DbHandle>,
     session: Arc<RwLock<(SessionContext, u64)>>,
+    config: DataConfig,
 }
 
 impl DataCtx {
@@ -19,19 +20,31 @@ impl DataCtx {
 
         let session = Arc::new(RwLock::new((session, parquet_block_number)));
 
-        Ok(Self { db, session })
+        Ok(Self {
+            db,
+            session,
+            config,
+        })
     }
 
     pub async fn status(&self) -> Result<Status> {
-        let db_block_number = self
+        let db_max_block_number = self
             .db
             .get_max_block_number()
             .await
             .map_err(Error::GetMaxBlockNumber)?
             .unwrap_or(0);
 
+        let db_min_block_number = self
+            .db
+            .get_min_block_number()
+            .await
+            .map_err(Error::GetMinBlockNumber)?
+            .unwrap_or(0);
+
         Ok(Status {
-            db_block_number,
+            db_max_block_number,
+            db_min_block_number,
             parquet_block_number: self.session.read().await.1,
         })
     }
@@ -63,10 +76,25 @@ impl DataCtx {
     }
 
     pub async fn query(&self, query: QueryLogs) -> Result<QueryResult> {
+        let block_range = query.to_block - query.from_block;
+
+        if block_range > self.config.max_block_range as u64 {
+            return Err(Error::MaximumBlockRange {
+                range: block_range,
+                max: self.config.max_block_range,
+            });
+        }
+
         if self.session.read().await.1 >= query.to_block {
             self.query_parquet(query).await
         } else {
-            todo!();
+            let data = self
+                .db
+                .raw_query_to_json(&query.to_sql())
+                .await
+                .map_err(Error::SqlQuery)?;
+
+            Ok(QueryResult { data })
         }
     }
 
