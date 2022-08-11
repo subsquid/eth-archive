@@ -922,6 +922,7 @@ dependencies = [
  "env_logger",
  "eth-archive-core",
  "log",
+ "prefix-hex",
  "serde",
  "serde_json",
  "snmalloc-rs",

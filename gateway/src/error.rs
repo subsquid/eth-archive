@@ -42,6 +42,10 @@ pub enum Error {
     MaximumBlockRange { max: usize, range: u64 },
     #[error("failed to run sql query:\n{0}")]
     SqlQuery(eth_archive_core::Error),
+    #[error("invalid hex in an address:\n{0}")]
+    InvalidHexInAddress(prefix_hex::Error),
+    #[error("invalid hex in a topic:\n{0}")]
+    InvalidHexInTopic(prefix_hex::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

@@ -113,10 +113,10 @@ impl DataCtx {
         if !query.addresses.is_empty() {
             let mut addresses = query.addresses;
 
-            let mut expr: Expr = addresses.pop().unwrap().into();
+            let mut expr: Expr = addresses.pop().unwrap().to_expr()?;
 
             for addr in addresses {
-                expr = expr.or(addr.into());
+                expr = expr.or(addr.to_expr()?);
             }
 
             data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;

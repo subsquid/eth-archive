@@ -1,4 +1,5 @@
 use crate::field_selection::FieldSelection;
+use crate::{Error, Result};
 use datafusion::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -39,23 +40,29 @@ pub struct AddressQuery {
     pub topics: [Option<Vec<String>>; 4],
 }
 
-impl From<AddressQuery> for Expr {
-    fn from(query: AddressQuery) -> Expr {
-        let mut expr = col("log.address").eq(lit(query.address.into_bytes()));
+impl AddressQuery {
+    pub fn to_expr(&self) -> Result<Expr> {
+        let address =
+            prefix_hex::decode::<Vec<u8>>(&self.address).map_err(Error::InvalidHexInAddress)?;
 
-        for (i, topic) in query.topics.into_iter().enumerate() {
+        let mut expr = col("log.address").eq(lit(address));
+
+        for (i, topic) in self.topics.iter().enumerate() {
             if let Some(topic) = topic {
                 if !topic.is_empty() {
                     let topic = topic
                         .into_iter()
-                        .map(|topic| lit(topic.into_bytes()))
-                        .collect();
+                        .map(|topic| {
+                            Ok(lit(prefix_hex::decode::<Vec<u8>>(&topic)
+                                .map_err(Error::InvalidHexInTopic)?))
+                        })
+                        .collect::<Result<_>>()?;
                     expr = expr.and(col(&format!("log.topic{}", i)).in_list(topic, false));
                 }
             }
         }
 
-        expr
+        Ok(expr)
     }
 }
 
