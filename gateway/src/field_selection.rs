@@ -34,7 +34,7 @@ macro_rules! append_col_sql {
     };
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSelection {
     block: Option<BlockFieldSelection>,
@@ -76,7 +76,7 @@ impl FieldSelection {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockFieldSelection {
     number: Option<bool>,
@@ -142,7 +142,7 @@ impl BlockFieldSelection {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionFieldSelection {
     block_hash: Option<bool>,
@@ -207,7 +207,7 @@ impl TransactionFieldSelection {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LogFieldSelection {
     address: Option<bool>,
