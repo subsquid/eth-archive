@@ -1,4 +1,4 @@
-use crate::field_selection::LogFieldSelection;
+use crate::field_selection::FieldSelection;
 use datafusion::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,23 @@ pub struct QueryLogs {
     pub from_block: u64,
     pub to_block: u64,
     pub addresses: Vec<AddressQuery>,
-    pub field_selection: LogFieldSelection,
+    pub field_selection: FieldSelection,
+}
+
+impl QueryLogs {
+    pub fn to_sql(&self) -> String {
+        format!(
+            "
+            SELECT {} FROM log
+            JOIN block ON block.number = log.block_number
+            JOIN transaction ON
+                transaction.block_number = log.block_number AND
+                    transaction.transaction_index = log.transaction_index
+            WHERE log.block_number < {} AND log.block_number >= {} AND
+                log.address IN {}
+        "
+        )
+    }
 }
 
 #[derive(Deserialize)]
@@ -39,8 +55,8 @@ impl From<AddressQuery> for Expr {
 
 #[derive(Serialize, Deserialize)]
 pub struct Status {
-    pub parquet_block_number: Option<u64>,
-    pub db_block_number: Option<usize>,
+    pub parquet_block_number: u64,
+    pub db_block_number: usize,
 }
 
 #[derive(Serialize, Deserialize)]

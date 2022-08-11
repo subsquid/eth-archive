@@ -3,19 +3,21 @@ use crate::types::{QueryLogs, QueryResult, Status};
 use crate::{Error, Result};
 use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
-use std::mem;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub struct DataCtx {
     db: Arc<DbHandle>,
-    session: Arc<RwLock<SessionContext>>,
+    session: Arc<RwLock<(SessionContext, u64)>>,
 }
 
 impl DataCtx {
     pub async fn new(db: Arc<DbHandle>, config: DataConfig) -> Result<Self> {
         let session = Self::setup_session(&config).await?;
-        let session = Arc::new(RwLock::new(session));
+
+        let parquet_block_number = Self::get_parquet_block_number(&session).await?.unwrap_or(0);
+
+        let session = Arc::new(RwLock::new((session, parquet_block_number)));
 
         Ok(Self { db, session })
     }
@@ -25,22 +27,26 @@ impl DataCtx {
             .db
             .get_max_block_number()
             .await
-            .map_err(Error::GetMaxBlockNumber)?;
+            .map_err(Error::GetMaxBlockNumber)?
+            .unwrap_or(0);
 
-        let session = self.session.read().await;
+        Ok(Status {
+            db_block_number,
+            parquet_block_number: self.session.read().await.1,
+        })
+    }
 
+    async fn get_parquet_block_number(session: &SessionContext) -> Result<Option<u64>> {
         let data_frame = session
             .sql(
                 "
-	            SELECT
-	                MAX(number) as block_number
-	            FROM block;
-	        ",
+                SELECT
+                    MAX(number) as block_number
+                FROM block;
+            ",
             )
             .await
             .map_err(Error::BuildQuery)?;
-
-        mem::drop(session);
 
         let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
         let data = arrow::json::writer::record_batches_to_json_rows(&batches)
@@ -53,14 +59,15 @@ impl DataCtx {
             None => None,
         };
 
-        Ok(Status {
-            db_block_number,
-            parquet_block_number,
-        })
+        Ok(parquet_block_number)
     }
 
     pub async fn query(&self, query: QueryLogs) -> Result<QueryResult> {
-        self.query_parquet(query).await
+        if self.session.read().await.1 >= query.to_block {
+            self.query_parquet(query).await
+        } else {
+            todo!();
+        }
     }
 
     async fn query_parquet(&self, query: QueryLogs) -> Result<QueryResult> {
@@ -71,7 +78,7 @@ impl DataCtx {
             return Err(Error::NoFieldsSelected);
         }
 
-        let session = self.session.read().await;
+        let session = &self.session.read().await.0;
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
 
@@ -113,8 +120,6 @@ impl DataCtx {
                 high: Box::new(lit(query.to_block)),
             })
             .map_err(Error::ApplyBlockRangeFilter)?;
-
-        mem::drop(session);
 
         let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
         let data = arrow::json::writer::record_batches_to_json_rows(&batches)
