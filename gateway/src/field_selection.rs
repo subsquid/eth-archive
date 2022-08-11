@@ -37,18 +37,24 @@ macro_rules! append_col_sql {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSelection {
-    block: BlockFieldSelection,
-    transaction: TransactionFieldSelection,
-    log: LogFieldSelection,
+    block: Option<BlockFieldSelection>,
+    transaction: Option<TransactionFieldSelection>,
+    log: Option<LogFieldSelection>,
 }
 
 impl FieldSelection {
     pub fn to_cols_sql(&self) -> String {
         let mut cols = Vec::new();
 
-        self.block.to_cols_sql(&mut cols);
-        self.transaction.to_cols_sql(&mut cols);
-        self.log.to_cols_sql(&mut cols);
+        if let Some(block) = &self.block {
+            block.to_cols_sql(&mut cols);
+        }
+        if let Some(transaction) = &self.transaction {
+            transaction.to_cols_sql(&mut cols);
+        }
+        if let Some(log) = &self.log {
+            log.to_cols_sql(&mut cols);
+        }
 
         cols.join(",\n")
     }
@@ -56,9 +62,15 @@ impl FieldSelection {
     pub fn to_cols(&self) -> Vec<Expr> {
         let mut cols = Vec::new();
 
-        self.block.to_cols(&mut cols);
-        self.transaction.to_cols(&mut cols);
-        self.log.to_cols(&mut cols);
+        if let Some(block) = &self.block {
+            block.to_cols(&mut cols);
+        }
+        if let Some(transaction) = &self.transaction {
+            transaction.to_cols(&mut cols);
+        }
+        if let Some(log) = &self.log {
+            log.to_cols(&mut cols);
+        }
 
         cols
     }
