@@ -145,7 +145,6 @@ impl IntoRowGroups for Blocks {
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
@@ -158,6 +157,7 @@ impl IntoRowGroups for Blocks {
             arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
         ])
     }
 
