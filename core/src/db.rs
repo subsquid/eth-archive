@@ -332,7 +332,7 @@ impl DbHandle {
         }
 
         if !logs.is_empty() {
-            for chunk in logs.chunks(i16::MAX as usize / 9) {
+            for chunk in logs.chunks(i16::MAX as usize / 12) {
                 let log_query = format!(
                     "
             INSERT INTO eth_log (
@@ -342,7 +342,10 @@ impl DbHandle {
                     data,
                     log_index,
                     removed,
-                    topics,
+                    topic0,
+                    topic1,
+                    topic2,
+                    topic3,
                     transaction_hash,
                     transaction_index
                 ) VALUES (
@@ -354,15 +357,21 @@ impl DbHandle {
                     $6,
                     $7,
                     $8,
-                    $9
+                    $9,
+                    $10,
+                    $11,
+                    $12
                 ) {};
     ",
                     (1..chunk.len())
                         .map(|i| {
-                            let i = i * 9;
+                            let i = i * 12;
 
                             format!(
                                 ", (
+                        ${},
+                        ${},
+                        ${},
                         ${},
                         ${},
                         ${},
@@ -382,30 +391,43 @@ impl DbHandle {
                                 i + 7,
                                 i + 8,
                                 i + 9,
+                                i + 10,
+                                i + 11,
+                                i + 12,
                             )
                         })
                         .fold(String::new(), |a, b| a + &b)
                 );
 
-                let log_params = chunk
-                    .iter()
-                    .map(|log| -> [&(dyn ToSql + Sync); 9] {
-                        [
-                            &log.address,
-                            &log.block_hash,
-                            &log.block_number,
-                            &log.data,
-                            &log.log_index,
-                            &log.removed,
-                            &log.topics,
-                            &log.transaction_hash,
-                            &log.transaction_index,
-                        ]
-                    })
-                    .fold(Vec::with_capacity(chunk.len() * 9), |mut a, b| {
-                        a.extend_from_slice(&b);
-                        a
-                    });
+                let mut temp_topics = Vec::with_capacity(4 * chunk.len());
+
+                for log in chunk.iter() {
+                    temp_topics.push(log.topics.get(0));
+                    temp_topics.push(log.topics.get(1));
+                    temp_topics.push(log.topics.get(2));
+                    temp_topics.push(log.topics.get(3));
+                }
+
+                let mut log_params: Vec<&(dyn ToSql + Sync)> = Vec::with_capacity(chunk.len() * 12);
+
+                for (i, log) in chunk.iter().enumerate() {
+                    let idx = i * 4;
+
+                    log_params.extend_from_slice(&[
+                        &log.address,
+                        &log.block_hash,
+                        &log.block_number,
+                        &log.data,
+                        &log.log_index,
+                        &log.removed,
+                        &temp_topics[idx],
+                        &temp_topics[idx + 1],
+                        &temp_topics[idx + 2],
+                        &temp_topics[idx + 3],
+                        &log.transaction_hash,
+                        &log.transaction_index,
+                    ]);
+                }
 
                 tx.execute(&log_query, &log_params)
                     .await
@@ -537,7 +559,10 @@ impl DbHandle {
                 data,
                 log_index,
                 removed,
-                topics,
+                topic0,
+                topic1,
+                topic2,
+                topic3,
                 transaction_hash,
                 transaction_index
             from eth_log
@@ -608,6 +633,14 @@ fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
 }
 
 fn log_from_row(row: &tokio_postgres::Row) -> Log {
+    let mut topics = Vec::new();
+
+    for i in 6..10 {
+        if let Some(topic) = row.get(i) {
+            topics.push(Bytes32::new(topic));
+        }
+    }
+
     Log {
         address: Address::new(row.get(0)),
         block_hash: Bytes32::new(row.get(1)),
@@ -615,13 +648,9 @@ fn log_from_row(row: &tokio_postgres::Row) -> Log {
         data: Bytes(row.get(3)),
         log_index: BigInt(row.get(4)),
         removed: row.get(5),
-        topics: row
-            .get::<_, Vec<Vec<u8>>>(6)
-            .into_iter()
-            .map(Bytes32::new)
-            .collect(),
-        transaction_hash: Bytes32::new(row.get(7)),
-        transaction_index: BigInt(row.get(8)),
+        topics,
+        transaction_hash: Bytes32::new(row.get(10)),
+        transaction_index: BigInt(row.get(11)),
     }
 }
 
@@ -720,7 +749,10 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             data bytea NOT NULL,
             log_index bigint NOT NULL,
             removed boolean NOT NULL,
-            topics bytea[],
+            topic0 bytea,
+            topic1 bytea,
+            topic2 bytea,
+            topic3 bytea,
             transaction_hash bytea NOT NULL,
             transaction_index bigint NOT NULL
         );
