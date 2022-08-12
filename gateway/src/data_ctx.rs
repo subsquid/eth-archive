@@ -128,6 +128,7 @@ impl DataCtx {
                 JoinType::Inner,
                 &["log.block_number"],
                 &["block.number"],
+                None,
             )
             .map_err(Error::BuildQuery)?
             .join(
@@ -135,6 +136,7 @@ impl DataCtx {
                 JoinType::Inner,
                 &["log.block_number", "log.transaction_index"],
                 &["tx.block_number", "tx.transaction_index"],
+                None,
             )
             .map_err(Error::BuildQuery)?
             .select(select_columns)
