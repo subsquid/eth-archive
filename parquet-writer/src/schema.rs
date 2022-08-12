@@ -9,7 +9,7 @@ use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::error::Error as ArrowError;
 use arrow2::io::parquet::write::{
-    CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
+    transverse, CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
 use eth_archive_core::types::{Block, Log, Transaction};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -549,19 +549,28 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     fn schema() -> Schema;
     fn into_chunk(self) -> Chunk;
     fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
+        let schema = Self::schema();
+
+        let encoding_map = |_data_type: &DataType| Encoding::Plain;
+
+        let encodings = (&schema.fields)
+            .iter()
+            .map(|f| transverse(&f.data_type, encoding_map))
+            .collect::<Vec<_>>();
+
         let row_groups = RowGroupIterator::try_new(
             elems
                 .into_par_iter()
                 .map(|elem| Ok(Self::into_chunk(elem)))
                 .collect::<Vec<_>>()
                 .into_iter(),
-            &Self::schema(),
+            &schema,
             options(),
-            Self::encoding().into_iter().map(|e| vec![e]).collect(),
+            encodings,
         )
         .unwrap();
 
-        (row_groups, Self::schema(), options())
+        (row_groups, schema, options())
     }
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
     fn len(&self) -> usize;
