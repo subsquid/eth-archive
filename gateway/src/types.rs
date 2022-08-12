@@ -51,9 +51,9 @@ impl AddressQuery {
             if let Some(topic) = topic {
                 if !topic.is_empty() {
                     let topic = topic
-                        .into_iter()
+                        .iter()
                         .map(|topic| {
-                            Ok(lit(prefix_hex::decode::<Vec<u8>>(&topic)
+                            Ok(lit(prefix_hex::decode::<Vec<u8>>(topic)
                                 .map_err(Error::InvalidHexInTopic)?))
                         })
                         .collect::<Result<_>>()?;
