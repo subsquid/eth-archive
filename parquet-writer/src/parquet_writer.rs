@@ -1,7 +1,9 @@
 use crate::config::ParquetConfig;
 use crate::schema::{BlockNum, IntoRowGroups};
+use crate::{Error, Result};
 use arrow2::io::parquet::write::*;
 use eth_archive_core::types::BlockRange;
+use std::path::Path;
 use std::time::Instant;
 use std::{cmp, fs, mem};
 use tokio::sync::mpsc;
@@ -10,22 +12,21 @@ pub struct ParquetWriter<T: IntoRowGroups> {
     tx: Sender<T::Elem>,
     _join_handle: std::thread::JoinHandle<()>,
     pub cfg: ParquetConfig,
+    pub from_block: usize,
 }
 
 type Sender<E> = mpsc::Sender<(BlockRange, Vec<E>)>;
 type Receiver<E> = mpsc::Receiver<(BlockRange, Vec<E>)>;
 
 impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new(
-        config: ParquetConfig,
-        delete_tx: mpsc::UnboundedSender<usize>,
-        from_block: usize,
-    ) -> Self {
+    pub fn new(config: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
         let cfg = config.clone();
 
         let (tx, mut rx): (Sender<T::Elem>, Receiver<T::Elem>) = mpsc::channel(config.channel_size);
 
         fs::create_dir_all(&cfg.path).unwrap();
+
+        let from_block = Self::get_start_block(&cfg.path).unwrap();
 
         let join_handle = std::thread::spawn(move || {
             let mut row_group = vec![T::default()];
@@ -45,7 +46,6 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let file = fs::File::create(&temp_path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
 
-                writer.start().unwrap();
                 for group in row_groups {
                     writer.write(group.unwrap()).unwrap();
                 }
@@ -105,6 +105,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             tx,
             _join_handle: join_handle,
             cfg: config,
+            from_block,
         }
     }
 
@@ -117,5 +118,23 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
     pub fn _join(self) {
         mem::drop(self.tx);
         self._join_handle.join().unwrap();
+    }
+
+    fn get_start_block<P: AsRef<Path>>(path: P) -> Result<usize> {
+        let dir = fs::read_dir(path).map_err(Error::ReadParquetDir)?;
+        let mut block_num = 0;
+        for entry in dir {
+            let file_name = entry
+                .unwrap()
+                .file_name()
+                .into_string()
+                .map_err(|_| Error::InvalidParquetFileName)?;
+            let num = file_name.split('_').last().unwrap();
+            let num = &num[..num.len() - ".parquet".len()];
+            let num = num.parse::<usize>().unwrap();
+            block_num = cmp::max(block_num, num);
+        }
+
+        Ok(block_num)
     }
 }

@@ -9,7 +9,6 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{Block, BlockRange};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
@@ -103,14 +102,9 @@ impl ParquetWriterRunner {
             }
         }
 
-        let block_from_block = Self::get_start_block(&config.block.path).await?;
-        let tx_from_block = Self::get_start_block(&config.transaction.path).await?;
-        let log_from_block = Self::get_start_block(&config.log.path).await?;
-
-        let block_writer = ParquetWriter::new(config.block, block_delete_tx, block_from_block);
-        let transaction_writer =
-            ParquetWriter::new(config.transaction, tx_delete_tx, tx_from_block);
-        let log_writer = ParquetWriter::new(config.log, log_delete_tx, log_from_block);
+        let block_writer = ParquetWriter::new(config.block, block_delete_tx);
+        let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx);
+        let log_writer = ParquetWriter::new(config.log, log_delete_tx);
 
         let retry = Retry::new(config.retry);
 
@@ -214,30 +208,14 @@ impl ParquetWriterRunner {
         }
     }
 
-    async fn get_start_block<P: AsRef<Path>>(path: P) -> Result<usize> {
-        let mut dir = tokio::fs::read_dir(path)
-            .await
-            .map_err(Error::ReadParquetDir)?;
-        let mut block_num = 0;
-        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
-            let file_name = entry
-                .file_name()
-                .into_string()
-                .map_err(|_| Error::InvalidParquetFileName)?;
-            let num = file_name.split('_').last().unwrap();
-            let num = &num[..num.len() - ".parquet".len()];
-            let num = num.parse::<usize>().unwrap();
-            block_num = cmp::max(block_num, num);
-        }
-
-        Ok(block_num)
-    }
-
     pub async fn initial_sync(&self) -> Result<usize> {
-        let block_from_block = Self::get_start_block(&self.block_writer.cfg.path).await?;
-        let tx_from_block = Self::get_start_block(&self.transaction_writer.cfg.path).await?;
-        let log_from_block = Self::get_start_block(&self.log_writer.cfg.path).await?;
-        let from_block = cmp::min(cmp::min(block_from_block, tx_from_block), log_from_block);
+        let from_block = cmp::min(
+            cmp::min(
+                self.block_writer.from_block,
+                self.transaction_writer.from_block,
+            ),
+            self.log_writer.from_block,
+        );
 
         let to_block = self.wait_for_start_block_number().await?;
 

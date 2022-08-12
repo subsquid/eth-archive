@@ -7,7 +7,7 @@ use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
-use arrow2::error::ArrowError;
+use arrow2::error::Error as ArrowError;
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
 };
@@ -93,7 +93,7 @@ fn log_schema() -> Schema {
 
 fn options() -> WriteOptions {
     WriteOptions {
-        write_statistics: false,
+        write_statistics: true,
         compression: CompressionOptions::Snappy,
         version: Version::V2,
     }
@@ -557,7 +557,7 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
                 .into_iter(),
             &Self::schema(),
             options(),
-            Self::encoding(),
+            Self::encoding().into_iter().map(|e| vec![e]).collect(),
         )
         .unwrap();
 

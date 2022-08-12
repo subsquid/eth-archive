@@ -20,7 +20,7 @@ clap = { version = "3", features = ["derive"] }
 eth-archive-core = { path = "../core" }
 
 [dependencies.arrow2]
-version = "0.11.2"
+version = "0.13.1"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
 
 [dependencies.reqwest]
