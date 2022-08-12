@@ -99,19 +99,7 @@ fn options() -> WriteOptions {
     }
 }
 
-fn bytes32_arr() -> MutableBinaryArray {
-    MutableBinaryArray::default()
-}
-
-fn bloom_filter_arr() -> MutableBinaryArray {
-    MutableBinaryArray::default()
-}
-
-fn address_arr() -> MutableBinaryArray {
-    MutableBinaryArray::default()
-}
-
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Blocks {
     pub number: Int64Vec,
     pub hash: MutableBinaryArray,
@@ -131,31 +119,6 @@ pub struct Blocks {
     pub gas_used: MutableBinaryArray,
     pub timestamp: Int64Vec,
     pub len: usize,
-}
-
-impl Default for Blocks {
-    fn default() -> Self {
-        Self {
-            number: Default::default(),
-            hash: bytes32_arr(),
-            parent_hash: bytes32_arr(),
-            nonce: Default::default(),
-            sha3_uncles: bytes32_arr(),
-            logs_bloom: bloom_filter_arr(),
-            transactions_root: bytes32_arr(),
-            state_root: bytes32_arr(),
-            receipts_root: bytes32_arr(),
-            miner: address_arr(),
-            difficulty: Default::default(),
-            total_difficulty: Default::default(),
-            extra_data: Default::default(),
-            size: Default::default(),
-            gas_limit: Default::default(),
-            gas_used: Default::default(),
-            timestamp: Default::default(),
-            len: 0,
-        }
-    }
 }
 
 type RowGroups = RowGroupIterator<Box<dyn Array>, std::vec::IntoIter<StdResult<Chunk, ArrowError>>>;
@@ -228,34 +191,12 @@ impl IntoRowGroups for Blocks {
         self.len
     }
 
-    fn encoding() -> Vec<Encoding> {
-        vec![
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-        ]
-    }
-
     fn schema() -> Schema {
         block_schema()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Transactions {
     pub block_hash: MutableBinaryArray,
     pub block_number: Int64Vec,
@@ -274,30 +215,6 @@ pub struct Transactions {
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
     pub len: usize,
-}
-
-impl Default for Transactions {
-    fn default() -> Transactions {
-        Self {
-            block_hash: bytes32_arr(),
-            block_number: Default::default(),
-            source: bytes32_arr(),
-            gas: Default::default(),
-            gas_price: Default::default(),
-            hash: bytes32_arr(),
-            input: Default::default(),
-            nonce: Default::default(),
-            dest: bytes32_arr(),
-            transaction_index: Default::default(),
-            value: Default::default(),
-            kind: Default::default(),
-            chain_id: Default::default(),
-            v: Default::default(),
-            r: Default::default(),
-            s: Default::default(),
-            len: 0,
-        }
-    }
 }
 
 impl IntoRowGroups for Transactions {
@@ -380,33 +297,12 @@ impl IntoRowGroups for Transactions {
         self.len
     }
 
-    fn encoding() -> Vec<Encoding> {
-        vec![
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-        ]
-    }
-
     fn schema() -> Schema {
         transaction_schema()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Logs {
     pub address: MutableBinaryArray,
     pub block_hash: MutableBinaryArray,
@@ -421,26 +317,6 @@ pub struct Logs {
     pub transaction_hash: MutableBinaryArray,
     pub transaction_index: Int64Vec,
     pub len: usize,
-}
-
-impl Default for Logs {
-    fn default() -> Self {
-        Self {
-            address: bytes32_arr(),
-            block_hash: bytes32_arr(),
-            block_number: Default::default(),
-            data: Default::default(),
-            log_index: Default::default(),
-            removed: Default::default(),
-            topic0: bytes32_arr(),
-            topic1: bytes32_arr(),
-            topic2: bytes32_arr(),
-            topic3: bytes32_arr(),
-            transaction_hash: bytes32_arr(),
-            transaction_index: Default::default(),
-            len: 0,
-        }
-    }
 }
 
 impl IntoRowGroups for Logs {
@@ -520,23 +396,6 @@ impl IntoRowGroups for Logs {
         self.len
     }
 
-    fn encoding() -> Vec<Encoding> {
-        vec![
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-            Encoding::Plain,
-        ]
-    }
-
     fn schema() -> Schema {
         log_schema()
     }
@@ -545,7 +404,6 @@ impl IntoRowGroups for Logs {
 pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized + BlockNum;
 
-    fn encoding() -> Vec<Encoding>;
     fn schema() -> Schema;
     fn into_chunk(self) -> Chunk;
     fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
