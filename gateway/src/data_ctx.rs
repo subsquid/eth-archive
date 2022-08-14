@@ -156,6 +156,18 @@ impl DataCtx {
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
 
+        if !query.addresses.is_empty() {
+            let mut addresses = query.addresses;
+
+            let mut expr: Expr = addresses.pop().unwrap().into();
+
+            for addr in addresses {
+                expr = expr.or(addr.into());
+            }
+
+            data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
+        }
+
         data_frame = data_frame
             .join(
                 session.table("block").map_err(Error::BuildQuery)?,
@@ -178,11 +190,9 @@ impl DataCtx {
 
         data_frame = data_frame
             .filter(
-                query.addresses[0].to_expr()?.and(
-                    col("log.block_number")
+                col("log.block_number")
                         .gt_eq(lit(query.from_block))
                         .and(col("log.block_number").lt(lit(query.to_block))),
-                ),
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
 
