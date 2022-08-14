@@ -33,13 +33,13 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             let mut block_range = None;
 
             let write_group = |row_group: &mut Vec<T>, block_range: &mut Option<BlockRange>| {
+                let start_time = Instant::now();
+
                 let row_group = mem::take(row_group);
                 let block_range = block_range.take().unwrap();
                 let (row_groups, schema, options) = T::into_row_groups(row_group);
 
                 let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
-
-                let start_time = Instant::now();
 
                 let mut temp_path = cfg.path.clone();
                 temp_path.push(format!("{}.temp", &file_name));
