@@ -94,7 +94,7 @@ fn log_schema() -> Schema {
 fn options() -> WriteOptions {
     WriteOptions {
         write_statistics: true,
-        compression: CompressionOptions::Zstd(None),
+        compression: CompressionOptions::Lz4Raw,
         version: Version::V2,
     }
 }
@@ -404,7 +404,8 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
 
         let encoding_map = |_data_type: &DataType| Encoding::Plain;
 
-        let encodings = (&schema.fields)
+        let encodings = schema
+            .fields
             .iter()
             .map(|f| transverse(&f.data_type, encoding_map))
             .collect::<Vec<_>>();

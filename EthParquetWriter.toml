@@ -32,6 +32,6 @@ channel_size = 256
 [log]
 name = "log"
 path = "data/log"
-items_per_file = 65000000
+items_per_file = 6500000
 items_per_row_group = 13000
 channel_size = 256
