@@ -3,6 +3,7 @@ use crate::types::{QueryLogs, QueryResult, Status};
 use crate::{Error, Result};
 use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
+use std::cmp;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -50,27 +51,60 @@ impl DataCtx {
     }
 
     async fn get_parquet_block_number(session: &SessionContext) -> Result<Option<u64>> {
-        let data_frame = session
-            .sql(
-                "
+        let get_num = |sql| async {
+            let data_frame = session
+                .sql(
+                    "
+                    SELECT
+                        MAX(number) as block_number
+                    FROM block;
+                ",
+                )
+                .await
+                .map_err(Error::BuildQuery)?;
+
+            let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
+            let data = arrow::json::writer::record_batches_to_json_rows(&batches)
+                .map_err(Error::CollectResults)?;
+            let parquet_block_number = match data.get(0) {
+                Some(b) => match b.get("block_number") {
+                    Some(num) => Some(num.as_u64().ok_or(Error::InvalidBlockNumber)?),
+                    None => None,
+                },
+                None => None,
+            };
+
+            Ok(parquet_block_number)
+        };
+
+        let blk_num = get_num(
+            "
                 SELECT
                     MAX(number) as block_number
                 FROM block;
             ",
-            )
-            .await
-            .map_err(Error::BuildQuery)?;
+        )
+        .await?;
 
-        let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
-        let data = arrow::json::writer::record_batches_to_json_rows(&batches)
-            .map_err(Error::CollectResults)?;
-        let parquet_block_number = match data.get(0) {
-            Some(b) => match b.get("block_number") {
-                Some(num) => Some(num.as_u64().ok_or(Error::InvalidBlockNumber)?),
-                None => None,
-            },
-            None => None,
-        };
+        let tx_num = get_num(
+            "
+                SELECT
+                    MAX(block_number) as block_number
+                FROM tx;
+            ",
+        )
+        .await?;
+
+        let log_num = get_num(
+            "
+                SELECT
+                    MAX(block_number) as block_number
+                FROM log;
+            ",
+        )
+        .await?;
+
+        let parquet_block_number = cmp::min(blk_num, cmp::min(tx_num, log_num));
 
         Ok(parquet_block_number)
     }
@@ -98,6 +132,18 @@ impl DataCtx {
         }
     }
 
+    pub async fn sql(&self, sql: &str) -> Result<QueryResult> {
+        let session = &self.session.read().await.0;
+
+        let data_frame = session.sql(sql).await.map_err(Error::BuildQuery)?;
+
+        let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
+        let data = arrow::json::writer::record_batches_to_json_rows(&batches)
+            .map_err(Error::CollectResults)?;
+
+        Ok(QueryResult { data })
+    }
+
     async fn query_parquet(&self, query: QueryLogs) -> Result<QueryResult> {
         use datafusion::prelude::*;
 
@@ -109,6 +155,18 @@ impl DataCtx {
         let session = &self.session.read().await.0;
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
+
+        if !query.addresses.is_empty() {
+            let mut addresses = query.addresses;
+
+            let mut expr: Expr = addresses.pop().unwrap().to_expr()?;
+
+            for addr in addresses {
+                expr = expr.or(addr.to_expr()?);
+            }
+
+            data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
+        }
 
         data_frame = data_frame
             .join(
@@ -131,25 +189,12 @@ impl DataCtx {
             .map_err(Error::BuildQuery)?;
 
         data_frame = data_frame
-            .filter(Expr::Between {
-                expr: Box::new(col("log.block_number")),
-                negated: false,
-                low: Box::new(lit(query.from_block)),
-                high: Box::new(lit(query.to_block)),
-            })
+            .filter(
+                col("log.block_number")
+                    .gt_eq(lit(query.from_block))
+                    .and(col("log.block_number").lt(lit(query.to_block))),
+            )
             .map_err(Error::ApplyBlockRangeFilter)?;
-
-        if !query.addresses.is_empty() {
-            let mut addresses = query.addresses;
-
-            let mut expr: Expr = addresses.pop().unwrap().to_expr()?;
-
-            for addr in addresses {
-                expr = expr.or(addr.to_expr()?);
-            }
-
-            data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
-        }
 
         let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
         let data = arrow::json::writer::record_batches_to_json_rows(&batches)

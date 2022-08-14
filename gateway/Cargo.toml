@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-datafusion = "10.0.0"
+datafusion = { git = "https://github.com/ozgrakkurt/arrow-datafusion" }
 tokio = { version = "1.18.2", features = ["full"] }
-arrow = "18.0.0"
+arrow = "20.0.0"
 bytes = "1.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

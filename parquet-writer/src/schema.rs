@@ -133,7 +133,7 @@ impl IntoRowGroups for Blocks {
             number.as_ref(),
             &SortOptions {
                 descending: false,
-                nulls_first: true,
+                nulls_first: false,
             },
             None,
         )
@@ -231,14 +231,14 @@ impl IntoRowGroups for Transactions {
                     values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: true,
+                        nulls_first: false,
                     }),
                 },
                 SortColumn {
                     values: transaction_index.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: true,
+                        nulls_first: false,
                     }),
                 },
             ],
@@ -330,24 +330,17 @@ impl IntoRowGroups for Logs {
         let indices = lexsort_to_indices::<i64>(
             &[
                 SortColumn {
-                    values: address.as_ref(),
-                    options: Some(SortOptions {
-                        descending: false,
-                        nulls_first: true,
-                    }),
-                },
-                SortColumn {
                     values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: true,
+                        nulls_first: false,
                     }),
                 },
                 SortColumn {
-                    values: transaction_index.as_ref(),
+                    values: address.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
-                        nulls_first: true,
+                        nulls_first: false,
                     }),
                 },
             ],
