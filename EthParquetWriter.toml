@@ -25,13 +25,13 @@ channel_size = 64
 [transaction]
 name = "tx"
 path = "data/tx"
-items_per_file = 1100000
-items_per_row_group = 2200
+items_per_file = 1000000
+items_per_row_group = 50000
 channel_size = 512
 
 [log]
 name = "log"
 path = "data/log"
-items_per_file = 2000000
-items_per_row_group = 4000
+items_per_file = 4000000
+items_per_row_group = 200000
 channel_size = 64

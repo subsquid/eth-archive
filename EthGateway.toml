@@ -9,8 +9,8 @@ host = "localhost"
 port = 5432
 
 [data]
-target_partitions = 8
-batch_size = 2048
+target_partitions = 32
+batch_size = 512
 logs_path = "data/log"
 blocks_path = "data/block"
 transactions_path = "data/tx"

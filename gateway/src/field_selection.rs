@@ -3,13 +3,12 @@ use datafusion::prelude::*;
 use serde::Deserialize;
 
 macro_rules! append_col {
-    ($table_name:expr, $cols:ident, $self:ident, $field:ident, $is_hex:expr) => {
+    ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
         if let Some(true) = $self.$field {
             let field_name = stringify!($field);
             let col = col(&format!("{}.{}", $table_name, field_name));
             let field_name = field_name.to_case(Case::Camel);
             let alias = format!("{}_{}", $table_name, field_name);
-            let col = if $is_hex { to_hex(col) } else { col };
             let col = col.alias(&alias);
             $cols.push(col);
         }
@@ -17,17 +16,12 @@ macro_rules! append_col {
 }
 
 macro_rules! append_col_sql {
-    ($table_name:expr, $cols:ident, $self:ident, $field:ident, $is_hex:expr) => {
+    ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
         if let Some(true) = $self.$field {
             let field_name = stringify!($field);
             let col = format!("{}.{}", $table_name, field_name);
             let field_name = field_name.to_case(Case::Camel);
             let alias = format!("{}_{}", $table_name, field_name);
-            let col = if $is_hex {
-                format!("encode({}, 'hex')", col)
-            } else {
-                col
-            };
             let col = format!("{} as {}", col, alias);
             $cols.push(col);
         }
@@ -101,44 +95,44 @@ pub struct BlockFieldSelection {
 impl BlockFieldSelection {
     pub fn to_cols_sql(&self, cols: &mut Vec<String>) {
         let table_name = "block";
-        append_col_sql!(table_name, cols, self, number, false);
-        append_col_sql!(table_name, cols, self, hash, true);
-        append_col_sql!(table_name, cols, self, parent_hash, true);
-        append_col_sql!(table_name, cols, self, nonce, false);
-        append_col_sql!(table_name, cols, self, sha3_uncles, true);
-        append_col_sql!(table_name, cols, self, logs_bloom, true);
-        append_col_sql!(table_name, cols, self, transactions_root, true);
-        append_col_sql!(table_name, cols, self, state_root, true);
-        append_col_sql!(table_name, cols, self, receipts_root, true);
-        append_col_sql!(table_name, cols, self, miner, true);
-        append_col_sql!(table_name, cols, self, difficulty, true);
-        append_col_sql!(table_name, cols, self, total_difficulty, true);
-        append_col_sql!(table_name, cols, self, extra_data, true);
-        append_col_sql!(table_name, cols, self, size, false);
-        append_col_sql!(table_name, cols, self, gas_limit, true);
-        append_col_sql!(table_name, cols, self, gas_used, true);
-        append_col_sql!(table_name, cols, self, timestamp, false);
+        append_col_sql!(table_name, cols, self, number);
+        append_col_sql!(table_name, cols, self, hash);
+        append_col_sql!(table_name, cols, self, parent_hash);
+        append_col_sql!(table_name, cols, self, nonce);
+        append_col_sql!(table_name, cols, self, sha3_uncles);
+        append_col_sql!(table_name, cols, self, logs_bloom);
+        append_col_sql!(table_name, cols, self, transactions_root);
+        append_col_sql!(table_name, cols, self, state_root);
+        append_col_sql!(table_name, cols, self, receipts_root);
+        append_col_sql!(table_name, cols, self, miner);
+        append_col_sql!(table_name, cols, self, difficulty);
+        append_col_sql!(table_name, cols, self, total_difficulty);
+        append_col_sql!(table_name, cols, self, extra_data);
+        append_col_sql!(table_name, cols, self, size);
+        append_col_sql!(table_name, cols, self, gas_limit);
+        append_col_sql!(table_name, cols, self, gas_used);
+        append_col_sql!(table_name, cols, self, timestamp);
     }
 
     pub fn to_cols(&self, cols: &mut Vec<Expr>) {
         let table_name = "block";
-        append_col!(table_name, cols, self, number, false);
-        append_col!(table_name, cols, self, hash, true);
-        append_col!(table_name, cols, self, parent_hash, true);
-        append_col!(table_name, cols, self, nonce, false);
-        append_col!(table_name, cols, self, sha3_uncles, true);
-        append_col!(table_name, cols, self, logs_bloom, true);
-        append_col!(table_name, cols, self, transactions_root, true);
-        append_col!(table_name, cols, self, state_root, true);
-        append_col!(table_name, cols, self, receipts_root, true);
-        append_col!(table_name, cols, self, miner, true);
-        append_col!(table_name, cols, self, difficulty, true);
-        append_col!(table_name, cols, self, total_difficulty, true);
-        append_col!(table_name, cols, self, extra_data, true);
-        append_col!(table_name, cols, self, size, false);
-        append_col!(table_name, cols, self, gas_limit, true);
-        append_col!(table_name, cols, self, gas_used, true);
-        append_col!(table_name, cols, self, timestamp, false);
+        append_col!(table_name, cols, self, number);
+        append_col!(table_name, cols, self, hash);
+        append_col!(table_name, cols, self, parent_hash);
+        append_col!(table_name, cols, self, nonce);
+        append_col!(table_name, cols, self, sha3_uncles);
+        append_col!(table_name, cols, self, logs_bloom);
+        append_col!(table_name, cols, self, transactions_root);
+        append_col!(table_name, cols, self, state_root);
+        append_col!(table_name, cols, self, receipts_root);
+        append_col!(table_name, cols, self, miner);
+        append_col!(table_name, cols, self, difficulty);
+        append_col!(table_name, cols, self, total_difficulty);
+        append_col!(table_name, cols, self, extra_data);
+        append_col!(table_name, cols, self, size);
+        append_col!(table_name, cols, self, gas_limit);
+        append_col!(table_name, cols, self, gas_used);
+        append_col!(table_name, cols, self, timestamp);
     }
 }
 
@@ -168,42 +162,42 @@ pub struct TransactionFieldSelection {
 impl TransactionFieldSelection {
     pub fn to_cols_sql(&self, cols: &mut Vec<String>) {
         let table_name = "tx";
-        append_col_sql!(table_name, cols, self, block_hash, true);
-        append_col_sql!(table_name, cols, self, block_number, false);
-        append_col_sql!(table_name, cols, self, source, true);
-        append_col_sql!(table_name, cols, self, gas, false);
-        append_col_sql!(table_name, cols, self, gas_price, false);
-        append_col_sql!(table_name, cols, self, hash, true);
-        append_col_sql!(table_name, cols, self, input, true);
-        append_col_sql!(table_name, cols, self, nonce, false);
-        append_col_sql!(table_name, cols, self, dest, true);
-        append_col_sql!(table_name, cols, self, transaction_index, false);
-        append_col_sql!(table_name, cols, self, value, true);
-        append_col_sql!(table_name, cols, self, kind, false);
-        append_col_sql!(table_name, cols, self, chain_id, false);
-        append_col_sql!(table_name, cols, self, v, false);
-        append_col_sql!(table_name, cols, self, r, true);
-        append_col_sql!(table_name, cols, self, s, true);
+        append_col_sql!(table_name, cols, self, block_hash);
+        append_col_sql!(table_name, cols, self, block_number);
+        append_col_sql!(table_name, cols, self, source);
+        append_col_sql!(table_name, cols, self, gas);
+        append_col_sql!(table_name, cols, self, gas_price);
+        append_col_sql!(table_name, cols, self, hash);
+        append_col_sql!(table_name, cols, self, input);
+        append_col_sql!(table_name, cols, self, nonce);
+        append_col_sql!(table_name, cols, self, dest);
+        append_col_sql!(table_name, cols, self, transaction_index);
+        append_col_sql!(table_name, cols, self, value);
+        append_col_sql!(table_name, cols, self, kind);
+        append_col_sql!(table_name, cols, self, chain_id);
+        append_col_sql!(table_name, cols, self, v);
+        append_col_sql!(table_name, cols, self, r);
+        append_col_sql!(table_name, cols, self, s);
     }
 
     pub fn to_cols(&self, cols: &mut Vec<Expr>) {
         let table_name = "tx";
-        append_col!(table_name, cols, self, block_hash, true);
-        append_col!(table_name, cols, self, block_number, false);
-        append_col!(table_name, cols, self, source, true);
-        append_col!(table_name, cols, self, gas, false);
-        append_col!(table_name, cols, self, gas_price, false);
-        append_col!(table_name, cols, self, hash, true);
-        append_col!(table_name, cols, self, input, true);
-        append_col!(table_name, cols, self, nonce, false);
-        append_col!(table_name, cols, self, dest, true);
-        append_col!(table_name, cols, self, transaction_index, false);
-        append_col!(table_name, cols, self, value, true);
-        append_col!(table_name, cols, self, kind, false);
-        append_col!(table_name, cols, self, chain_id, false);
-        append_col!(table_name, cols, self, v, false);
-        append_col!(table_name, cols, self, r, true);
-        append_col!(table_name, cols, self, s, true);
+        append_col!(table_name, cols, self, block_hash);
+        append_col!(table_name, cols, self, block_number);
+        append_col!(table_name, cols, self, source);
+        append_col!(table_name, cols, self, gas);
+        append_col!(table_name, cols, self, gas_price);
+        append_col!(table_name, cols, self, hash);
+        append_col!(table_name, cols, self, input);
+        append_col!(table_name, cols, self, nonce);
+        append_col!(table_name, cols, self, dest);
+        append_col!(table_name, cols, self, transaction_index);
+        append_col!(table_name, cols, self, value);
+        append_col!(table_name, cols, self, kind);
+        append_col!(table_name, cols, self, chain_id);
+        append_col!(table_name, cols, self, v);
+        append_col!(table_name, cols, self, r);
+        append_col!(table_name, cols, self, s);
     }
 }
 
@@ -227,33 +221,33 @@ pub struct LogFieldSelection {
 impl LogFieldSelection {
     pub fn to_cols_sql(&self, cols: &mut Vec<String>) {
         let table_name = "log";
-        append_col_sql!(table_name, cols, self, address, true);
-        append_col_sql!(table_name, cols, self, block_hash, true);
-        append_col_sql!(table_name, cols, self, block_number, false);
-        append_col_sql!(table_name, cols, self, data, true);
-        append_col_sql!(table_name, cols, self, log_index, false);
-        append_col_sql!(table_name, cols, self, removed, false);
-        append_col_sql!(table_name, cols, self, topic0, true);
-        append_col_sql!(table_name, cols, self, topic1, true);
-        append_col_sql!(table_name, cols, self, topic2, true);
-        append_col_sql!(table_name, cols, self, topic3, true);
-        append_col_sql!(table_name, cols, self, transaction_hash, true);
-        append_col_sql!(table_name, cols, self, transaction_index, false);
+        append_col_sql!(table_name, cols, self, address);
+        append_col_sql!(table_name, cols, self, block_hash);
+        append_col_sql!(table_name, cols, self, block_number);
+        append_col_sql!(table_name, cols, self, data);
+        append_col_sql!(table_name, cols, self, log_index);
+        append_col_sql!(table_name, cols, self, removed);
+        append_col_sql!(table_name, cols, self, topic0);
+        append_col_sql!(table_name, cols, self, topic1);
+        append_col_sql!(table_name, cols, self, topic2);
+        append_col_sql!(table_name, cols, self, topic3);
+        append_col_sql!(table_name, cols, self, transaction_hash);
+        append_col_sql!(table_name, cols, self, transaction_index);
     }
 
     pub fn to_cols(&self, cols: &mut Vec<Expr>) {
         let table_name = "log";
-        append_col!(table_name, cols, self, address, true);
-        append_col!(table_name, cols, self, block_hash, true);
-        append_col!(table_name, cols, self, block_number, false);
-        append_col!(table_name, cols, self, data, true);
-        append_col!(table_name, cols, self, log_index, false);
-        append_col!(table_name, cols, self, removed, false);
-        append_col!(table_name, cols, self, topic0, true);
-        append_col!(table_name, cols, self, topic1, true);
-        append_col!(table_name, cols, self, topic2, true);
-        append_col!(table_name, cols, self, topic3, true);
-        append_col!(table_name, cols, self, transaction_hash, true);
-        append_col!(table_name, cols, self, transaction_index, false);
+        append_col!(table_name, cols, self, address);
+        append_col!(table_name, cols, self, block_hash);
+        append_col!(table_name, cols, self, block_number);
+        append_col!(table_name, cols, self, data);
+        append_col!(table_name, cols, self, log_index);
+        append_col!(table_name, cols, self, removed);
+        append_col!(table_name, cols, self, topic0);
+        append_col!(table_name, cols, self, topic1);
+        append_col!(table_name, cols, self, topic2);
+        append_col!(table_name, cols, self, topic3);
+        append_col!(table_name, cols, self, transaction_hash);
+        append_col!(table_name, cols, self, transaction_index);
     }
 }
