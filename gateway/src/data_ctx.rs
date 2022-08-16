@@ -3,14 +3,21 @@ use crate::types::{QueryLogs, QueryResult, Status};
 use crate::{Error, Result};
 use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
+use range_map::{Range, RangeMap as RangeMapImpl};
 use std::cmp;
 use std::sync::Arc;
+use tokio::fs;
 use tokio::sync::RwLock;
+
+type RangeMap = RangeMapImpl<usize, usize>;
 
 pub struct DataCtx {
     db: Arc<DbHandle>,
     session: Arc<RwLock<(SessionContext, u64)>>,
     config: DataConfig,
+    block_ranges: RangeMap,
+    tx_ranges: RangeMap,
+    log_ranges: RangeMap,
 }
 
 impl DataCtx {
@@ -21,10 +28,17 @@ impl DataCtx {
 
         let session = Arc::new(RwLock::new((session, parquet_block_number)));
 
+        let block_ranges = Self::get_block_ranges(&config.blocks_path).await?;
+        let tx_ranges = Self::get_block_ranges(&config.transactions_path).await?;
+        let log_ranges = Self::get_block_ranges(&config.logs_path).await?;
+
         Ok(Self {
             db,
             session,
             config,
+            block_ranges,
+            tx_ranges,
+            log_ranges,
         })
     }
 
@@ -48,6 +62,41 @@ impl DataCtx {
             db_min_block_number,
             parquet_block_number: self.session.read().await.1,
         })
+    }
+
+    async fn get_block_ranges(path: &str) -> Result<RangeMap> {
+        let mut ranges = Vec::new();
+
+        let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
+
+        let mut prev = if let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
+            let end = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| Error::InvalidParquetSubdirectory)?
+                .parse()
+                .map_err(|_| Error::InvalidParquetSubdirectory)?;
+            ranges.push((Range { start: 0, end }, end));
+
+            end
+        } else {
+            return Ok(RangeMap::new());
+        };
+
+        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
+            let end = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| Error::InvalidParquetSubdirectory)?
+                .parse()
+                .map_err(|_| Error::InvalidParquetSubdirectory)?;
+
+            ranges.push((Range { start: prev, end }, end));
+
+            prev = end;
+        }
+
+        Ok(RangeMap::from_sorted_vec(ranges))
     }
 
     async fn get_parquet_block_number(session: &SessionContext) -> Result<Option<u64>> {
@@ -238,7 +287,7 @@ impl DataCtx {
             ListingOptions {
                 file_extension: ".parquet".to_owned(),
                 format: file_format.clone(),
-                table_partition_cols: Vec::new(),
+                table_partition_cols: vec!["block_range_to".to_owned()],
                 collect_stat: false,
                 target_partitions: config.target_partitions,
             },
@@ -253,7 +302,7 @@ impl DataCtx {
             ListingOptions {
                 file_extension: ".parquet".to_owned(),
                 format: file_format.clone(),
-                table_partition_cols: Vec::new(),
+                table_partition_cols: vec!["block_range_to".to_owned()],
                 collect_stat: false,
                 target_partitions: config.target_partitions,
             },
@@ -268,7 +317,7 @@ impl DataCtx {
             ListingOptions {
                 file_extension: ".parquet".to_owned(),
                 format: file_format.clone(),
-                table_partition_cols: Vec::new(),
+                table_partition_cols: vec!["block_range_to".to_owned()],
                 collect_stat: false,
                 target_partitions: config.target_partitions,
             },

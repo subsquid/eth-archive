@@ -140,9 +140,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 .file_name()
                 .into_string()
                 .map_err(|_| Error::InvalidParquetFileName)?;
-            let num = file_name.split('_').last().unwrap();
-            let num = &num[..num.len() - ".parquet".len()];
-            let num = num.parse::<usize>().unwrap();
+            let num = file_name.parse::<usize>().unwrap();
             block_num = cmp::max(block_num, num);
         }
 

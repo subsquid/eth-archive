@@ -46,6 +46,10 @@ pub enum Error {
     InvalidHexInAddress(prefix_hex::Error),
     #[error("invalid hex in a topic:\n{0}")]
     InvalidHexInTopic(prefix_hex::Error),
+    #[error("failed to read parquet directory:\n{0}")]
+    ReadParquetDir(io::Error),
+    #[error("invalid parquet subdirectory name")]
+    InvalidParquetSubdirectory,
 }
 
 pub type Result<T> = StdResult<T, Error>;

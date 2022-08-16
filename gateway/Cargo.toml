@@ -19,6 +19,7 @@ snmalloc-rs = "0.3.3"
 clap = { version = "3", features = ["derive"] }
 toml = "0.5.9"
 prefix-hex = "0.4.0"
+range-map = "0.1.5"
 
 eth-archive-core = { path = "../core" }
 
