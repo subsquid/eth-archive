@@ -3,7 +3,6 @@ mod data_ctx;
 mod error;
 mod field_selection;
 mod options;
-mod parquet_table;
 mod server;
 mod types;
 

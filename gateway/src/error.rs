@@ -2,7 +2,6 @@ use std::result::Result as StdResult;
 
 use actix_web::{HttpResponse, ResponseError};
 use std::io;
-use std::path::PathBuf;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
@@ -47,8 +46,6 @@ pub enum Error {
     InvalidHexInAddress(prefix_hex::Error),
     #[error("invalid hex in a topic:\n{0}")]
     InvalidHexInTopic(prefix_hex::Error),
-    #[error("no parquet file found in '{0}'")]
-    NoParquetFileFoundInDirectory(String),
 }
 
 pub type Result<T> = StdResult<T, Error>;
