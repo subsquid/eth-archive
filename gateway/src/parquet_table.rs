@@ -2,8 +2,7 @@ use arrow::array::{
     Array, ArrayBuilder, ArrayRef, Date64Array, Date64Builder, StringArray, StringBuilder,
     UInt64Array, UInt64Builder,
 };
-use arrow::datatypes::SchemaRef;
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use chrono::{TimeZone, Utc};
 use datafusion::datasource::file_format::FileFormat;
@@ -108,7 +107,17 @@ impl ParquetTable {
             ))
         })?;
 
-        let mem_table = todo!();
+        let data = todo!();
+
+        let mut mem_table_schema_fields = vec![
+            Field::new(FILE_PATH_COLUMN_NAME, DataType::Utf8, false),
+            Field::new(FILE_SIZE_COLUMN_NAME, DataType::UInt64, false),
+            Field::new(FILE_MODIFIED_COLUMN_NAME, DataType::Date64, true),
+        ];
+
+        let mem_table_schema = Arc::new(Schema::new(mem_table_schema_fields));
+
+        let mem_table = Arc::new(MemTable::try_new(mem_table_schema, data)?);
 
         Ok(Self {
             mem_table,
