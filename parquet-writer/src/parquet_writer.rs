@@ -135,8 +135,24 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         let dir = fs::read_dir(path).map_err(Error::ReadParquetDir)?;
         let mut block_num = 0;
         for entry in dir {
+            let entry = entry.unwrap();
+
+            let mut inner_dir = fs::read_dir(entry.path()).map_err(Error::ReadParquetDir)?;
+            match inner_dir.next() {
+                Some(entry) => {
+                    let entry = entry.unwrap();
+
+                    let path = entry.path();
+                    let extension = path.extension().unwrap().to_str().unwrap();
+
+                    if extension != "parquet" {
+                        continue;
+                    }
+                }
+                None => continue,
+            };
+
             let file_name = entry
-                .unwrap()
                 .file_name()
                 .into_string()
                 .map_err(|_| Error::InvalidParquetFileName)?;
