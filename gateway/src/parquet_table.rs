@@ -71,8 +71,8 @@ impl ParquetTable {
                 .map_err(|e| Error::External(Box::new(e)))?;
             let builder = ParquetRecordBatchStreamBuilder::new(file)
                 .await
-                .unwrap()
-                .with_batch_size(3);
+                .map_err(|e| Error::External(Box::new(e)))?
+                .with_batch_size(options.batch_size);
             let schema = Arc::clone(builder.schema());
 
             cols = Some(
@@ -107,15 +107,58 @@ impl ParquetTable {
             ))
         })?;
 
-        let data = todo!();
-
         let mut mem_table_schema_fields = vec![
             Field::new(FILE_PATH_COLUMN_NAME, DataType::Utf8, false),
             Field::new(FILE_SIZE_COLUMN_NAME, DataType::UInt64, false),
             Field::new(FILE_MODIFIED_COLUMN_NAME, DataType::Date64, true),
         ];
 
+        for &i in cols.iter() {
+            mem_table_schema_fields.push(table_schema.fields[i].clone());
+        }
+
         let mem_table_schema = Arc::new(Schema::new(mem_table_schema_fields));
+
+        let mut data = Vec::new();
+
+        let dir = fs::read_dir(table_path.path())
+            .await
+            .map_err(|e| Error::External(Box::new(e)))?;
+
+        let mut dir = ReadDirStream::new(dir);
+
+        while let Some(entry) = dir.next().await {
+            let entry = entry.map_err(|e| Error::External(Box::new(e)))?;
+
+            if entry.path().extension() != Some(OsStr::new("parquet")) {
+                continue;
+            }
+
+            let file = fs::File::open(&entry.path())
+                .await
+                .map_err(|e| Error::External(Box::new(e)))?;
+            let builder = ParquetRecordBatchStreamBuilder::new(file)
+                .await
+                .map_err(|e| Error::External(Box::new(e)))?
+                .with_batch_size(options.batch_size);
+
+            let mut batches = Vec::new();
+
+            let mut stream = builder.build().map_err(|e| Error::External(Box::new(e)))?;
+
+            while let Some(batch) = stream.next().await {
+                let batch = batch.map_err(|e| Error::External(Box::new(e)))?;
+
+                let mut columns = todo!();
+
+                let mapped_batch = RecordBatch::try_new(mem_table_schema.clone(), columns)
+                    .map_err(|e| Error::External(Box::new(e)))?;
+
+                batches.push(mapped_batch);
+            }
+
+            data.push(batches);
+        }
 
         let mem_table = Arc::new(MemTable::try_new(mem_table_schema, data)?);
 
@@ -380,6 +423,7 @@ pub struct ParquetTableOptions {
     table_partition_cols: Vec<String>,
     format: Arc<dyn FileFormat>,
     table_path: String,
+    batch_size: usize,
 }
 
 struct WrappedUrl<'a>(&'a Url);
