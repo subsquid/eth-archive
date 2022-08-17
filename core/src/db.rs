@@ -107,7 +107,40 @@ impl DbHandle {
                     r: row.try_get("eth_tx_r").ok().map(Bytes),
                     s: row.try_get("eth_tx_s").ok().map(Bytes),
                 },
-                log: Default::default(),
+                log: ResponseLog {
+                    address: row.try_get("eth_log_address").ok().map(Address::new),
+                    block_hash: row.try_get("eth_log_block_hash").ok().map(Bytes32::new),
+                    block_number: row.try_get("eth_log_block_number").ok().map(BigInt),
+                    data: row.try_get("eth_log_data").ok().map(Bytes),
+                    log_index: row.try_get("eth_log_log_index").ok().map(BigInt),
+                    removed: row.try_get("eth_log_removed").ok(),
+                    topics: {
+                        let mut topics = Vec::new();
+
+                        if let Ok(Some(topic)) = row.try_get("eth_log_topic0") {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        if let Ok(Some(topic)) = row.try_get("eth_log_topic1") {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        if let Ok(Some(topic)) = row.try_get("eth_log_topic2") {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        if let Ok(Some(topic)) = row.try_get("eth_log_topic3") {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        Some(topics)
+                    },
+                    transaction_hash: row
+                        .try_get("eth_log_transaction_hash")
+                        .ok()
+                        .map(Bytes32::new),
+                    transaction_index: row.try_get("eth_log_transaction_index").ok().map(BigInt),
+                },
             })
             .collect();
 

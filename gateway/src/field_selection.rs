@@ -223,7 +223,7 @@ impl LogFieldSelection {
         append_col_sql!(table_name, cols, self, removed);
         if let Some(true) = self.topics {
             for i in 0..4 {
-                cols.push(format!("log.topic{0} as log_topic{0}", i));
+                cols.push(format!("eth_log.topic{0} as eth_log_topic{0}", i));
             }
         }
         append_col_sql!(table_name, cols, self, transaction_hash);
