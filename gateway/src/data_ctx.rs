@@ -6,7 +6,6 @@ use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::ResponseRow;
 use range_map::{Range, RangeMap as RangeMapImpl};
-use rayon::prelude::*;
 use std::cmp;
 use std::sync::Arc;
 use tokio::fs;
@@ -377,5 +376,9 @@ impl DataCtx {
 }
 
 fn response_rows_from_batch(batch: RecordBatch) -> Result<Vec<ResponseRow>> {
+    let schema = batch.schema();
+
+    dbg!(schema.column_with_name("log.block_number"));
+
     todo!()
 }

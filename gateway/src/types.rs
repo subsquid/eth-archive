@@ -4,8 +4,6 @@ use datafusion::prelude::*;
 use eth_archive_core::types::ResponseRow;
 use serde::{Deserialize, Serialize};
 
-use serde_json::Value as JsonValue;
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryLogs {

@@ -1,4 +1,3 @@
-use convert_case::{Case, Casing};
 use datafusion::prelude::*;
 use serde::Deserialize;
 
@@ -7,7 +6,6 @@ macro_rules! append_col {
         if let Some(true) = $self.$field {
             let field_name = stringify!($field);
             let col = col(&format!("{}.{}", $table_name, field_name));
-            let field_name = field_name.to_case(Case::Camel);
             $cols.push(col);
         }
     };
@@ -18,7 +16,6 @@ macro_rules! append_col_sql {
         if let Some(true) = $self.$field {
             let field_name = stringify!($field);
             let col = format!("{}.{}", $table_name, field_name);
-            let field_name = field_name.to_case(Case::Camel);
             $cols.push(col);
         }
     };
