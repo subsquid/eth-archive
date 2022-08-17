@@ -18,7 +18,7 @@ pub struct DataConfig {
     pub transactions_path: String,
     pub logs_path: String,
     pub max_block_range: usize,
-    pub parquet_ctx_refresh_interval_secs: usize,
+    pub datafusion_session_refresh_interval_secs: u64,
 }
 
 #[derive(Deserialize)]

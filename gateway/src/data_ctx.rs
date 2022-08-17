@@ -43,7 +43,9 @@ impl DataCtx {
             let session = session.clone();
             let config = config.clone();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                    config.datafusion_session_refresh_interval_secs,
+                ));
 
                 loop {
                     interval.tick().await;
