@@ -1,5 +1,5 @@
 use serde::de::{self, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
 use std::error::Error as StdError;
 use std::fmt;
@@ -198,6 +198,17 @@ impl<'de> Deserialize<'de> for Bytes32 {
     }
 }
 
+impl Serialize for Bytes32 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex = prefix_hex::encode(&*self.0);
+
+        serializer.serialize_str(&hex)
+    }
+}
+
 struct AddressVisitor;
 
 impl<'de> Visitor<'de> for AddressVisitor {
@@ -223,6 +234,17 @@ impl<'de> Deserialize<'de> for Address {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_str(AddressVisitor)
+    }
+}
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex = prefix_hex::encode(&*self.0);
+
+        serializer.serialize_str(&hex)
     }
 }
 
@@ -255,6 +277,15 @@ impl<'de> Deserialize<'de> for Nonce {
     }
 }
 
+impl Serialize for Nonce {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u64(self.0)
+    }
+}
+
 struct BloomFilterBytesVisitor;
 
 impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
@@ -280,6 +311,17 @@ impl<'de> Deserialize<'de> for BloomFilterBytes {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_str(BloomFilterBytesVisitor)
+    }
+}
+
+impl Serialize for BloomFilterBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex = prefix_hex::encode(&*self.0);
+
+        serializer.serialize_str(&hex)
     }
 }
 
@@ -316,6 +358,17 @@ impl<'de> Deserialize<'de> for Bytes {
     }
 }
 
+impl Serialize for Bytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex = prefix_hex::encode(&*self.0);
+
+        serializer.serialize_str(&hex)
+    }
+}
+
 struct BigIntVisitor;
 
 impl<'de> Visitor<'de> for BigIntVisitor {
@@ -342,5 +395,14 @@ impl<'de> Deserialize<'de> for BigInt {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_str(BigIntVisitor)
+    }
+}
+
+impl Serialize for BigInt {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i64(self.0)
     }
 }

@@ -1,8 +1,8 @@
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::cmp;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
     pub number: BigInt,
@@ -25,7 +25,7 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub block_hash: Bytes32,
@@ -49,7 +49,7 @@ pub struct Transaction {
     pub s: Bytes,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Log {
     pub address: Address,
