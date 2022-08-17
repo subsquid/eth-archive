@@ -13,7 +13,13 @@ pub struct Bytes32(pub Box<[u8; 32]>);
 
 impl Bytes32 {
     pub fn new(bytes: &[u8]) -> Self {
-        Self(Box::new(bytes.try_into().unwrap()))
+        match bytes.try_into() {
+            Ok(b) => Self(Box::new(b)),
+            Err(_) => {
+                dbg!(bytes);
+                panic!("anan");
+            }
+        }
     }
 }
 

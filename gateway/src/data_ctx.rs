@@ -433,7 +433,10 @@ fn response_rows_from_batch(batch: RecordBatch) -> Vec<ResponseRow> {
         log_data,
         log_log_index,
         log_removed,
-        log_topics,
+        log_topic0,
+        log_topic1,
+        log_topic2,
+        log_topic3,
         log_transaction_hash,
         log_transaction_index
     );
@@ -543,7 +546,72 @@ fn response_rows_from_batch(batch: RecordBatch) -> Vec<ResponseRow> {
                     .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
                     .map(Bytes::new),
             },
-            log: ResponseLog::default(),
+            log: ResponseLog {
+                address: log_address
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Address::new),
+                block_hash: log_block_hash
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes32::new),
+                block_number: log_block_number
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                data: log_data
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes::new),
+                log_index: log_log_index
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                removed: log_removed.map(|arr| {
+                    arr.as_any()
+                        .downcast_ref::<BooleanArray>()
+                        .unwrap()
+                        .value(i)
+                }),
+                topics: {
+                    let mut topics = vec![];
+
+                    if let Some(topic) = log_topic0
+                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    {
+                        if !topic.is_empty() {
+                            topics.push(Bytes32::new(topic));
+                        }
+                    }
+
+                    if let Some(topic) = log_topic1
+                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    {
+                        if !topic.is_empty() {
+                            topics.push(Bytes32::new(topic));
+                        }
+                    }
+
+                    if let Some(topic) = log_topic2
+                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    {
+                        if !topic.is_empty() {
+                            topics.push(Bytes32::new(topic));
+                        }
+                    }
+
+                    if let Some(topic) = log_topic3
+                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    {
+                        if !topic.is_empty() {
+                            topics.push(Bytes32::new(topic));
+                        }
+                    }
+
+                    Some(topics)
+                },
+                transaction_hash: log_transaction_hash
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes32::new),
+                transaction_index: log_transaction_index
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+            },
         })
         .collect()
 }

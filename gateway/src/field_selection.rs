@@ -207,10 +207,7 @@ pub struct LogFieldSelection {
     data: Option<bool>,
     log_index: Option<bool>,
     removed: Option<bool>,
-    topic0: Option<bool>,
-    topic1: Option<bool>,
-    topic2: Option<bool>,
-    topic3: Option<bool>,
+    topics: Option<bool>,
     transaction_hash: Option<bool>,
     transaction_index: Option<bool>,
 }
@@ -224,10 +221,11 @@ impl LogFieldSelection {
         append_col_sql!(table_name, cols, self, data);
         append_col_sql!(table_name, cols, self, log_index);
         append_col_sql!(table_name, cols, self, removed);
-        append_col_sql!(table_name, cols, self, topic0);
-        append_col_sql!(table_name, cols, self, topic1);
-        append_col_sql!(table_name, cols, self, topic2);
-        append_col_sql!(table_name, cols, self, topic3);
+        if let Some(true) = self.topics {
+            for i in 0..4 {
+                cols.push(format!("log.topic{0} as log_topic{0}", i));
+            }
+        }
         append_col_sql!(table_name, cols, self, transaction_hash);
         append_col_sql!(table_name, cols, self, transaction_index);
     }
@@ -240,10 +238,14 @@ impl LogFieldSelection {
         append_col!(table_name, cols, self, data);
         append_col!(table_name, cols, self, log_index);
         append_col!(table_name, cols, self, removed);
-        append_col!(table_name, cols, self, topic0);
-        append_col!(table_name, cols, self, topic1);
-        append_col!(table_name, cols, self, topic2);
-        append_col!(table_name, cols, self, topic3);
+        if let Some(true) = self.topics {
+            for i in 0..4 {
+                let col = col(&format!("log.topic{}", i));
+                let alias = format!("log_topic{}", i);
+                let col = col.alias(&alias);
+                cols.push(col);
+            }
+        }
         append_col!(table_name, cols, self, transaction_hash);
         append_col!(table_name, cols, self, transaction_index);
     }
