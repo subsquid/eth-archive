@@ -91,7 +91,7 @@ pub struct BlockFieldSelection {
 
 impl BlockFieldSelection {
     pub fn to_cols_sql(&self, cols: &mut Vec<String>) {
-        let table_name = "block";
+        let table_name = "eth_block";
         append_col_sql!(table_name, cols, self, number);
         append_col_sql!(table_name, cols, self, hash);
         append_col_sql!(table_name, cols, self, parent_hash);
@@ -158,7 +158,7 @@ pub struct TransactionFieldSelection {
 
 impl TransactionFieldSelection {
     pub fn to_cols_sql(&self, cols: &mut Vec<String>) {
-        let table_name = "tx";
+        let table_name = "eth_tx";
         append_col_sql!(table_name, cols, self, block_hash);
         append_col_sql!(table_name, cols, self, block_number);
         append_col_sql!(table_name, cols, self, source);
@@ -214,7 +214,7 @@ pub struct LogFieldSelection {
 
 impl LogFieldSelection {
     pub fn to_cols_sql(&self, cols: &mut Vec<String>) {
-        let table_name = "log";
+        let table_name = "eth_log";
         append_col_sql!(table_name, cols, self, address);
         append_col_sql!(table_name, cols, self, block_hash);
         append_col_sql!(table_name, cols, self, block_number);

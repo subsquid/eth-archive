@@ -17,12 +17,12 @@ impl QueryLogs {
     pub fn to_sql(&self) -> String {
         let mut query = format!(
             "
-            SELECT {} FROM log
-            JOIN block ON block.number = log.block_number
-            JOIN transaction ON
-                transaction.block_number = log.block_number AND
-                    transaction.transaction_index = log.transaction_index
-            WHERE log.block_number < {} AND log.block_number >= {}
+            SELECT {} FROM eth_log
+            JOIN eth_block ON eth_block.number = eth_log.block_number
+            JOIN eth_tx ON
+                eth_tx.block_number = eth_log.block_number AND
+                    eth_tx.transaction_index = eth_log.transaction_index
+            WHERE eth_log.block_number < {} AND eth_log.block_number >= {}
         ",
             self.field_selection.to_cols_sql(),
             self.to_block,
@@ -81,8 +81,8 @@ impl AddressQuery {
     pub fn to_sql(&self) -> String {
         let mut sql = format!(
             "(
-            log.address = decode('{}', 'hex')",
-            self.address
+            eth_log.address = decode('{}', 'hex')",
+            &self.address[2..]
         );
 
         /*

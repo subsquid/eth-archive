@@ -1,6 +1,8 @@
 use crate::config::DbConfig;
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
-use crate::types::{Block, Log, ResponseRow, Transaction};
+use crate::types::{
+    Block, Log, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction, Transaction,
+};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
 use tokio_postgres::types::ToSql;
@@ -46,8 +48,50 @@ impl DbHandle {
     }
 
     pub async fn raw_query(&self, query: &str) -> Result<Vec<ResponseRow>> {
-        println!("{}", query);
-        Ok(Vec::new())
+        let rows = self
+            .get_conn()
+            .await?
+            .query(query, &[])
+            .await
+            .map_err(Error::DbQuery)?;
+
+        let rows = rows
+            .into_iter()
+            .map(|row| ResponseRow {
+                block: ResponseBlock {
+                    number: row.try_get("eth_block_number").ok().map(BigInt),
+                    hash: row.try_get("eth_block_hash").ok().map(Bytes32::new),
+                    parent_hash: row.try_get("eth_block_parent_hash").ok().map(Bytes32::new),
+                    nonce: row.try_get("eth_block_nonce").ok().map(Nonce::new),
+                    sha3_uncles: row.try_get("eth_block_sha3_uncles").ok().map(Bytes32::new),
+                    logs_bloom: row
+                        .try_get("eth_block_logs_bloom")
+                        .ok()
+                        .map(BloomFilterBytes::new),
+                    transactions_root: row
+                        .try_get("eth_block_transactions_root")
+                        .ok()
+                        .map(Bytes32::new),
+                    state_root: row.try_get("eth_block_state_root").ok().map(Bytes32::new),
+                    receipts_root: row
+                        .try_get("eth_block_receipts_root")
+                        .ok()
+                        .map(Bytes32::new),
+                    miner: row.try_get("eth_block_miner").ok().map(Address::new),
+                    difficulty: row.try_get("eth_block_difficulty").ok().map(Bytes),
+                    total_difficulty: row.try_get("eth_block_total_difficulty").ok().map(Bytes),
+                    extra_data: row.try_get("eth_block_extra_data").ok().map(Bytes),
+                    size: row.try_get("eth_block_size").ok().map(BigInt),
+                    gas_limit: row.try_get("eth_block_gas_limit").ok().map(Bytes),
+                    gas_used: row.try_get("eth_block_gas_used").ok().map(Bytes),
+                    timestamp: row.try_get("eth_block_timestamp").ok().map(BigInt),
+                },
+                log: Default::default(),
+                transaction: Default::default(),
+            })
+            .collect();
+
+        Ok(rows)
     }
 
     pub async fn get_max_block_number(&self) -> Result<Option<usize>> {
