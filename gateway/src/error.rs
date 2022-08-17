@@ -50,6 +50,8 @@ pub enum Error {
     ReadParquetDir(io::Error),
     #[error("invalid parquet subdirectory name")]
     InvalidParquetSubdirectory,
+    #[error("invalid block range in query")]
+    InvalidBlockRange,
 }
 
 pub type Result<T> = StdResult<T, Error>;

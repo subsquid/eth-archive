@@ -39,7 +39,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let block_range = block_range.take().unwrap();
                 let (row_groups, schema, options) = T::into_row_groups(row_group);
 
-                let folder_name = block_range.to.to_string();
+                let folder_name = format!("block_range={}", block_range.to);
 
                 let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
 
@@ -156,7 +156,13 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 .file_name()
                 .into_string()
                 .map_err(|_| Error::InvalidParquetFileName)?;
-            let num = file_name.parse::<usize>().unwrap();
+
+            let num = file_name
+                .split_once('=')
+                .unwrap()
+                .1
+                .parse::<usize>()
+                .unwrap();
             block_num = cmp::max(block_num, num);
         }
 
