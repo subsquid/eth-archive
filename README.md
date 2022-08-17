@@ -4,7 +4,7 @@
 
 Note: Parquet writer and gateway need to be run on same machine until remote storage is implemented.
 
-All binaries can be started like `cargo run --release --bin eth-archive-<ingester/parquet-writer-gateway>` from the project root.
+All binaries can be started like `cargo run --release --bin eth-archive-<ingester/parquet-writer/gateway>` from the project root.
 
 The machine that will run gateway and parquet writer needs to have about 500 GB storage, maybe 1TB to be safe. It also needs to have 32GB of ram.
 
