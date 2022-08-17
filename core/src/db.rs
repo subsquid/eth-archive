@@ -86,8 +86,28 @@ impl DbHandle {
                     gas_used: row.try_get("eth_block_gas_used").ok().map(Bytes),
                     timestamp: row.try_get("eth_block_timestamp").ok().map(BigInt),
                 },
+                transaction: ResponseTransaction {
+                    block_hash: row.try_get("eth_tx_block_hash").ok().map(Bytes32::new),
+                    block_number: row.try_get("eth_tx_block_number").ok().map(BigInt),
+                    source: row.try_get("eth_tx_source").ok().map(Address::new),
+                    gas: row.try_get("eth_tx_gas").ok().map(BigInt),
+                    gas_price: row.try_get("eth_tx_gas_price").ok().map(BigInt),
+                    hash: row.try_get("eth_tx_hash").ok().map(Bytes32::new),
+                    input: row.try_get("eth_tx_input").ok().map(Bytes::new),
+                    nonce: row.try_get("eth_tx_nonce").ok().map(Nonce::new),
+                    dest: match row.try_get("eth_tx_dest") {
+                        Ok(Some(dest)) => Some(Address::new(dest)),
+                        _ => None,
+                    },
+                    transaction_index: row.try_get("eth_tx_transaction_index").ok().map(BigInt),
+                    value: row.try_get("eth_tx_value").ok().map(Bytes),
+                    kind: row.try_get("eth_tx_kind").ok().map(BigInt),
+                    chain_id: row.try_get("eth_tx_chain_id").ok().map(BigInt),
+                    v: row.try_get("eth_tx_v").ok().map(BigInt),
+                    r: row.try_get("eth_tx_r").ok().map(Bytes),
+                    s: row.try_get("eth_tx_s").ok().map(Bytes),
+                },
                 log: Default::default(),
-                transaction: Default::default(),
             })
             .collect();
 

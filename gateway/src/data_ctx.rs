@@ -521,9 +521,12 @@ fn response_rows_from_batch(batch: RecordBatch) -> Vec<ResponseRow> {
                 nonce: tx_nonce
                     .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().value(i))
                     .map(Nonce),
-                dest: tx_dest
+                dest: match tx_dest
                     .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Address::new),
+                {
+                    Some(addr) if !addr.is_empty() => Some(Address::new(addr)),
+                    _ => None,
+                },
                 transaction_index: tx_transaction_index
                     .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
                     .map(BigInt),
