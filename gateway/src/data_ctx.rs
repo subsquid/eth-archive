@@ -4,7 +4,7 @@ use crate::{Error, Result};
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
-use eth_archive_core::types::ResponseRow;
+use eth_archive_core::types::{ResponeLog, ResponseBlock, ResponseRow, ResponseTransaction};
 use range_map::{Range, RangeMap as RangeMapImpl};
 use std::cmp;
 use std::sync::Arc;
@@ -308,7 +308,7 @@ impl DataCtx {
 
         let batch = RecordBatch::concat(&schema, &batches).map_err(Error::ConcatRecordBatches)?;
 
-        let data = response_rows_from_batch(batch)?;
+        let data = response_rows_from_batch(batch);
 
         Ok(QueryResult { data })
     }
@@ -375,10 +375,228 @@ impl DataCtx {
     }
 }
 
-fn response_rows_from_batch(batch: RecordBatch) -> Result<Vec<ResponseRow>> {
-    let schema = batch.schema();
+// defines columns using the record batch and a list of column names
+macro_rules! define_cols {
+    ($batch:expr, $($name:ident),*) => {
+        let schema = $batch.schema();
 
-    dbg!(schema.column_with_name("log.block_number"));
+        $(
+            let $name = schema.column_with_name(stringify!($name)).map(|(i, _)| {
+                $batch.column(i)
+            });
+        );*
+    };
+}
 
-    todo!()
+fn response_rows_from_batch(batch: RecordBatch) -> Vec<ResponseRow> {
+    use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
+    use arrow::array::{BinaryArray, BooleanArray, Int64Array, UInt64Array};
+
+    define_cols!(
+        batch,
+        block_number,
+        block_hash,
+        block_parent_hash,
+        block_nonce,
+        block_sha3_uncles,
+        block_logs_bloom,
+        block_transactions_root,
+        block_state_root,
+        block_receipts_root,
+        block_miner,
+        block_difficulty,
+        block_total_difficulty,
+        block_extra_data,
+        block_size,
+        block_gas_limit,
+        block_gas_used,
+        block_timestamp,
+        tx_block_hash,
+        tx_block_number,
+        tx_source,
+        tx_gas,
+        tx_gas_price,
+        tx_hash,
+        tx_input,
+        tx_nonce,
+        tx_dest,
+        tx_transaction_index,
+        tx_value,
+        tx_kind,
+        tx_chain_id,
+        tx_v,
+        tx_r,
+        tx_s,
+        log_address,
+        log_block_hash,
+        log_block_number,
+        log_data,
+        log_log_index,
+        log_removed,
+        log_topics,
+        log_transaction_hash,
+        log_transaction_index
+    );
+
+    (0..batch.num_rows())
+        .map(|i| ResponseRow {
+            block: ResponseBlock {
+                number: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap()
+                            .value(i)
+                            .map(BigInt)
+                    })
+                    .flatten(),
+                hash: block_hash
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                parent_hash: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                nonce: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                sha3_uncles: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                logs_bloom: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                transactions_root: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                state_root: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                receipts_root: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                miner: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                difficulty: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                total_difficulty: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                extra_data: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                size: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                gas_limit: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                gas_used: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+                timestamp: block_number
+                    .map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BytesArray>()
+                            .unwrap()
+                            .value(i)
+                            .map(Bytes32::new)
+                    })
+                    .flatten(),
+            },
+            transaction: todo!(),
+            log: todo!(),
+        })
+        .collect()
 }
