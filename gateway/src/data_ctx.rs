@@ -493,7 +493,56 @@ fn response_rows_from_batch(batch: RecordBatch) -> Vec<ResponseRow> {
                     .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
                     .map(BigInt),
             },
-            transaction: ResponseTransaction::default(),
+            transaction: ResponseTransaction {
+                block_hash: tx_block_hash
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes32::new),
+                block_number: tx_block_number
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                source: tx_source
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Address::new),
+                gas: tx_gas
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                gas_price: tx_gas_price
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                hash: tx_hash
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes32::new),
+                input: tx_input
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes::new),
+                nonce: tx_nonce
+                    .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().value(i))
+                    .map(Nonce),
+                dest: tx_dest
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Address::new),
+                transaction_index: tx_transaction_index
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                value: tx_value
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes::new),
+                kind: tx_kind
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                chain_id: tx_chain_id
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                v: tx_v
+                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
+                    .map(BigInt),
+                r: tx_r
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes::new),
+                s: tx_s
+                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                    .map(Bytes::new),
+            },
             log: ResponseLog::default(),
         })
         .collect()
