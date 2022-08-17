@@ -974,6 +974,7 @@ dependencies = [
  "log",
  "prefix-hex",
  "range-map",
+ "rayon",
  "serde",
  "serde_json",
  "snmalloc-rs",

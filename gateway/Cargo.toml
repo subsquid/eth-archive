@@ -20,6 +20,7 @@ clap = { version = "3", features = ["derive"] }
 toml = "0.5.9"
 prefix-hex = "0.4.0"
 range-map = "0.1.5"
+rayon = "1.5.3"
 
 eth-archive-core = { path = "../core" }
 

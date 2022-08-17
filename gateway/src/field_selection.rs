@@ -8,8 +8,6 @@ macro_rules! append_col {
             let field_name = stringify!($field);
             let col = col(&format!("{}.{}", $table_name, field_name));
             let field_name = field_name.to_case(Case::Camel);
-            let alias = format!("{}_{}", $table_name, field_name);
-            let col = col.alias(&alias);
             $cols.push(col);
         }
     };
@@ -21,8 +19,6 @@ macro_rules! append_col_sql {
             let field_name = stringify!($field);
             let col = format!("{}.{}", $table_name, field_name);
             let field_name = field_name.to_case(Case::Camel);
-            let alias = format!("{}_{}", $table_name, field_name);
-            let col = format!("{} as {}", col, alias);
             $cols.push(col);
         }
     };

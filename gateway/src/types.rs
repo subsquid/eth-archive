@@ -1,6 +1,7 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use datafusion::prelude::*;
+use eth_archive_core::types::ResponseRow;
 use serde::{Deserialize, Serialize};
 
 use serde_json::Value as JsonValue;
@@ -75,5 +76,5 @@ pub struct Status {
 
 #[derive(Serialize, Deserialize)]
 pub struct QueryResult {
-    pub data: Vec<serde_json::Map<String, JsonValue>>,
+    pub data: Vec<ResponseRow>,
 }

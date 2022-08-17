@@ -1,9 +1,8 @@
 use crate::config::DbConfig;
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
-use crate::types::{Block, Log, Transaction};
+use crate::types::{Block, Log, ResponseRow, Transaction};
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
-use serde_json::Value as JsonValue;
 use tokio_postgres::types::ToSql;
 
 pub struct DbHandle {
@@ -46,10 +45,7 @@ impl DbHandle {
         self.pool.get().await.map_err(Error::GetDbConnection)
     }
 
-    pub async fn raw_query_to_json(
-        &self,
-        query: &str,
-    ) -> Result<Vec<serde_json::Map<String, JsonValue>>> {
+    pub async fn raw_query(&self, query: &str) -> Result<Vec<ResponseRow>> {
         todo!()
     }
 

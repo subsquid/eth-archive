@@ -52,6 +52,8 @@ pub enum Error {
     InvalidParquetSubdirectory,
     #[error("invalid block range in query")]
     InvalidBlockRange,
+    #[error("failed to concatenate arrow data in memory:\n{0}")]
+    ConcatRecordBatches(arrow::error::ArrowError),
 }
 
 pub type Result<T> = StdResult<T, Error>;

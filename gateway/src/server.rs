@@ -33,7 +33,6 @@ impl Server {
                 .app_data(web::Data::new(data_ctx.clone()))
                 .service(web::resource("/query").route(web::post().to(query)))
                 .service(web::resource("/status").route(web::get().to(status)))
-                .service(web::resource("/sql").route(web::post().to(sql)))
         })
         .bind((config.http_server.ip, config.http_server.port))
         .map_err(Error::BindHttpServer)?
@@ -54,12 +53,6 @@ async fn query(
     ctx: web::Data<Arc<DataCtx>>,
 ) -> Result<web::Json<QueryResult>> {
     let res = ctx.query(query.into_inner()).await?;
-
-    Ok(web::Json(res))
-}
-
-async fn sql(sql: String, ctx: web::Data<Arc<DataCtx>>) -> Result<web::Json<QueryResult>> {
-    let res = ctx.sql(&sql).await?;
 
     Ok(web::Json(res))
 }

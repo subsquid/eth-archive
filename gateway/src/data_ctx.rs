@@ -1,9 +1,12 @@
 use crate::config::DataConfig;
 use crate::types::{QueryLogs, QueryResult, Status};
 use crate::{Error, Result};
+use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
+use eth_archive_core::types::ResponseRow;
 use range_map::{Range, RangeMap as RangeMapImpl};
+use rayon::prelude::*;
 use std::cmp;
 use std::sync::Arc;
 use tokio::fs;
@@ -185,24 +188,12 @@ impl DataCtx {
         } else {
             let data = self
                 .db
-                .raw_query_to_json(&query.to_sql())
+                .raw_query(&query.to_sql())
                 .await
                 .map_err(Error::SqlQuery)?;
 
             Ok(QueryResult { data })
         }
-    }
-
-    pub async fn sql(&self, sql: &str) -> Result<QueryResult> {
-        let session = &self.session.read().await.0;
-
-        let data_frame = session.sql(sql).await.map_err(Error::BuildQuery)?;
-
-        let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
-        let data = arrow::json::writer::record_batches_to_json_rows(&batches)
-            .map_err(Error::CollectResults)?;
-
-        Ok(QueryResult { data })
     }
 
     async fn query_parquet(&self, query: QueryLogs) -> Result<QueryResult> {
@@ -310,8 +301,15 @@ impl DataCtx {
         }
 
         let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
-        let data = arrow::json::writer::record_batches_to_json_rows(&batches)
-            .map_err(Error::CollectResults)?;
+
+        let schema = match batches.get(0) {
+            Some(batch) => batch.schema(),
+            None => return Ok(QueryResult { data: Vec::new() }),
+        };
+
+        let batch = RecordBatch::concat(&schema, &batches).map_err(Error::ConcatRecordBatches)?;
+
+        let data = response_rows_from_batch(batch)?;
 
         Ok(QueryResult { data })
     }
@@ -376,4 +374,8 @@ impl DataCtx {
 
         Ok(ctx)
     }
+}
+
+fn response_rows_from_batch(batch: RecordBatch) -> Result<Vec<ResponseRow>> {
+    todo!()
 }
