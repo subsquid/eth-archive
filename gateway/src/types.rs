@@ -14,7 +14,7 @@ pub struct QueryLogs {
 }
 
 impl QueryLogs {
-    pub fn to_sql(&self) -> String {
+    pub fn to_sql(&self) -> Result<String> {
         let mut query = format!(
             "
             SELECT {} FROM eth_log
@@ -32,17 +32,17 @@ impl QueryLogs {
         if !self.addresses.is_empty() {
             query += "AND (";
 
-            query += &self.addresses.get(0).unwrap().to_sql();
+            query += &self.addresses.get(0).unwrap().to_sql()?;
 
             for addr in self.addresses.iter().skip(1) {
                 query += " OR ";
-                query += &addr.to_sql();
+                query += &addr.to_sql()?;
             }
 
             query.push(')');
         }
 
-        query
+        Ok(query)
     }
 }
 
@@ -78,11 +78,13 @@ impl AddressQuery {
         Ok(expr)
     }
 
-    pub fn to_sql(&self) -> String {
+    pub fn to_sql(&self) -> Result<String> {
         let mut sql = format!(
             "(
             eth_log.address = decode('{}', 'hex')",
-            &self.address[2..]
+            self.address
+                .strip_prefix("0x")
+                .ok_or(Error::InvalidAddress)?
         );
 
         /*
@@ -95,7 +97,7 @@ impl AddressQuery {
 
         sql.push(')');
 
-        sql
+        Ok(sql)
     }
 }
 

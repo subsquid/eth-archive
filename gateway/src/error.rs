@@ -54,6 +54,8 @@ pub enum Error {
     InvalidBlockRange,
     #[error("failed to concatenate arrow data in memory:\n{0}")]
     ConcatRecordBatches(arrow::error::ArrowError),
+    #[error("invalid address in query")]
+    InvalidAddress,
 }
 
 pub type Result<T> = StdResult<T, Error>;

@@ -187,7 +187,7 @@ impl DataCtx {
         } else {
             let data = self
                 .db
-                .raw_query(&query.to_sql())
+                .raw_query(&query.to_sql()?)
                 .await
                 .map_err(Error::SqlQuery)?;
 
