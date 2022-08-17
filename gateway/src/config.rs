@@ -10,7 +10,7 @@ pub struct Config {
     pub http_server: HttpServerConfig,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct DataConfig {
     pub target_partitions: usize,
     pub batch_size: usize,

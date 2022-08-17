@@ -39,6 +39,44 @@ impl DataCtx {
         log::info!("collecting block range info for parquet (log) files...");
         let log_ranges = Self::get_block_ranges(&config.logs_path).await?;
 
+        {
+            let session = session.clone();
+            let config = config.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+
+                loop {
+                    interval.tick().await;
+
+                    log::info!("updating datafusion session...");
+
+                    let new_session = match Self::setup_session(&config).await {
+                        Ok(new_session) => new_session,
+                        Err(e) => {
+                            log::error!("failed to re-create datafusion session:\n{}", e);
+                            continue;
+                        }
+                    };
+
+                    let parquet_block_number = match Self::get_parquet_block_number(&new_session)
+                        .await
+                    {
+                        Ok(num) => num.unwrap_or(0),
+                        Err(e) => {
+                            log::error!("failed to get parquet block number with new datafusion session:\n{}", e);
+                            continue;
+                        }
+                    };
+
+                    let mut session = session.write().await;
+
+                    *session = (new_session, parquet_block_number);
+
+                    log::info!("updated datafusion session");
+                }
+            });
+        }
+
         Ok(Self {
             db,
             session,
