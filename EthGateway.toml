@@ -10,7 +10,7 @@ port = 5432
 
 [data]
 target_partitions = 32
-batch_size = 512
+batch_size = 2048
 logs_path = "data/log"
 blocks_path = "data/block"
 transactions_path = "data/tx"

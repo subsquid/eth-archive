@@ -22,14 +22,19 @@ pub struct DataCtx {
 
 impl DataCtx {
     pub async fn new(db: Arc<DbHandle>, config: DataConfig) -> Result<Self> {
+        log::info!("setting up datafusion context...");
+
         let session = Self::setup_session(&config).await?;
 
         let parquet_block_number = Self::get_parquet_block_number(&session).await?.unwrap_or(0);
 
         let session = Arc::new(RwLock::new((session, parquet_block_number)));
 
+        log::info!("collecting block range info for parquet (block header) files...");
         let block_ranges = Self::get_block_ranges(&config.blocks_path).await?;
+        log::info!("collecting block range info for parquet (transaction) files...");
         let tx_ranges = Self::get_block_ranges(&config.transactions_path).await?;
+        log::info!("collecting block range info for parquet (log) files...");
         let log_ranges = Self::get_block_ranges(&config.logs_path).await?;
 
         Ok(Self {
@@ -67,7 +72,7 @@ impl DataCtx {
     async fn get_block_ranges(path: &str) -> Result<RangeMap> {
         let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
 
-        let mut nums = Vec::new(); 
+        let mut nums = Vec::new();
 
         while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
             let end = entry
@@ -85,15 +90,21 @@ impl DataCtx {
 
         nums.sort();
 
-        let ranges = nums.windows(2).map(|range| {
-            let start = range[0];
-            let end = range[1];
+        let ranges = nums
+            .windows(2)
+            .map(|range| {
+                let start = range[0];
+                let end = range[1];
 
-            (Range {
-                start,
-                end: end-1,
-            }, end)
-        }).collect();
+                (
+                    Range {
+                        start,
+                        end: end - 1,
+                    },
+                    end,
+                )
+            })
+            .collect();
 
         let map = RangeMap::from_sorted_vec(ranges);
 
