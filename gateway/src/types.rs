@@ -15,20 +15,34 @@ pub struct QueryLogs {
 
 impl QueryLogs {
     pub fn to_sql(&self) -> String {
-        /*
-        format!(
+        let mut query = format!(
             "
             SELECT {} FROM log
             JOIN block ON block.number = log.block_number
             JOIN transaction ON
                 transaction.block_number = log.block_number AND
                     transaction.transaction_index = log.transaction_index
-            WHERE log.block_number < {} AND log.block_number >= {} AND
-                log.address IN {} AND log.topics
-        "
-        )
-        */
-        todo!()
+            WHERE log.block_number < {} AND log.block_number >= {}
+        ",
+            self.field_selection.to_cols_sql(),
+            self.to_block,
+            self.from_block,
+        );
+
+        if !self.addresses.is_empty() {
+            query += "AND (";
+
+            query += &self.addresses.get(0).unwrap().to_sql();
+
+            for addr in self.addresses.iter().skip(1) {
+                query += " OR ";
+                query += &addr.to_sql();
+            }
+
+            query.push(')');
+        }
+
+        query
     }
 }
 
@@ -62,6 +76,26 @@ impl AddressQuery {
         }
 
         Ok(expr)
+    }
+
+    pub fn to_sql(&self) -> String {
+        let mut sql = format!(
+            "(
+            log.address = decode('{}', 'hex')",
+            self.address
+        );
+
+        /*
+        for (i, topic) in self.topics.iter().enumerate() {
+            if let Some(topic) = topic {
+
+            }
+        }
+        */
+
+        sql.push(')');
+
+        sql
     }
 }
 

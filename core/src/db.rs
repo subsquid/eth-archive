@@ -46,7 +46,8 @@ impl DbHandle {
     }
 
     pub async fn raw_query(&self, query: &str) -> Result<Vec<ResponseRow>> {
-        todo!()
+        println!("{}", query);
+        Ok(Vec::new())
     }
 
     pub async fn get_max_block_number(&self) -> Result<Option<usize>> {
