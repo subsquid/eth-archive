@@ -6,9 +6,9 @@ Note: Parquet writer and gateway need to be run on same machine until remote sto
 
 All binaries can be started like `cargo run --release --bin eth-archive-<ingester/parquet-writer/gateway>` from the project root.
 
-The machine that will run gateway and parquet writer needs to have about 1TB of storage. It also needs to have 32GB of ram.
+The machine that will run gateway and parquet writer needs to have about 500GB of storage. It also needs to have 16GB of ram.
 
-Postgres instance needs to be a big one (Maybe 1TB of storage and 16/32 GB of ram) because currently ingester is configured to put up to 1000000 blocks of data into it.
+Postgres instance needs to be a big one (Maybe 500 GB of storage and 8 GB of ram) because currently ingester is configured to put up to 1000000 blocks of data into it.
 
 All binaries can be configured by editing the toml files found in project root. They also take a command line argument to specify config file path (`--cfg-path`).
 
