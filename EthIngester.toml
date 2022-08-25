@@ -1,4 +1,4 @@
-block_window_size = 1000000
+block_window_size = 300000
 block_depth_offset = 20
 
 [retry]
