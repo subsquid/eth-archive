@@ -21,3 +21,5 @@ All binaries should be restart-able from where they left of if the process crash
 Only needed configuration change would be `db` section of the config files. Which configures the postgres connection. Also maybe path parameters like `logs_path` of gateway and `block.path` of parquet writer.
 
 Cli arguments can be passed like `cargo run --release --bin eth-archive-<ingester/parquet-writer-gateway> -- --reset-data --cfg-path=/some/path`
+
+All components use rust env_logger so setting `RUST_LOG` env variable to `info` is necessary to see info logs on console
