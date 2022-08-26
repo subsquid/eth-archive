@@ -102,6 +102,7 @@ impl AddressQuery {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Status {
     pub parquet_block_number: u64,
     pub db_max_block_number: usize,
@@ -109,6 +110,7 @@ pub struct Status {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub data: Vec<ResponseRow>,
 }
