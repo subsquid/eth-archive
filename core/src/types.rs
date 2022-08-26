@@ -187,3 +187,19 @@ pub struct ResponseRow {
     pub transaction: ResponseTransaction,
     pub log: ResponseLog,
 }
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryMetrics {
+    pub build_query: u128,
+    pub run_query: u128,
+    pub serialize_result: u128,
+    pub total: u128,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryResult {
+    pub data: Vec<ResponseRow>,
+    pub metrics: QueryMetrics,
+}

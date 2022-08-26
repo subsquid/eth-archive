@@ -1,7 +1,6 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use datafusion::prelude::*;
-use eth_archive_core::types::ResponseRow;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -107,10 +106,4 @@ pub struct Status {
     pub parquet_block_number: u64,
     pub db_max_block_number: usize,
     pub db_min_block_number: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryResult {
-    pub data: Vec<ResponseRow>,
 }

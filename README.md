@@ -63,9 +63,15 @@ request:
 
 response:
 
-```javscript
+```javascript
 {
-  "data": [ResponseRow]
+  "data": [ResponseRow],
+  "metrics": {
+    "buildQuery": number, // milliseconds it took to build the query
+    "runQuery": number, // milliseconds it took to run the query
+    "serializeResult": number, // milliseconds it took to serialize the results to common types (doesn't include json serialization time) 
+    "total": number, // total number of milliseconds (doesn't include json serialization time)
+  }
 }
 
 ```

@@ -2,8 +2,9 @@ use crate::config::Config;
 use crate::data_ctx::DataCtx;
 use crate::error::{Error, Result};
 use crate::options::Options;
-use crate::types::{QueryLogs, QueryResult, Status};
+use crate::types::{QueryLogs, Status};
 use eth_archive_core::db::DbHandle;
+use eth_archive_core::types::QueryResult;
 use std::sync::Arc;
 
 use actix_web::{middleware, web, App, HttpServer};

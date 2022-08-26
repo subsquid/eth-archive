@@ -1,13 +1,16 @@
 use crate::config::DataConfig;
-use crate::types::{QueryLogs, QueryResult, Status};
+use crate::types::{QueryLogs, Status};
 use crate::{Error, Result};
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
-use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction};
+use eth_archive_core::types::{
+    QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
+};
 use range_map::{Range, RangeMap as RangeMapImpl};
 use std::cmp;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::fs;
 use tokio::sync::RwLock;
 
@@ -225,18 +228,23 @@ impl DataCtx {
         if self.session.read().await.1 >= query.to_block {
             self.query_parquet(query).await
         } else {
-            let data = self
-                .db
-                .raw_query(&query.to_sql()?)
-                .await
-                .map_err(Error::SqlQuery)?;
+            let start_time = Instant::now();
 
-            Ok(QueryResult { data })
+            let query = query.to_sql()?;
+
+            let build_query = start_time.elapsed().as_millis();
+
+            self.db
+                .raw_query(build_query, &query)
+                .await
+                .map_err(Error::SqlQuery)
         }
     }
 
     async fn query_parquet(&self, query: QueryLogs) -> Result<QueryResult> {
         use datafusion::prelude::*;
+
+        let start_time = Instant::now();
 
         let select_columns = query.field_selection.to_cols();
         if select_columns.is_empty() {
@@ -339,18 +347,46 @@ impl DataCtx {
             data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
         }
 
+        let build_query = start_time.elapsed().as_millis();
+
+        let start_time = Instant::now();
+
         let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
+
+        let run_query = start_time.elapsed().as_millis();
+
+        let start_time = Instant::now();
 
         let schema = match batches.get(0) {
             Some(batch) => batch.schema(),
-            None => return Ok(QueryResult { data: Vec::new() }),
+            None => {
+                return Ok(QueryResult {
+                    data: Vec::new(),
+                    metrics: QueryMetrics {
+                        build_query,
+                        run_query,
+                        serialize_result: 0,
+                        total: build_query + run_query,
+                    },
+                })
+            }
         };
 
         let batch = RecordBatch::concat(&schema, &batches).map_err(Error::ConcatRecordBatches)?;
 
         let data = response_rows_from_batch(batch);
 
-        Ok(QueryResult { data })
+        let serialize_result = start_time.elapsed().as_millis();
+
+        Ok(QueryResult {
+            data,
+            metrics: QueryMetrics {
+                build_query,
+                run_query,
+                serialize_result,
+                total: build_query + run_query + serialize_result,
+            },
+        })
     }
 
     async fn setup_session(config: &DataConfig) -> Result<SessionContext> {

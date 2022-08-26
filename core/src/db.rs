@@ -1,10 +1,12 @@
 use crate::config::DbConfig;
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
 use crate::types::{
-    Block, Log, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction, Transaction,
+    Block, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
+    ResponseTransaction, Transaction,
 };
 use crate::{Error, Result};
 use deadpool_postgres::Pool;
+use std::time::Instant;
 use tokio_postgres::types::ToSql;
 
 pub struct DbHandle {
@@ -47,7 +49,9 @@ impl DbHandle {
         self.pool.get().await.map_err(Error::GetDbConnection)
     }
 
-    pub async fn raw_query(&self, query: &str) -> Result<Vec<ResponseRow>> {
+    pub async fn raw_query(&self, build_query: u128, query: &str) -> Result<QueryResult> {
+        let start_time = Instant::now();
+
         let rows = self
             .get_conn()
             .await?
@@ -55,7 +59,11 @@ impl DbHandle {
             .await
             .map_err(Error::DbQuery)?;
 
-        let rows = rows
+        let run_query = start_time.elapsed().as_millis();
+
+        let start_time = Instant::now();
+
+        let data = rows
             .into_iter()
             .map(|row| ResponseRow {
                 block: ResponseBlock {
@@ -144,7 +152,17 @@ impl DbHandle {
             })
             .collect();
 
-        Ok(rows)
+        let serialize_result = start_time.elapsed().as_millis();
+
+        Ok(QueryResult {
+            data,
+            metrics: QueryMetrics {
+                build_query,
+                run_query,
+                serialize_result,
+                total: build_query + run_query + serialize_result,
+            },
+        })
     }
 
     pub async fn get_max_block_number(&self) -> Result<Option<usize>> {
