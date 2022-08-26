@@ -26,13 +26,14 @@ jobs:
         uses: actions/checkout@v2
 
       - name: env
-          id: env
-          run: |
-            echo "::set-output name=image::gcr.io/${{ secrets.GCP_PROJECT }}/eth-${{ matrix.component }}:${{env.tag}}"
-
+        id: env
+        run: |
+          echo "::set-output name=image::gcr.io/$PROJECT_ID/eth-${{ matrix.component }}:$tag"
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT }}
 
       - name: Build
-        uses: docker build --build-arg component=${{ matrix.component }} -t ${{steps.env.outputs.image}} .
+        run: docker build --build-arg component=${{ matrix.component }} -t ${{steps.env.outputs.image}} .
 
       - name: Publish
-        run: docker push -t ${{steps.env.outputs.image}}
+        run: docker push ${{steps.env.outputs.image}}
