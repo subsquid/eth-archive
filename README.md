@@ -23,3 +23,53 @@ Only needed configuration change would be `db` section of the config files. Whic
 Cli arguments can be passed like `cargo run --release --bin eth-archive-<ingester/parquet-writer-gateway> -- --reset-data --cfg-path=/some/path`
 
 All components use rust env_logger so setting `RUST_LOG` env variable to `info` is necessary to see info logs on console
+
+
+## Gateway API
+
+<details>
+<summary>GET /status</summary>
+response:
+
+```javascript
+{
+  "parquetBlockNumber": number, // max block number in the parquet storage
+  "dbMaxBlockNumber": number, // max block number in hot storage
+  "dbMinBlockNumber": number, // min block number in hot storage
+}
+```
+
+</details>
+
+<details>
+<summary>POST /query</summary>
+request:
+
+```javascript
+{
+  "fromBlock": number, // starting block number to include in range
+  "toBlock": number, // ending block number of the range. returned block range is [fromBlock, toBlock). So toBlock is not included.
+  "addresses": [{
+    "address": string, // address of the contract
+    // there has to be four entries, each entry is either null or a list of topics which will be used to filter.
+    // if topics[0] is ["a", "b", "c"] the logs will be filtered so only logs that have "a", "b" or "c" as their first topic will be returned.
+    "topics": [null || [string]] 
+  }],
+  "fieldSelection": FieldSelection
+}
+```
+
+[FieldSelection](https://github.com/subsquid/eth-archive/blob/21376a8a92c993c10376bc992f1d0627ec3e9f09/gateway/src/field_selection.rs#L30)
+
+response:
+
+```javscript
+{
+  "data": [ResponseRow]
+}
+
+```
+
+[ResponseRow](https://github.com/subsquid/eth-archive/blob/21376a8a92c993c10376bc992f1d0627ec3e9f09/core/src/types.rs#L185)
+
+</details>
