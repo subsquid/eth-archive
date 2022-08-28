@@ -26,4 +26,3 @@ eth-archive-core = { path = "../core" }
 [dependencies.actix-web]
 version = "4.0.1"
 default-features = false
-features = [ "compress-gzip", "rustls" ]

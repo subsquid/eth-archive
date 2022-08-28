@@ -7,7 +7,7 @@ use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::QueryResult;
 use std::sync::Arc;
 
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{web, App, HttpServer};
 
 pub struct Server {}
 
@@ -30,7 +30,6 @@ impl Server {
 
         HttpServer::new(move || {
             App::new()
-                .wrap(middleware::Compress::default())
                 .app_data(web::Data::new(data_ctx.clone()))
                 .service(web::resource("/query").route(web::post().to(query)))
                 .service(web::resource("/status").route(web::get().to(status)))
