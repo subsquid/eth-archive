@@ -1,7 +1,9 @@
 use eth_archive_parquet_writer::{Options, ParquetWriterRunner};
 
+use mimalloc::MiMalloc;
+
 #[global_allocator]
-static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() {

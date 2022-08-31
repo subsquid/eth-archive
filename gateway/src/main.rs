@@ -1,7 +1,9 @@
 use eth_archive_gateway::{Options, Server};
 
+use mimalloc::MiMalloc;
+
 #[global_allocator]
-static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() {
