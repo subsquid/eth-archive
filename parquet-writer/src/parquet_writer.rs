@@ -5,7 +5,7 @@ use arrow2::io::parquet::write::*;
 use eth_archive_core::types::BlockRange;
 use std::path::Path;
 use std::time::Instant;
-use std::{cmp, fs, io, mem};
+use std::{cmp, fs, mem};
 use tokio::sync::mpsc;
 
 pub struct ParquetWriter<T: IntoRowGroups> {
@@ -39,19 +39,9 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let block_range = block_range.take().unwrap();
                 let (row_groups, schema, options) = T::into_row_groups(row_group);
 
-                let folder_name = format!("block_range={}", block_range.to);
-
                 let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
 
                 let mut temp_path = cfg.path.clone();
-                temp_path.push(&folder_name);
-
-                if let Err(e) = fs::create_dir(&temp_path) {
-                    if e.kind() != io::ErrorKind::AlreadyExists {
-                        panic!("failed to craete subdirectory in parquet path:\n{}", e);
-                    }
-                }
-
                 temp_path.push(format!("{}.temp", &file_name));
                 let file = fs::File::create(&temp_path).unwrap();
                 let mut writer = FileWriter::try_new(file, schema, options).unwrap();
@@ -62,7 +52,6 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 writer.end(None).unwrap();
 
                 let mut final_path = cfg.path.clone();
-                final_path.push(&folder_name);
                 final_path.push(format!("{}.parquet", &file_name));
                 fs::rename(&temp_path, final_path).unwrap();
 
@@ -137,32 +126,17 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         for entry in dir {
             let entry = entry.unwrap();
 
-            let mut inner_dir = fs::read_dir(entry.path()).map_err(Error::ReadParquetDir)?;
-            match inner_dir.next() {
-                Some(entry) => {
-                    let entry = entry.unwrap();
-
-                    let path = entry.path();
-                    let extension = path.extension().unwrap().to_str().unwrap();
-
-                    if extension != "parquet" {
-                        continue;
-                    }
-                }
-                None => continue,
-            };
+            if entry.path().extension().unwrap() != "parquet" {
+                continue;
+            }
 
             let file_name = entry
                 .file_name()
                 .into_string()
                 .map_err(|_| Error::InvalidParquetFileName)?;
-
-            let num = file_name
-                .split_once('=')
-                .unwrap()
-                .1
-                .parse::<usize>()
-                .unwrap();
+            let num = file_name.split('_').last().unwrap();
+            let num = &num[..num.len() - ".parquet".len()];
+            let num = num.parse::<usize>().unwrap();
             block_num = cmp::max(block_num, num);
         }
 
