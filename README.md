@@ -2,6 +2,10 @@
 
 ## Usage
 
+Requires nightly rust.
+
+
+
 Note: Parquet writer and gateway need to be run on same machine until remote storage is implemented.
 
 All binaries can be started like `cargo run --release --bin eth-archive-<ingester/parquet-writer/gateway>` from the project root.
@@ -20,8 +24,8 @@ Only needed configuration change would be `db` section of the config files. Whic
 
 Cli arguments can be passed like `cargo run --release --bin eth-archive-<ingester/parquet-writer-gateway> -- --reset-data --cfg-path=/some/path`
 
-All components use rust env_logger so setting `RUST_LOG` env variable to `info` is necessary to see info logs on console
-
+Need to set `RUST_LOG=info` to see logs in console
+Need to set `RUSTFLAGS='-C target-cpu=native'` for performance improvement
 
 ## Gateway API
 
