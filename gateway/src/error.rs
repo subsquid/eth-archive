@@ -56,6 +56,8 @@ pub enum Error {
     ConcatRecordBatches(arrow::error::ArrowError),
     #[error("invalid address in query")]
     InvalidAddress,
+    #[error("invalid topic in query")]
+    InvalidTopic,
     #[error("block range {0:?} not found in {1} parquet files")]
     RangeNotFoundInParquetFiles((u32, u32), &'static str),
 }
