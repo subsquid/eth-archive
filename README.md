@@ -6,7 +6,7 @@ Note: Parquet writer and gateway need to be run on same machine until remote sto
 
 All binaries can be started like `cargo run --release --bin eth-archive-<ingester/parquet-writer/gateway>` from the project root.
 
-The machine that will run gateway and parquet writer needs to have about 500GB of storage. It also needs to have 16GB of ram.
+The machine that will run gateway and parquet writer needs to have about 500GB of storage.
 
 All binaries can be configured by editing the toml files found in project root. They also take a command line argument to specify config file path (`--cfg-path`).
 
