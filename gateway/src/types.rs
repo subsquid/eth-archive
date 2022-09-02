@@ -1,6 +1,7 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use datafusion::prelude::*;
+use eth_archive_core::types::{QueryMetrics, ResponseRow};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -103,7 +104,15 @@ impl AddressQuery {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
-    pub parquet_block_number: u64,
+    pub parquet_block_number: u32,
     pub db_max_block_number: usize,
     pub db_min_block_number: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryResponse {
+    pub status: Status,
+    pub data: Vec<ResponseRow>,
+    pub metrics: QueryMetrics,
 }

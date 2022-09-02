@@ -1,4 +1,5 @@
 use crate::config::DataConfig;
+use crate::range_map::RangeMap;
 use crate::types::{QueryLogs, Status};
 use crate::{Error, Result};
 use arrow::record_batch::RecordBatch;
@@ -7,19 +8,21 @@ use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
-use range_map::{Range, RangeMap as RangeMapImpl};
 use std::cmp;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::fs;
 use tokio::sync::RwLock;
 
-type RangeMap = RangeMapImpl<u64, u64>;
-
 pub struct DataCtx {
     db: Arc<DbHandle>,
-    session: Arc<RwLock<(SessionContext, u64)>>,
     config: DataConfig,
+    parquet_state: Arc<RwLock<ParquetState>>,
+}
+
+#[derive(Debug)]
+struct ParquetState {
+    parquet_block_number: u32,
     block_ranges: RangeMap,
     tx_ranges: RangeMap,
     log_ranges: RangeMap,
@@ -29,63 +32,63 @@ impl DataCtx {
     pub async fn new(db: Arc<DbHandle>, config: DataConfig) -> Result<Self> {
         log::info!("setting up datafusion context...");
 
-        let session = Self::setup_session(&config).await?;
-
-        let parquet_block_number = Self::get_parquet_block_number(&session).await?.unwrap_or(0);
-
-        let session = Arc::new(RwLock::new((session, parquet_block_number)));
-
-        log::info!("collecting block range info for parquet (block header) files...");
-        let block_ranges = Self::get_block_ranges(&config.blocks_path).await?;
-        log::info!("collecting block range info for parquet (transaction) files...");
-        let tx_ranges = Self::get_block_ranges(&config.transactions_path).await?;
-        log::info!("collecting block range info for parquet (log) files...");
-        let log_ranges = Self::get_block_ranges(&config.logs_path).await?;
+        let parquet_state = Self::setup_parquet_state(&config).await?;
+        let parquet_state = Arc::new(RwLock::new(parquet_state));
 
         {
-            let session = session.clone();
             let config = config.clone();
+            let parquet_state = parquet_state.clone();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(
-                    config.datafusion_session_refresh_interval_secs,
+                    config.parquet_state_refresh_interval_secs,
                 ));
 
                 loop {
                     interval.tick().await;
 
-                    log::info!("updating datafusion session...");
+                    log::info!("updating parquet state...");
 
-                    let new_session = match Self::setup_session(&config).await {
-                        Ok(new_session) => new_session,
+                    let start_time = Instant::now();
+
+                    let new_parquet_state = match Self::setup_parquet_state(&config).await {
+                        Ok(new_parquet_state) => new_parquet_state,
                         Err(e) => {
-                            log::error!("failed to re-create datafusion session:\n{}", e);
+                            log::error!("failed to update parquet state:\n{}", e);
                             continue;
                         }
                     };
 
-                    let parquet_block_number = match Self::get_parquet_block_number(&new_session)
-                        .await
-                    {
-                        Ok(num) => num.unwrap_or(0),
-                        Err(e) => {
-                            log::error!("failed to get parquet block number with new datafusion session:\n{}", e);
-                            continue;
-                        }
-                    };
+                    let mut parquet_state = parquet_state.write().await;
 
-                    let mut session = session.write().await;
+                    *parquet_state = new_parquet_state;
 
-                    *session = (new_session, parquet_block_number);
-
-                    log::info!("updated datafusion session");
+                    log::info!(
+                        "updated parquet state in {}ms",
+                        start_time.elapsed().as_millis()
+                    );
                 }
             });
         }
 
         Ok(Self {
             db,
-            session,
             config,
+            parquet_state,
+        })
+    }
+
+    async fn setup_parquet_state(config: &DataConfig) -> Result<ParquetState> {
+        log::info!("collecting block range info for parquet (block header) files...");
+        let (block_ranges, blk_num) = Self::get_block_ranges("block", &config.blocks_path).await?;
+        log::info!("collecting block range info for parquet (transaction) files...");
+        let (tx_ranges, tx_num) = Self::get_block_ranges("tx", &config.transactions_path).await?;
+        log::info!("collecting block range info for parquet (log) files...");
+        let (log_ranges, log_num) = Self::get_block_ranges("log", &config.logs_path).await?;
+
+        let parquet_block_number = cmp::min(blk_num, cmp::min(tx_num, log_num));
+
+        Ok(ParquetState {
+            parquet_block_number,
             block_ranges,
             tx_ranges,
             log_ranges,
@@ -110,122 +113,74 @@ impl DataCtx {
         Ok(Status {
             db_max_block_number,
             db_min_block_number,
-            parquet_block_number: self.session.read().await.1,
+            parquet_block_number: self.parquet_state.read().await.parquet_block_number,
         })
     }
 
-    async fn get_block_ranges(path: &str) -> Result<RangeMap> {
+    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u32)> {
         let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
 
-        let mut nums = Vec::new();
+        let mut ranges = Vec::new();
+        let mut max_block_num = 0;
 
         while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
-            let end = entry
+            let file_name = entry
                 .file_name()
                 .into_string()
-                .map_err(|_| Error::InvalidParquetSubdirectory)?
-                .split_once('=')
-                .ok_or(Error::InvalidParquetSubdirectory)?
-                .1
-                .parse::<u64>()
                 .map_err(|_| Error::InvalidParquetSubdirectory)?;
+            let file_name = match file_name.strip_prefix(prefix) {
+                Some(file_name) => file_name,
+                None => return Err(Error::InvalidParquetSubdirectory),
+            };
+            let file_name = match file_name.strip_suffix(".parquet") {
+                Some(file_name) => file_name,
+                None => continue,
+            };
 
-            nums.push(end);
+            let (start, end) = file_name
+                .split_once('_')
+                .ok_or(Error::InvalidParquetSubdirectory)?;
+
+            let (start, end) = {
+                let start = start
+                    .parse::<u32>()
+                    .map_err(|_| Error::InvalidParquetSubdirectory)?;
+                let end = end
+                    .parse::<u32>()
+                    .map_err(|_| Error::InvalidParquetSubdirectory)?;
+
+                (start, end)
+            };
+
+            ranges.push((start, end));
+            max_block_num = cmp::max(max_block_num, end - 1);
         }
 
-        nums.sort();
+        ranges.sort_by_key(|r| r.0);
 
-        let ranges = nums
-            .windows(2)
-            .map(|range| {
-                let start = range[0];
-                let end = range[1];
+        let range_map =
+            RangeMap::from_sorted(&ranges).map_err(|_| Error::InvalidParquetSubdirectory)?;
 
-                (
-                    Range {
-                        start,
-                        end: end - 1,
-                    },
-                    end,
-                )
-            })
-            .collect();
-
-        let map = RangeMap::from_sorted_vec(ranges);
-
-        Ok(map)
-    }
-
-    async fn get_parquet_block_number(session: &SessionContext) -> Result<Option<u64>> {
-        let get_num = |sql: &str| {
-            let sql = sql.to_owned();
-
-            async move {
-                let data_frame = session.sql(&sql).await.map_err(Error::BuildQuery)?;
-
-                let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
-                let data = arrow::json::writer::record_batches_to_json_rows(&batches)
-                    .map_err(Error::CollectResults)?;
-
-                let parquet_block_number = match data.get(0) {
-                    Some(b) => match b.get("block_number") {
-                        Some(num) => Some(num.as_u64().ok_or(Error::InvalidBlockNumber)?),
-                        None => None,
-                    },
-                    None => None,
-                };
-
-                Ok(parquet_block_number)
-            }
-        };
-
-        let blk_num = get_num(
-            "
-                SELECT
-                    MAX(block.number) as block_number
-                FROM block;
-            ",
-        )
-        .await?;
-
-        let tx_num = get_num(
-            "
-                SELECT
-                    MAX(tx.block_number) as block_number
-                FROM tx;
-            ",
-        )
-        .await?;
-
-        let log_num = get_num(
-            "
-                SELECT
-                    MAX(log.block_number) as block_number
-                FROM log;
-            ",
-        )
-        .await?;
-
-        let parquet_block_number = cmp::min(blk_num, cmp::min(tx_num, log_num));
-
-        Ok(parquet_block_number)
+        Ok((range_map, max_block_num))
     }
 
     pub async fn query(&self, query: QueryLogs) -> Result<QueryResult> {
-        if query.to_block == 0 || query.from_block > query.to_block {
+        if query.to_block == 0 || query.from_block >= query.to_block {
             return Err(Error::InvalidBlockRange);
         }
 
         let block_range = query.to_block - query.from_block;
 
-        if block_range > self.config.max_block_range as u64 {
+        if block_range > self.config.max_block_range {
             return Err(Error::MaximumBlockRange {
                 range: block_range,
                 max: self.config.max_block_range,
             });
         }
 
-        if self.session.read().await.1 >= query.to_block {
+        let parquet_block_number = self.parquet_state.read().await.parquet_block_number;
+
+        if u64::from(parquet_block_number) >= query.to_block {
             self.query_parquet(query).await
         } else {
             let start_time = Instant::now();
@@ -241,6 +196,108 @@ impl DataCtx {
         }
     }
 
+    async fn setup_pruned_session(&self, from_block: u64, to_block: u64) -> Result<SessionContext> {
+        let from_block = from_block as u32;
+        let to_block = to_block as u32;
+
+        let range = (from_block, to_block);
+
+        let cfg = SessionConfig::new()
+            .with_target_partitions(self.config.target_partitions)
+            .with_batch_size(self.config.batch_size)
+            .with_parquet_pruning(true);
+
+        let mut ctx = SessionContext::with_config(cfg);
+
+        let parquet_state = self.parquet_state.read().await;
+
+        self.register_table(
+            &mut ctx,
+            &parquet_state.block_ranges,
+            range,
+            "block",
+            &self.config.blocks_path,
+        )
+        .await?;
+        self.register_table(
+            &mut ctx,
+            &parquet_state.tx_ranges,
+            range,
+            "tx",
+            &self.config.transactions_path,
+        )
+        .await?;
+        self.register_table(
+            &mut ctx,
+            &parquet_state.log_ranges,
+            range,
+            "log",
+            &self.config.logs_path,
+        )
+        .await?;
+
+        Ok(ctx)
+    }
+
+    async fn register_table(
+        &self,
+        ctx: &mut SessionContext,
+        map: &RangeMap,
+        range: (u32, u32),
+        table_name: &'static str,
+        folder_path: &str,
+    ) -> Result<()> {
+        use datafusion::prelude::ParquetReadOptions;
+
+        let block_ranges = map.get(range.0..range.1).collect::<Vec<_>>();
+        if block_ranges.is_empty() {
+            return Err(Error::RangeNotFoundInParquetFiles(range, table_name));
+        }
+        let file_range = block_ranges[0].clone();
+        let file_path = format!(
+            "{}/{}{}_{}.parquet",
+            folder_path, table_name, file_range.start, file_range.end
+        );
+        let mut main_frame = ctx
+            .read_parquet(
+                &file_path,
+                ParquetReadOptions {
+                    file_extension: ".parquet",
+                    table_partition_cols: Vec::new(),
+                    parquet_pruning: true,
+                    skip_metadata: true,
+                },
+            )
+            .await
+            .map_err(Error::RegisterParquet)?;
+        for file_range in block_ranges.iter().skip(1) {
+            let file_path = format!(
+                "{}/{}{}_{}.parquet",
+                folder_path, table_name, file_range.start, file_range.end
+            );
+            let data_frame = ctx
+                .read_parquet(
+                    &file_path,
+                    ParquetReadOptions {
+                        file_extension: ".parquet",
+                        table_partition_cols: Vec::new(),
+                        parquet_pruning: true,
+                        skip_metadata: true,
+                    },
+                )
+                .await
+                .map_err(Error::RegisterParquet)?;
+
+            main_frame = main_frame
+                .union(data_frame)
+                .map_err(Error::RegisterParquet)?;
+        }
+        ctx.register_table(table_name, main_frame)
+            .map_err(Error::RegisterParquet)?;
+
+        Ok(())
+    }
+
     async fn query_parquet(&self, query: QueryLogs) -> Result<QueryResult> {
         use datafusion::prelude::*;
 
@@ -251,7 +308,9 @@ impl DataCtx {
             return Err(Error::NoFieldsSelected);
         }
 
-        let session = &self.session.read().await.0;
+        let session = self
+            .setup_pruned_session(query.from_block, query.to_block)
+            .await?;
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
 
@@ -298,42 +357,6 @@ impl DataCtx {
                     .and(col("block.number").lt(lit(query.to_block))),
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
-
-        if let Some(end) = self.block_ranges.get(query.to_block - 1) {
-            let mut filter_expr = col("block.block_range").eq(lit(end.to_string()));
-
-            if let Some(start) = self.block_ranges.get(query.from_block) {
-                filter_expr = filter_expr.or(col("block.block_range").eq(lit(start.to_string())));
-            }
-
-            data_frame = data_frame
-                .filter(filter_expr)
-                .map_err(Error::ApplyBlockRangeFilter)?;
-        }
-
-        if let Some(end) = self.tx_ranges.get(query.to_block - 1) {
-            let mut filter_expr = col("tx.block_range").eq(lit(end.to_string()));
-
-            if let Some(start) = self.tx_ranges.get(query.from_block) {
-                filter_expr = filter_expr.or(col("tx.block_range").eq(lit(start.to_string())));
-            }
-
-            data_frame = data_frame
-                .filter(filter_expr)
-                .map_err(Error::ApplyBlockRangeFilter)?;
-        }
-
-        if let Some(end) = self.log_ranges.get(query.to_block - 1) {
-            let mut filter_expr = col("log.block_range").eq(lit(end.to_string()));
-
-            if let Some(start) = self.log_ranges.get(query.from_block) {
-                filter_expr = filter_expr.or(col("log.block_range").eq(lit(start.to_string())));
-            }
-
-            data_frame = data_frame
-                .filter(filter_expr)
-                .map_err(Error::ApplyBlockRangeFilter)?;
-        }
 
         if !query.addresses.is_empty() {
             let mut addresses = query.addresses;
@@ -387,67 +410,6 @@ impl DataCtx {
                 total: build_query + run_query + serialize_result,
             },
         })
-    }
-
-    async fn setup_session(config: &DataConfig) -> Result<SessionContext> {
-        use datafusion::datasource::file_format::parquet::ParquetFormat;
-        use datafusion::datasource::listing::ListingOptions;
-
-        let cfg = SessionConfig::new()
-            .with_target_partitions(config.target_partitions)
-            .with_batch_size(config.batch_size);
-
-        let ctx = SessionContext::with_config(cfg);
-
-        let file_format = ParquetFormat::default().with_enable_pruning(true);
-        let file_format = Arc::new(file_format);
-
-        ctx.register_listing_table(
-            "block",
-            &config.blocks_path,
-            ListingOptions {
-                file_extension: ".parquet".to_owned(),
-                format: file_format.clone(),
-                table_partition_cols: vec!["block_range".to_owned()],
-                collect_stat: false,
-                target_partitions: config.target_partitions,
-            },
-            None,
-        )
-        .await
-        .map_err(Error::RegisterParquet)?;
-
-        ctx.register_listing_table(
-            "tx",
-            &config.transactions_path,
-            ListingOptions {
-                file_extension: ".parquet".to_owned(),
-                format: file_format.clone(),
-                table_partition_cols: vec!["block_range".to_owned()],
-                collect_stat: false,
-                target_partitions: config.target_partitions,
-            },
-            None,
-        )
-        .await
-        .map_err(Error::RegisterParquet)?;
-
-        ctx.register_listing_table(
-            "log",
-            &config.logs_path,
-            ListingOptions {
-                file_extension: ".parquet".to_owned(),
-                format: file_format.clone(),
-                table_partition_cols: vec!["block_range".to_owned()],
-                collect_stat: false,
-                target_partitions: config.target_partitions,
-            },
-            None,
-        )
-        .await
-        .map_err(Error::RegisterParquet)?;
-
-        Ok(ctx)
     }
 }
 

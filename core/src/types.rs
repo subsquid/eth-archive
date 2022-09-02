@@ -141,6 +141,7 @@ pub struct ResponseTransaction {
     #[serde(alias = "to")]
     pub dest: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "index")]
     pub transaction_index: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<Bytes>,
@@ -169,6 +170,7 @@ pub struct ResponseLog {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "index")]
     pub log_index: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<bool>,

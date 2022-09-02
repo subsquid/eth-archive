@@ -2,9 +2,8 @@ use crate::config::Config;
 use crate::data_ctx::DataCtx;
 use crate::error::{Error, Result};
 use crate::options::Options;
-use crate::types::{QueryLogs, Status};
+use crate::types::{QueryLogs, QueryResponse, Status};
 use eth_archive_core::db::DbHandle;
-use eth_archive_core::types::QueryResult;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
@@ -51,8 +50,13 @@ async fn status(ctx: web::Data<Arc<DataCtx>>) -> Result<web::Json<Status>> {
 async fn query(
     query: web::Json<QueryLogs>,
     ctx: web::Data<Arc<DataCtx>>,
-) -> Result<web::Json<QueryResult>> {
+) -> Result<web::Json<QueryResponse>> {
     let res = ctx.query(query.into_inner()).await?;
+    let status = ctx.status().await?;
 
-    Ok(web::Json(res))
+    Ok(web::Json(QueryResponse {
+        status,
+        data: res.data,
+        metrics: res.metrics,
+    }))
 }

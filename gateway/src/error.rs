@@ -39,7 +39,7 @@ pub enum Error {
     #[error("failed get maximum block number from database:\n{0}")]
     GetMaxBlockNumber(eth_archive_core::Error),
     #[error("maximum block range exceeded in query. max is {max} query had {range}.")]
-    MaximumBlockRange { max: usize, range: u64 },
+    MaximumBlockRange { max: u64, range: u64 },
     #[error("failed to run sql query:\n{0}")]
     SqlQuery(eth_archive_core::Error),
     #[error("invalid hex in an address:\n{0}")]
@@ -56,6 +56,8 @@ pub enum Error {
     ConcatRecordBatches(arrow::error::ArrowError),
     #[error("invalid address in query")]
     InvalidAddress,
+    #[error("block range {0:?} not found in {1} parquet files")]
+    RangeNotFoundInParquetFiles((u32, u32), &'static str),
 }
 
 pub type Result<T> = StdResult<T, Error>;

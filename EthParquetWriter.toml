@@ -18,20 +18,20 @@ http_req_concurrency = 100
 [block]
 name = "block"
 path = "data/block"
-items_per_file = 250000
+items_per_file = 50000
 items_per_row_group = 600
 channel_size = 64
 
 [transaction]
 name = "tx"
 path = "data/tx"
-items_per_file = 1000000
+items_per_file = 100000
 items_per_row_group = 5000
 channel_size = 512
 
 [log]
 name = "log"
 path = "data/log"
-items_per_file = 4000000
-items_per_row_group = 20000
+items_per_file = 400000
+items_per_row_group = 2000
 channel_size = 64

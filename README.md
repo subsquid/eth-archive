@@ -69,6 +69,11 @@ response:
     "runQuery": number, // milliseconds it took to run the query
     "serializeResult": number, // milliseconds it took to serialize the results to common types (doesn't include json serialization time) 
     "total": number, // total number of milliseconds (doesn't include json serialization time)
+  },
+  "status": {
+    "parquetBlockNumber": number, // max block number in the parquet storage
+    "dbMaxBlockNumber": number, // max block number in hot storage
+    "dbMinBlockNumber": number, // min block number in hot storage
   }
 }
 
