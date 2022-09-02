@@ -87,13 +87,23 @@ impl AddressQuery {
                 .ok_or(Error::InvalidAddress)?
         );
 
-        /*
         for (i, topic) in self.topics.iter().enumerate() {
             if let Some(topic) = topic {
-
+                if !topic.is_empty() {
+                    let topics = topic
+                        .iter()
+                        .map(|topic| {
+                            topic
+                                .strip_prefix("0x")
+                                .map(|topic| format!("decode('{}', 'hex')", topic))
+                                .ok_or(Error::InvalidTopic)
+                        })
+                        .collect::<Result<Vec<String>>>()?
+                        .join(", ");
+                    sql.push_str(&format!(" AND eth_log.topic{} IN ({})", i, topics));
+                }
             }
         }
-        */
 
         sql.push(')');
 
