@@ -342,22 +342,6 @@ impl DataCtx {
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
 
-        data_frame = data_frame
-            .filter(
-                col("tx.block_number")
-                    .gt_eq(lit(query.from_block))
-                    .and(col("tx.block_number").lt(lit(query.to_block))),
-            )
-            .map_err(Error::ApplyBlockRangeFilter)?;
-
-        data_frame = data_frame
-            .filter(
-                col("block.number")
-                    .gt_eq(lit(query.from_block))
-                    .and(col("block.number").lt(lit(query.to_block))),
-            )
-            .map_err(Error::ApplyBlockRangeFilter)?;
-
         if !query.addresses.is_empty() {
             let mut addresses = query.addresses;
 

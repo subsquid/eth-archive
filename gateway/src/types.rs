@@ -51,7 +51,7 @@ impl QueryLogs {
 #[serde(rename_all = "camelCase")]
 pub struct AddressQuery {
     pub address: String,
-    pub topics: [Option<Vec<String>>; 4],
+    pub topics: Vec<Vec<String>>,
 }
 
 impl AddressQuery {
@@ -61,18 +61,20 @@ impl AddressQuery {
 
         let mut expr = col("log.address").eq(lit(address));
 
+        if self.topics.len() > 4 {
+            return Err(Error::TooManyTopics(self.topics.len()));
+        }
+
         for (i, topic) in self.topics.iter().enumerate() {
-            if let Some(topic) = topic {
-                if !topic.is_empty() {
-                    let topic = topic
-                        .iter()
-                        .map(|topic| {
-                            Ok(lit(prefix_hex::decode::<Vec<u8>>(topic)
-                                .map_err(Error::InvalidHexInTopic)?))
-                        })
-                        .collect::<Result<_>>()?;
-                    expr = expr.and(col(&format!("log.topic{}", i)).in_list(topic, false));
-                }
+            if !topic.is_empty() {
+                let topic = topic
+                    .iter()
+                    .map(|topic| {
+                        Ok(lit(prefix_hex::decode::<Vec<u8>>(topic)
+                            .map_err(Error::InvalidHexInTopic)?))
+                    })
+                    .collect::<Result<_>>()?;
+                expr = expr.and(col(&format!("log.topic{}", i)).in_list(topic, false));
             }
         }
 
@@ -88,21 +90,23 @@ impl AddressQuery {
                 .ok_or(Error::InvalidAddress)?
         );
 
+        if self.topics.len() > 4 {
+            return Err(Error::TooManyTopics(self.topics.len()));
+        }
+
         for (i, topic) in self.topics.iter().enumerate() {
-            if let Some(topic) = topic {
-                if !topic.is_empty() {
-                    let topics = topic
-                        .iter()
-                        .map(|topic| {
-                            topic
-                                .strip_prefix("0x")
-                                .map(|topic| format!("decode('{}', 'hex')", topic))
-                                .ok_or(Error::InvalidTopic)
-                        })
-                        .collect::<Result<Vec<String>>>()?
-                        .join(", ");
-                    write!(&mut sql, " AND eth_log.topic{} IN ({})", i, topics).unwrap();
-                }
+            if !topic.is_empty() {
+                let topics = topic
+                    .iter()
+                    .map(|topic| {
+                        topic
+                            .strip_prefix("0x")
+                            .map(|topic| format!("decode('{}', 'hex')", topic))
+                            .ok_or(Error::InvalidTopic)
+                    })
+                    .collect::<Result<Vec<String>>>()?
+                    .join(", ");
+                write!(&mut sql, " AND eth_log.topic{} IN ({})", i, topics).unwrap();
             }
         }
 
