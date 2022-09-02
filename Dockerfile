@@ -3,7 +3,7 @@ ARG component
 RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake
 WORKDIR /eth
 COPY ./ .
-ENV RUSTFLAGS='-C target-cpu=native'
+ENV RUSTFLAGS="-C target-cpu=native"
 RUN cargo build --release --bin "eth-archive-${component}"
 
 FROM debian:bullseye-slim
