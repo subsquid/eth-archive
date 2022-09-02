@@ -3,6 +3,7 @@ use crate::{Error, Result};
 use datafusion::prelude::*;
 use eth_archive_core::types::{QueryMetrics, ResponseRow};
 use serde::{Deserialize, Serialize};
+use std::fmt::Write;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,7 +101,7 @@ impl AddressQuery {
                         })
                         .collect::<Result<Vec<String>>>()?
                         .join(", ");
-                    sql.push_str(&format!(" AND eth_log.topic{} IN ({})", i, topics));
+                    write!(&mut sql, " AND eth_log.topic{} IN ({})", i, topics).unwrap();
                 }
             }
         }
