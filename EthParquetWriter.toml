@@ -20,18 +20,18 @@ name = "block"
 path = "data/block"
 items_per_file = 32768
 items_per_row_group = 512
-channel_size = 64
+channel_size = 1024
 
 [transaction]
 name = "tx"
 path = "data/tx"
 items_per_file = 65536
 items_per_row_group = 512
-channel_size = 512
+channel_size = 65536
 
 [log]
 name = "log"
 path = "data/log"
 items_per_file = 65536
 items_per_row_group = 512
-channel_size = 64
+channel_size = 2048
