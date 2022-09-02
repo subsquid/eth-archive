@@ -1,4 +1,4 @@
-FROM rust:nightly-bullseye AS builder
+FROM rustlang/rust:nightly-bullseye AS builder
 ARG component
 RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake
 WORKDIR /eth
