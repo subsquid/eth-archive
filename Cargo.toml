@@ -5,7 +5,3 @@ members = [
     "core",
     "gateway",
 ]
-
-[profile.release]
-lto = true
-codegen-units = 1
