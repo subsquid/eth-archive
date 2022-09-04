@@ -832,7 +832,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
     conn.batch_execute(
         "
         CREATE TABLE IF NOT EXISTS eth_block (
-            number bigint PRIMARY KEY NOT NULL,
+            number bigint PRIMARY KEY DEFERRABLE INITIALLY DEFERRED NOT NULL,
             hash bytea NOT NULL,
             parent_hash bytea NOT NULL,
             nonce bytea NOT NULL,
@@ -868,7 +868,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             v bigint NOT NULL,
             r bytea NOT NULL,
             s bytea NOT NULL,
-            PRIMARY KEY(block_number, transaction_index)
+            PRIMARY KEY(block_number, transaction_index) DEFERRABLE INITIALLY DEFERRED
         );
 
         CREATE TABLE IF NOT EXISTS eth_log (
@@ -884,7 +884,7 @@ async fn init_db(conn: &deadpool_postgres::Object) -> Result<()> {
             topic3 bytea,
             transaction_hash bytea NOT NULL,
             transaction_index bigint NOT NULL,
-            PRIMARY KEY(block_number, log_index)
+            PRIMARY KEY(block_number, log_index) DEFERRABLE INITIALLY DEFERRED
         );
     ",
     )

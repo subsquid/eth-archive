@@ -133,19 +133,20 @@ impl Ingester {
                     let start_time = Instant::now();
 
                     for (blocks, logs) in block_batches.iter().zip(log_batches.iter()) {
-                        let db = db.clone();
-
-                        retry
-                            .retry(move || {
-                                let db = db.clone();
-                                async move {
-                                    db.insert_blocks(blocks, logs)
-                                        .await
-                                        .map_err(Error::InsertBlocks)
-                                }
-                            })
-                            .await
-                            .map_err(Error::Retry)?;
+                        for (blocks, logs) in blocks.chunks(250).zip(logs.chunks(250)) {
+                            let db = db.clone();
+                            retry
+                                .retry(move || {
+                                    let db = db.clone();
+                                    async move {
+                                        db.insert_blocks(blocks, logs)
+                                            .await
+                                            .map_err(Error::InsertBlocks)
+                                    }
+                                })
+                                .await
+                                .map_err(Error::Retry)?;
+                        }
                     }
 
                     log::info!(
