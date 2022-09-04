@@ -22,7 +22,7 @@ pub struct DataCtx {
 
 #[derive(Debug)]
 struct ParquetState {
-    parquet_block_number: u32,
+    parquet_block_number: u64,
     block_ranges: RangeMap,
     tx_ranges: RangeMap,
     log_ranges: RangeMap,
@@ -117,7 +117,7 @@ impl DataCtx {
         })
     }
 
-    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u32)> {
+    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u64)> {
         let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
@@ -143,10 +143,10 @@ impl DataCtx {
 
             let (start, end) = {
                 let start = start
-                    .parse::<u32>()
+                    .parse::<u64>()
                     .map_err(|_| Error::InvalidParquetSubdirectory)?;
                 let end = end
-                    .parse::<u32>()
+                    .parse::<u64>()
                     .map_err(|_| Error::InvalidParquetSubdirectory)?;
 
                 (start, end)
@@ -197,9 +197,6 @@ impl DataCtx {
     }
 
     async fn setup_pruned_session(&self, from_block: u64, to_block: u64) -> Result<SessionContext> {
-        let from_block = from_block as u32;
-        let to_block = to_block as u32;
-
         let range = (from_block, to_block);
 
         let cfg = SessionConfig::new()
@@ -243,7 +240,7 @@ impl DataCtx {
         &self,
         ctx: &mut SessionContext,
         map: &RangeMap,
-        range: (u32, u32),
+        range: (u64, u64),
         table_name: &'static str,
         folder_path: &str,
     ) -> Result<()> {

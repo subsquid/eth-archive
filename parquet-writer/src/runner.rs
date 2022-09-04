@@ -76,9 +76,9 @@ impl ParquetWriterRunner {
                     let new_min = cmp::min(cmp::min(block_block_num, tx_block_num), log_block_num);
 
                     if new_min != prev_min {
-                        let delete_up_to = new_min - config.block_overlap_size;
+                        let delete_up_to = i64::try_from(new_min - config.block_overlap_size).unwrap();
 
-                        if let Err(e) = db.delete_blocks_up_to(delete_up_to as i64).await {
+                        if let Err(e) = db.delete_blocks_up_to(delete_up_to).await {
                             log::error!("failed to delete blocks up to {}:\n{}", delete_up_to, e);
                         }
 
@@ -120,8 +120,8 @@ impl ParquetWriterRunner {
     }
 
     async fn wait_for_next_blocks(&self, waiting_for: usize, step: usize) -> Result<Vec<Block>> {
-        let start = waiting_for as i64;
-        let end = (waiting_for + step) as i64;
+        let start = i64::try_from(waiting_for).unwrap();
+        let end = i64::try_from(waiting_for + step).unwrap();
 
         log::info!("waiting for block {}", end);
 
@@ -162,7 +162,7 @@ impl ParquetWriterRunner {
             for block in blocks.iter() {
                 let transactions = self
                     .db
-                    .get_txs_of_block(block.number.0 as i64)
+                    .get_txs_of_block(block.number.0)
                     .await
                     .map_err(Error::GetTxsFromDb)?;
 
@@ -173,9 +173,11 @@ impl ParquetWriterRunner {
 
             self.block_writer.send((block_range, blocks)).await;
 
+            let from = i64::try_from(block_number).unwrap();
+            let to = i64::try_from(block_number + step).unwrap();
             let logs = self
                 .db
-                .get_logs(block_number as i64, (block_number + step) as i64)
+                .get_logs(from, to)
                 .await
                 .map_err(Error::GetLogsFromDb)?;
 
@@ -291,8 +293,8 @@ impl ParquetWriterRunner {
                     self.transaction_writer
                         .send((
                             BlockRange {
-                                from: block.number.0 as usize,
-                                to: block.number.0 as usize + 1,
+                                from: usize::try_from(block.number.0).unwrap(),
+                                to: usize::try_from(block.number.0 + 1).unwrap(),
                             },
                             transactions,
                         ))

@@ -90,7 +90,8 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 }
 
                 for elem in elems.into_iter() {
-                    if elem.block_num() >= from_block {
+                    let block_num = usize::try_from(elem.block_num()).unwrap();
+                    if block_num >= from_block {
                         row.push(elem).unwrap();
                     }
                 }

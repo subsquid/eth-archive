@@ -3,15 +3,15 @@ use std::collections::BTreeSet;
 use std::ops::Bound::Included;
 use std::ops::Range as StdRange;
 
-type Range = StdRange<u32>;
+type Range = StdRange<u64>;
 
 #[derive(Debug)]
 pub struct RangeMap {
-    inner: BTreeSet<u32>,
+    inner: BTreeSet<u64>,
 }
 
 impl RangeMap {
-    pub fn from_sorted(nums: &[(u32, u32)]) -> Result<Self, ()> {
+    pub fn from_sorted(nums: &[(u64, u64)]) -> Result<Self, ()> {
         let mut inner = BTreeSet::new();
 
         inner.insert(0);

@@ -119,7 +119,7 @@ impl AddressQuery {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
-    pub parquet_block_number: u32,
+    pub parquet_block_number: u64,
     pub db_max_block_number: usize,
     pub db_min_block_number: usize,
 }

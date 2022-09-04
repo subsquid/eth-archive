@@ -432,23 +432,23 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
 }
 
 pub trait BlockNum {
-    fn block_num(&self) -> usize;
+    fn block_num(&self) -> i64;
 }
 
 impl BlockNum for Block {
-    fn block_num(&self) -> usize {
-        self.number.0 as usize
+    fn block_num(&self) -> i64 {
+        self.number.0
     }
 }
 
 impl BlockNum for Transaction {
-    fn block_num(&self) -> usize {
-        self.block_number.0 as usize
+    fn block_num(&self) -> i64 {
+        self.block_number.0
     }
 }
 
 impl BlockNum for Log {
-    fn block_num(&self) -> usize {
-        self.block_number.0 as usize
+    fn block_num(&self) -> i64 {
+        self.block_number.0
     }
 }
