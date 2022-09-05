@@ -58,11 +58,11 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 }
                 writer.end(None).unwrap();
 
+                writer.into_inner().sync_all().unwrap();
+
                 let mut final_path = cfg.path.clone();
                 final_path.push(format!("{}.parquet", &file_name));
                 fs::rename(&temp_path, final_path).unwrap();
-
-                writer.into_inner().sync_all().unwrap();
 
                 log::info!(
                     "wrote {}s {}-{} to parquet file in {}ms",
