@@ -58,7 +58,10 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 }
                 writer.end(None).unwrap();
 
-                writer.into_inner().sync_all().unwrap();
+                let file = writer.into_inner();
+
+                file.sync_all().unwrap();
+                mem::drop(file);
 
                 let mut final_path = cfg.path.clone();
                 final_path.push(format!("{}.parquet", &file_name));
