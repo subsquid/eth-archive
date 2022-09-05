@@ -125,6 +125,8 @@ impl Ingester {
 
         let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(2);
 
+        let insert_batch_size = self.cfg.block_insert_batch_size;
+
         let write_task = tokio::spawn({
             let db = self.db.clone();
             let retry = self.retry;
@@ -133,7 +135,10 @@ impl Ingester {
                     let start_time = Instant::now();
 
                     for (blocks, logs) in block_batches.iter().zip(log_batches.iter()) {
-                        for (blocks, logs) in blocks.chunks(250).zip(logs.chunks(250)) {
+                        for (blocks, logs) in blocks
+                            .chunks(insert_batch_size)
+                            .zip(logs.chunks(insert_batch_size))
+                        {
                             let db = db.clone();
                             retry
                                 .retry(move || {

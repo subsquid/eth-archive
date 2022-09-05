@@ -1,5 +1,6 @@
 block_window_size = 300000
 block_depth_offset = 20
+block_insert_batch_size = 250
 
 [retry]
 secs_between_tries = 3
