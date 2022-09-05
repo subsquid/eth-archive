@@ -76,7 +76,8 @@ impl ParquetWriterRunner {
                     let new_min = cmp::min(cmp::min(block_block_num, tx_block_num), log_block_num);
 
                     if new_min != prev_min {
-                        let delete_up_to = i64::try_from(new_min - config.block_overlap_size).unwrap();
+                        let block_num = new_min - config.block_overlap_size;
+                        let delete_up_to = i64::try_from(block_num).unwrap();
 
                         if let Err(e) = db.delete_blocks_up_to(delete_up_to).await {
                             log::error!("failed to delete blocks up to {}:\n{}", delete_up_to, e);

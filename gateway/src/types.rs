@@ -8,8 +8,8 @@ use std::fmt::Write;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryLogs {
-    pub from_block: u64,
-    pub to_block: u64,
+    pub from_block: u32,
+    pub to_block: u32,
     pub addresses: Vec<AddressQuery>,
     pub field_selection: FieldSelection,
 }
@@ -119,7 +119,7 @@ impl AddressQuery {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
-    pub parquet_block_number: u64,
+    pub parquet_block_number: u32,
     pub db_max_block_number: usize,
     pub db_min_block_number: usize,
 }

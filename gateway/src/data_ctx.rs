@@ -22,7 +22,7 @@ pub struct DataCtx {
 
 #[derive(Debug)]
 struct ParquetState {
-    parquet_block_number: u64,
+    parquet_block_number: u32,
     block_ranges: RangeMap,
     tx_ranges: RangeMap,
     log_ranges: RangeMap,
@@ -117,7 +117,7 @@ impl DataCtx {
         })
     }
 
-    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u64)> {
+    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u32)> {
         let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
@@ -143,10 +143,10 @@ impl DataCtx {
 
             let (start, end) = {
                 let start = start
-                    .parse::<u64>()
+                    .parse::<u32>()
                     .map_err(|_| Error::InvalidParquetSubdirectory)?;
                 let end = end
-                    .parse::<u64>()
+                    .parse::<u32>()
                     .map_err(|_| Error::InvalidParquetSubdirectory)?;
 
                 (start, end)
@@ -180,7 +180,7 @@ impl DataCtx {
 
         let parquet_block_number = self.parquet_state.read().await.parquet_block_number;
 
-        if u64::from(parquet_block_number) >= query.to_block {
+        if parquet_block_number >= query.to_block {
             self.query_parquet(query).await
         } else {
             let start_time = Instant::now();
@@ -196,7 +196,7 @@ impl DataCtx {
         }
     }
 
-    async fn setup_pruned_session(&self, from_block: u64, to_block: u64) -> Result<SessionContext> {
+    async fn setup_pruned_session(&self, from_block: u32, to_block: u32) -> Result<SessionContext> {
         let range = (from_block, to_block);
 
         let cfg = SessionConfig::new()
@@ -240,7 +240,7 @@ impl DataCtx {
         &self,
         ctx: &mut SessionContext,
         map: &RangeMap,
-        range: (u64, u64),
+        range: (u32, u32),
         table_name: &'static str,
         folder_path: &str,
     ) -> Result<()> {

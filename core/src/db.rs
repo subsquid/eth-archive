@@ -326,8 +326,8 @@ impl DbHandle {
             .flat_map(|b| b.transactions.iter())
             .collect::<Vec<_>>();
 
-        let chunk_size = 2000;
         if !transactions.is_empty() {
+            let chunk_size = usize::try_from(i16::MAX / 16).unwrap();
             for chunk in transactions.chunks(chunk_size) {
                 let transaction_query = format!(
                     "
@@ -445,6 +445,7 @@ impl DbHandle {
         }
 
         if !logs.is_empty() {
+            let chunk_size = usize::try_from(i16::MAX / 12).unwrap();
             for chunk in logs.chunks(chunk_size) {
                 let log_query = format!(
                     "
