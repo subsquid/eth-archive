@@ -8,8 +8,8 @@ use std::fmt::Write;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryLogs {
-    pub from_block: u64,
-    pub to_block: u64,
+    pub from_block: u32,
+    pub to_block: u32,
     pub addresses: Vec<AddressQuery>,
     pub field_selection: FieldSelection,
 }

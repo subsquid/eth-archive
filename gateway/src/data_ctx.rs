@@ -180,7 +180,7 @@ impl DataCtx {
 
         let parquet_block_number = self.parquet_state.read().await.parquet_block_number;
 
-        if u64::from(parquet_block_number) >= query.to_block {
+        if parquet_block_number >= query.to_block {
             self.query_parquet(query).await
         } else {
             let start_time = Instant::now();
@@ -196,10 +196,7 @@ impl DataCtx {
         }
     }
 
-    async fn setup_pruned_session(&self, from_block: u64, to_block: u64) -> Result<SessionContext> {
-        let from_block = from_block as u32;
-        let to_block = to_block as u32;
-
+    async fn setup_pruned_session(&self, from_block: u32, to_block: u32) -> Result<SessionContext> {
         let range = (from_block, to_block);
 
         let cfg = SessionConfig::new()

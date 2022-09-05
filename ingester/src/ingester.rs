@@ -93,7 +93,7 @@ impl Ingester {
     async fn wait_and_insert_block(&self, block: Block, logs: Vec<Log>) -> Result<()> {
         log::info!("waiting for parquet writer to delete tail...");
 
-        let block_number = block.number.0 as usize;
+        let block_number = usize::try_from(block.number.0).unwrap();
 
         loop {
             let min_block_number = self

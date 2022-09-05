@@ -177,7 +177,7 @@ impl DbHandle {
             None => return Ok(None),
         };
         match row.get::<_, Option<i64>>(0) {
-            Some(num) => Ok(Some(num as usize)),
+            Some(num) => Ok(Some(usize::try_from(num).unwrap())),
             None => Ok(None),
         }
     }
@@ -194,7 +194,7 @@ impl DbHandle {
             None => return Ok(None),
         };
         match row.get::<_, Option<i64>>(0) {
-            Some(num) => Ok(Some(num as usize)),
+            Some(num) => Ok(Some(usize::try_from(num).unwrap())),
             None => Ok(None),
         }
     }
@@ -327,7 +327,8 @@ impl DbHandle {
             .collect::<Vec<_>>();
 
         if !transactions.is_empty() {
-            for chunk in transactions.chunks(i16::MAX as usize / 16) {
+            let chunk_size = usize::try_from(i16::MAX / 16).unwrap();
+            for chunk in transactions.chunks(chunk_size) {
                 let transaction_query = format!(
                     "
                 INSERT INTO eth_tx (
@@ -444,7 +445,8 @@ impl DbHandle {
         }
 
         if !logs.is_empty() {
-            for chunk in logs.chunks(i16::MAX as usize / 12) {
+            let chunk_size = usize::try_from(i16::MAX / 12).unwrap();
+            for chunk in logs.chunks(chunk_size) {
                 let log_query = format!(
                     "
             INSERT INTO eth_log (
