@@ -41,6 +41,13 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
                 let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
 
+                log::info!(
+                    "starting to write {}s {}-{} to parquet file",
+                    &cfg.name,
+                    block_range.from,
+                    block_range.to,
+                );
+
                 let mut temp_path = cfg.path.clone();
                 temp_path.push(format!("{}.temp", &file_name));
                 let file = fs::File::create(&temp_path).unwrap();

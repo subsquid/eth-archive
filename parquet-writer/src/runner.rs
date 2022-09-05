@@ -264,6 +264,12 @@ impl ParquetWriterRunner {
 
             let start_time = Instant::now();
 
+            log::info!(
+                "starting to download blocks {}-{}",
+                block_num,
+                cmp::min(block_num + step, to_block),
+            );
+
             let block_batches = self
                 .eth_client
                 .clone()
