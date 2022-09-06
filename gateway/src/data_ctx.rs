@@ -189,8 +189,6 @@ impl DataCtx {
 
             let build_query = start_time.elapsed().as_millis();
 
-            println!("{}", query);
-
             self.db
                 .raw_query(build_query, &query)
                 .await
