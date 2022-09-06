@@ -13,7 +13,6 @@ pub struct QueryLogs {
     pub to_block: u32,
     pub addresses: Vec<AddressQuery>,
     pub field_selection: FieldSelection,
-    pub sighash: Option<Bytes32>,
 }
 
 impl QueryLogs {
@@ -31,15 +30,6 @@ impl QueryLogs {
             self.to_block,
             self.from_block,
         );
-
-        if let Some(ref addr) = self.sighash {
-            write!(
-                &mut query,
-                "AND encode(eth_tx.input, 'hex') ILIKE '{}%'",
-                prefix_hex::encode(&*addr.0).strip_prefix("0x").unwrap()
-            )
-            .unwrap();
-        }
 
         if !self.addresses.is_empty() {
             query += "AND (";
@@ -63,6 +53,7 @@ impl QueryLogs {
 pub struct AddressQuery {
     pub address: Address,
     pub topics: Vec<Vec<Bytes32>>,
+    pub sighashes: Vec<Bytes32>,
 }
 
 impl AddressQuery {
@@ -78,6 +69,21 @@ impl AddressQuery {
                 let topic = topic.iter().map(|topic| lit(topic.to_vec())).collect();
                 expr = expr.and(col(&format!("log.topic{}", i)).in_list(topic, false));
             }
+        }
+
+        if !self.sighashes.is_empty() {
+            let mut sighashes = self.sighashes.iter();
+
+            let sighash_to_expr =
+                |sighash: &Bytes32| starts_with(col("tx.input"), lit(sighash.to_vec()));
+
+            let mut filter_expr = sighash_to_expr(sighashes.next().unwrap());
+
+            for sighash in sighashes {
+                filter_expr = filter_expr.or(sighash_to_expr(sighash));
+            }
+
+            expr = expr.and(filter_expr);
         }
 
         Ok(expr)
@@ -109,6 +115,21 @@ impl AddressQuery {
                     .join(", ");
                 write!(&mut sql, " AND eth_log.topic{} IN ({})", i, topics).unwrap();
             }
+        }
+
+        if !self.sighashes.is_empty() {
+            let sighashes = self
+                .sighashes
+                .iter()
+                .map(|sighash| {
+                    let sighash = prefix_hex::encode(&*sighash.0);
+                    let sighash = sighash.strip_prefix("0x").unwrap();
+                    format!("encode(eth_tx.input, 'hex') ILIKE '{}%'", sighash)
+                })
+                .collect::<Vec<String>>()
+                .join(" OR ");
+
+            write!(&mut sql, " AND ({})", sighashes).unwrap();
         }
 
         sql.push(')');

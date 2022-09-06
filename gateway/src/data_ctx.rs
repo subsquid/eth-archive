@@ -189,6 +189,8 @@ impl DataCtx {
 
             let build_query = start_time.elapsed().as_millis();
 
+            println!("{}", query);
+
             self.db
                 .raw_query(build_query, &query)
                 .await
@@ -338,12 +340,6 @@ impl DataCtx {
                     .and(col("log.block_number").lt(lit(query.to_block))),
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
-
-        if let Some(ref addr) = query.sighash {
-            data_frame = data_frame
-                .filter(starts_with(col("tx.input"), lit(addr.to_vec())))
-                .map_err(Error::ApplySigHashFilter)?;
-        }
 
         if !query.addresses.is_empty() {
             let mut addresses = query.addresses;
