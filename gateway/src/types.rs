@@ -35,7 +35,7 @@ impl QueryLogs {
         if let Some(ref addr) = self.sighash {
             write!(
                 &mut query,
-                "AND eth_tx.input LIKE '{}%'",
+                "AND encode(eth_tx.input, 'hex') ILIKE '{}%'",
                 prefix_hex::encode(&*addr.0).strip_prefix("0x").unwrap()
             )
             .unwrap();
@@ -101,10 +101,9 @@ impl AddressQuery {
                 let topics = topic
                     .iter()
                     .map(|topic| {
-                        prefix_hex::encode(&*topic.0)
-                            .strip_prefix("0x")
-                            .unwrap()
-                            .to_owned()
+                        let topic = prefix_hex::encode(&*topic.0);
+                        let topic = topic.strip_prefix("0x").unwrap();
+                        format!("decode('{}', 'hex')", topic)
                     })
                     .collect::<Vec<String>>()
                     .join(", ");
