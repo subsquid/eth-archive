@@ -56,10 +56,6 @@ pub enum Error {
     InvalidBlockRange,
     #[error("failed to concatenate arrow data in memory:\n{0}")]
     ConcatRecordBatches(arrow::error::ArrowError),
-    #[error("invalid address in query")]
-    InvalidAddress,
-    #[error("invalid topic in query")]
-    InvalidTopic,
     #[error("block range {0:?} not found in {1} parquet files")]
     RangeNotFoundInParquetFiles((u32, u32), &'static str),
     #[error("too many toics in query. maximum is 4 but got {0}")]
