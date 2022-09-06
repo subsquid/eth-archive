@@ -1,6 +1,7 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use datafusion::prelude::*;
+use eth_archive_core::deserialize::{Address, Bytes32};
 use eth_archive_core::types::{QueryMetrics, ResponseRow};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
@@ -12,6 +13,7 @@ pub struct QueryLogs {
     pub to_block: u32,
     pub addresses: Vec<AddressQuery>,
     pub field_selection: FieldSelection,
+    pub sighash: Option<Bytes32>,
 }
 
 impl QueryLogs {
@@ -29,6 +31,15 @@ impl QueryLogs {
             self.to_block,
             self.from_block,
         );
+
+        if let Some(ref addr) = self.sighash {
+            write!(
+                &mut query,
+                "AND eth_tx.input LIKE '{}%'",
+                prefix_hex::encode(&*addr.0).strip_prefix("0x").unwrap()
+            )
+            .unwrap();
+        }
 
         if !self.addresses.is_empty() {
             query += "AND (";
@@ -50,16 +61,13 @@ impl QueryLogs {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddressQuery {
-    pub address: String,
-    pub topics: Vec<Vec<String>>,
+    pub address: Address,
+    pub topics: Vec<Vec<Bytes32>>,
 }
 
 impl AddressQuery {
     pub fn to_expr(&self) -> Result<Expr> {
-        let address =
-            prefix_hex::decode::<Vec<u8>>(&self.address).map_err(Error::InvalidHexInAddress)?;
-
-        let mut expr = col("log.address").eq(lit(address));
+        let mut expr = col("log.address").eq(lit(self.address.0.to_vec()));
 
         if self.topics.len() > 4 {
             return Err(Error::TooManyTopics(self.topics.len()));
@@ -67,13 +75,7 @@ impl AddressQuery {
 
         for (i, topic) in self.topics.iter().enumerate() {
             if !topic.is_empty() {
-                let topic = topic
-                    .iter()
-                    .map(|topic| {
-                        Ok(lit(prefix_hex::decode::<Vec<u8>>(topic)
-                            .map_err(Error::InvalidHexInTopic)?))
-                    })
-                    .collect::<Result<_>>()?;
+                let topic = topic.iter().map(|topic| lit(topic.to_vec())).collect();
                 expr = expr.and(col(&format!("log.topic{}", i)).in_list(topic, false));
             }
         }
@@ -85,9 +87,9 @@ impl AddressQuery {
         let mut sql = format!(
             "(
             eth_log.address = decode('{}', 'hex')",
-            self.address
+            prefix_hex::encode(&*self.address.0)
                 .strip_prefix("0x")
-                .ok_or(Error::InvalidAddress)?
+                .unwrap()
         );
 
         if self.topics.len() > 4 {
@@ -99,12 +101,12 @@ impl AddressQuery {
                 let topics = topic
                     .iter()
                     .map(|topic| {
-                        topic
+                        prefix_hex::encode(&*topic.0)
                             .strip_prefix("0x")
-                            .map(|topic| format!("decode('{}', 'hex')", topic))
-                            .ok_or(Error::InvalidTopic)
+                            .unwrap()
+                            .to_owned()
                     })
-                    .collect::<Result<Vec<String>>>()?
+                    .collect::<Vec<String>>()
                     .join(", ");
                 write!(&mut sql, " AND eth_log.topic{} IN ({})", i, topics).unwrap();
             }

@@ -30,6 +30,8 @@ pub enum Error {
     ApplyAddrFilters(datafusion::error::DataFusionError),
     #[error("failed to apply block range filter to query:\n{0}")]
     ApplyBlockRangeFilter(datafusion::error::DataFusionError),
+    #[error("failed to apply sighash filter to query:\n{0}")]
+    ApplySigHashFilter(datafusion::error::DataFusionError),
     #[error("failed to run http server:\n{0}")]
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]

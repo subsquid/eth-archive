@@ -339,6 +339,12 @@ impl DataCtx {
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
 
+        if let Some(ref addr) = query.sighash {
+            data_frame = data_frame
+                .filter(starts_with(col("tx.input"), lit(addr.to_vec())))
+                .map_err(Error::ApplySigHashFilter)?;
+        }
+
         if !query.addresses.is_empty() {
             let mut addresses = query.addresses;
 
