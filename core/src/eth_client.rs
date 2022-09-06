@@ -1,8 +1,10 @@
+use crate::config::IngestConfig;
 use crate::error::{Error, Result};
 use crate::eth_request::{EthRequest, GetBestBlock};
 use crate::retry::Retry;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub struct EthClient {
     http_client: reqwest::Client,
@@ -10,15 +12,20 @@ pub struct EthClient {
 }
 
 impl EthClient {
-    pub fn new(rpc_url: url::Url) -> Result<EthClient> {
+    pub fn new(config: &IngestConfig) -> Result<EthClient> {
+        let request_timeout = Duration::from_secs(config.request_timeout_secs.get());
+        let connect_timeout = Duration::from_millis(config.connect_timeout_ms.get());
+
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)
+            .timeout(request_timeout)
+            .connect_timeout(connect_timeout)
             .build()
             .map_err(Error::BuildHttpClient)?;
 
         Ok(EthClient {
             http_client,
-            rpc_url,
+            rpc_url: config.eth_rpc_url.clone(),
         })
     }
 

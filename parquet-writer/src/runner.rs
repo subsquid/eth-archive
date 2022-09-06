@@ -44,8 +44,7 @@ impl ParquetWriterRunner {
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
 
-        let eth_client =
-            EthClient::new(config.ingest.eth_rpc_url.clone()).map_err(Error::CreateEthClient)?;
+        let eth_client = EthClient::new(&config.ingest).map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
         let (block_delete_tx, mut block_delete_rx) = mpsc::unbounded_channel();
