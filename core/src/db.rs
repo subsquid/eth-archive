@@ -5,9 +5,11 @@ use crate::types::{
     ResponseTransaction, Transaction,
 };
 use crate::{Error, Result};
-use deadpool_postgres::Pool;
+use deadpool_postgres::{Pool, Transaction as DbTransaction};
 use std::time::Instant;
 use tokio_postgres::types::ToSql;
+
+type Params<'a> = Vec<&'a (dyn ToSql + Sync)>;
 
 pub struct DbHandle {
     pool: Pool,
@@ -199,7 +201,7 @@ impl DbHandle {
         }
     }
 
-    pub async fn insert_blocks(&self, blocks: &[Block], logs: &[Log]) -> Result<()> {
+    pub async fn insert_blocks_data(&self, blocks: &[Block], logs: &[Log]) -> Result<()> {
         let mut conn = self.get_conn().await?;
 
         let tx = conn
@@ -207,10 +209,34 @@ impl DbHandle {
             .await
             .map_err(Error::CreateDbTransaction)?;
 
-        let mut block_params: Vec<&(dyn ToSql + Sync)> = Vec::with_capacity(blocks.len() * 17);
+        self.insert_blocks(blocks, &tx).await?;
 
-        for block in blocks.iter() {
-            block_params.extend_from_slice(&[
+        let transactions = blocks
+            .iter()
+            .flat_map(|b| b.transactions.iter())
+            .collect::<Vec<_>>();
+        let chunk_size = usize::try_from(i16::MAX / 16).unwrap();
+        for chunk in transactions.chunks(chunk_size) {
+            self.insert_transactions(chunk, &tx).await?;
+        }
+
+        let chunk_size = usize::try_from(i16::MAX / 12).unwrap();
+        for chunk in logs.chunks(chunk_size) {
+            self.insert_logs(chunk, &tx).await?;
+        }
+
+        tx.commit().await.map_err(Error::CommitDbTx)?;
+
+        Ok(())
+    }
+
+    async fn insert_blocks(&self, blocks: &[Block], tx: &DbTransaction<'_>) -> Result<()> {
+        let columns_count = 17;
+        let mut params: Params = Vec::with_capacity(blocks.len() * columns_count);
+        let mut placeholders = Vec::with_capacity(blocks.len());
+
+        for (idx, block) in blocks.iter().enumerate() {
+            params.extend_from_slice(&[
                 &block.number,
                 &block.hash,
                 &block.parent_hash,
@@ -229,11 +255,16 @@ impl DbHandle {
                 &block.gas_used,
                 &block.timestamp,
             ]);
+            let start = idx * columns_count + 1;
+            let mut placeholder = Vec::with_capacity(columns_count);
+            for num in start..start + columns_count {
+                placeholder.push(format!("${}", num));
+            }
+            placeholders.push(format!("({})", placeholder.join(", ")));
         }
 
-        let block_query = format!(
-            "
-            INSERT INTO eth_block (
+        let query = format!(
+            "INSERT INTO eth_block (
                 number,
                 hash,
                 parent_hash,
@@ -251,306 +282,140 @@ impl DbHandle {
                 gas_limit,
                 gas_used,
                 timestamp
-            ) VALUES (
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7,
-                $8,
-                $9,
-                $10,
-                $11,
-                $12,
-                $13,
-                $14,
-                $15,
-                $16,
-                $17
-            ) {};
-        ",
-            (1..blocks.len())
-                .map(|i| {
-                    let i = i * 17;
-
-                    format!(
-                        ", (
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${},
-                ${}
-            )",
-                        i + 1,
-                        i + 2,
-                        i + 3,
-                        i + 4,
-                        i + 5,
-                        i + 6,
-                        i + 7,
-                        i + 8,
-                        i + 9,
-                        i + 10,
-                        i + 11,
-                        i + 12,
-                        i + 13,
-                        i + 14,
-                        i + 15,
-                        i + 16,
-                        i + 17
-                    )
-                })
-                .fold(String::new(), |a, b| a + &b)
+            ) VALUES {}",
+            &placeholders.join(", ")
         );
 
-        tx.execute(&block_query, &block_params)
+        tx.execute(&query, &params)
             .await
             .map_err(Error::InsertBlocks)?;
+        Ok(())
+    }
 
-        let transactions = blocks
-            .iter()
-            .flat_map(|b| b.transactions.iter())
-            .collect::<Vec<_>>();
+    async fn insert_transactions(
+        &self,
+        transactions: &[&Transaction],
+        tx: &DbTransaction<'_>,
+    ) -> Result<()> {
+        let columns_count = 16;
+        let mut params: Params = Vec::with_capacity(transactions.len() * columns_count);
+        let mut placeholders = Vec::with_capacity(transactions.len());
 
-        if !transactions.is_empty() {
-            let chunk_size = usize::try_from(i16::MAX / 16).unwrap();
-            for chunk in transactions.chunks(chunk_size) {
-                let transaction_query = format!(
-                    "
-                INSERT INTO eth_tx (
-                        block_hash,
-                        block_number,
-                        source,
-                        gas,
-                        gas_price,
-                        hash,
-                        input,
-                        nonce,
-                        dest,
-                        transaction_index,
-                        value,
-                        kind,
-                        chain_id,
-                        v,
-                        r,
-                        s
-                    ) VALUES (
-                        $1,
-                        $2,
-                        $3,
-                        $4,
-                        $5,
-                        $6,
-                        $7,
-                        $8,
-                        $9,
-                        $10,
-                        $11,
-                        $12,
-                        $13,
-                        $14,
-                        $15,
-                        $16
-                    ) {};
-        ",
-                    (1..chunk.len())
-                        .map(|i| {
-                            let i = i * 16;
-
-                            format!(
-                                ", (
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${},
-                            ${}
-                        )",
-                                i + 1,
-                                i + 2,
-                                i + 3,
-                                i + 4,
-                                i + 5,
-                                i + 6,
-                                i + 7,
-                                i + 8,
-                                i + 9,
-                                i + 10,
-                                i + 11,
-                                i + 12,
-                                i + 13,
-                                i + 14,
-                                i + 15,
-                                i + 16
-                            )
-                        })
-                        .fold(String::new(), |a, b| a + &b)
-                );
-
-                let transaction_params = chunk
-                    .iter()
-                    .map(|transaction| -> [&(dyn ToSql + Sync); 16] {
-                        [
-                            &transaction.block_hash,
-                            &transaction.block_number,
-                            &transaction.source,
-                            &transaction.gas,
-                            &transaction.gas_price,
-                            &transaction.hash,
-                            &transaction.input,
-                            &transaction.nonce,
-                            &transaction.dest,
-                            &transaction.transaction_index,
-                            &transaction.value,
-                            &transaction.kind,
-                            &transaction.chain_id,
-                            &transaction.v,
-                            &transaction.r,
-                            &transaction.s,
-                        ]
-                    })
-                    .fold(Vec::with_capacity(chunk.len() * 16), |mut a, b| {
-                        a.extend_from_slice(&b);
-                        a
-                    });
-
-                tx.execute(&transaction_query, &transaction_params)
-                    .await
-                    .map_err(Error::InsertTransactions)?;
+        for (idx, transaction) in transactions.iter().enumerate() {
+            params.extend_from_slice(&[
+                &transaction.block_hash,
+                &transaction.block_number,
+                &transaction.source,
+                &transaction.gas,
+                &transaction.gas_price,
+                &transaction.hash,
+                &transaction.input,
+                &transaction.nonce,
+                &transaction.dest,
+                &transaction.transaction_index,
+                &transaction.value,
+                &transaction.kind,
+                &transaction.chain_id,
+                &transaction.v,
+                &transaction.r,
+                &transaction.s,
+            ]);
+            let start = idx * columns_count + 1;
+            let mut placeholder = Vec::with_capacity(columns_count);
+            for num in start..start + columns_count {
+                placeholder.push(format!("${}", num));
             }
+            placeholders.push(format!("({})", placeholder.join(", ")));
         }
 
-        if !logs.is_empty() {
-            let chunk_size = usize::try_from(i16::MAX / 12).unwrap();
-            for chunk in logs.chunks(chunk_size) {
-                let log_query = format!(
-                    "
-            INSERT INTO eth_log (
-                    address,
-                    block_hash,
-                    block_number,
-                    data,
-                    log_index,
-                    removed,
-                    topic0,
-                    topic1,
-                    topic2,
-                    topic3,
-                    transaction_hash,
-                    transaction_index
-                ) VALUES (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12
-                ) {};
-    ",
-                    (1..chunk.len())
-                        .map(|i| {
-                            let i = i * 12;
+        let query = format!(
+            "INSERT INTO eth_tx (
+                block_hash,
+                block_number,
+                source,
+                gas,
+                gas_price,
+                hash,
+                input,
+                nonce,
+                dest,
+                transaction_index,
+                value,
+                kind,
+                chain_id,
+                v,
+                r,
+                s
+            ) VALUES {}",
+            &placeholders.join(", ")
+        );
 
-                            format!(
-                                ", (
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${},
-                        ${}
-                    )",
-                                i + 1,
-                                i + 2,
-                                i + 3,
-                                i + 4,
-                                i + 5,
-                                i + 6,
-                                i + 7,
-                                i + 8,
-                                i + 9,
-                                i + 10,
-                                i + 11,
-                                i + 12,
-                            )
-                        })
-                        .fold(String::new(), |a, b| a + &b)
-                );
+        tx.execute(&query, &params)
+            .await
+            .map_err(Error::InsertTransactions)?;
 
-                let mut temp_topics = Vec::with_capacity(4 * chunk.len());
+        Ok(())
+    }
 
-                for log in chunk.iter() {
-                    temp_topics.push(log.topics.get(0));
-                    temp_topics.push(log.topics.get(1));
-                    temp_topics.push(log.topics.get(2));
-                    temp_topics.push(log.topics.get(3));
-                }
+    async fn insert_logs(&self, logs: &[Log], tx: &DbTransaction<'_>) -> Result<()> {
+        let columns_count = 12;
+        let mut params: Params = Vec::with_capacity(logs.len() * columns_count);
+        let mut placeholders = Vec::with_capacity(logs.len());
 
-                let mut log_params: Vec<&(dyn ToSql + Sync)> = Vec::with_capacity(chunk.len() * 12);
-
-                for (i, log) in chunk.iter().enumerate() {
-                    let idx = i * 4;
-
-                    log_params.extend_from_slice(&[
-                        &log.address,
-                        &log.block_hash,
-                        &log.block_number,
-                        &log.data,
-                        &log.log_index,
-                        &log.removed,
-                        &temp_topics[idx],
-                        &temp_topics[idx + 1],
-                        &temp_topics[idx + 2],
-                        &temp_topics[idx + 3],
-                        &log.transaction_hash,
-                        &log.transaction_index,
-                    ]);
-                }
-
-                tx.execute(&log_query, &log_params)
-                    .await
-                    .map_err(Error::InsertLogs)?;
-            }
+        let topics_count = 4;
+        let mut topics = Vec::with_capacity(topics_count * logs.len());
+        for log in logs.iter() {
+            topics.push(log.topics.get(0));
+            topics.push(log.topics.get(1));
+            topics.push(log.topics.get(2));
+            topics.push(log.topics.get(3));
         }
 
-        tx.commit().await.map_err(Error::CommitDbTx)?;
+        for (idx, log) in logs.iter().enumerate() {
+            let topics_index = idx * topics_count;
+            params.extend_from_slice(&[
+                &log.address,
+                &log.block_hash,
+                &log.block_number,
+                &log.data,
+                &log.log_index,
+                &log.removed,
+                &topics[topics_index],
+                &topics[topics_index + 1],
+                &topics[topics_index + 2],
+                &topics[topics_index + 3],
+                &log.transaction_hash,
+                &log.transaction_index,
+            ]);
+            let start = idx * columns_count + 1;
+            let mut placeholder = Vec::with_capacity(columns_count);
+            for num in start..start + columns_count {
+                placeholder.push(format!("${}", num));
+            }
+            placeholders.push(format!("({})", placeholder.join(", ")));
+        }
 
+        let query = format!(
+            "INSERT INTO eth_log (
+                address,
+                block_hash,
+                block_number,
+                data,
+                log_index,
+                removed,
+                topic0,
+                topic1,
+                topic2,
+                topic3,
+                transaction_hash,
+                transaction_index
+            ) VALUES {}",
+            &placeholders.join(", ")
+        );
+
+        tx.execute(&query, &params)
+            .await
+            .map_err(Error::InsertLogs)?;
         Ok(())
     }
 
