@@ -16,6 +16,7 @@ thiserror = "1.0"
 log = "0.4"
 env_logger = "0.9"
 clap = { version = "3", features = ["derive"] }
+itertools = "0.10.3"
 
 eth-archive-core = { path = "../core" }
 

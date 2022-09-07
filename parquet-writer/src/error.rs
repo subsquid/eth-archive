@@ -35,6 +35,10 @@ pub enum Error {
     GetTxsFromDb(eth_archive_core::Error),
     #[error("failed to get logs from database:\n{0}")]
     GetLogsFromDb(eth_archive_core::Error),
+    #[error("invalid parquet file name \"{0}\"")]
+    InvalidParquetFilename(String),
+    #[error("failed to read parquet file name")]
+    ReadParquetFileName,
 }
 
 pub type Result<T> = StdResult<T, Error>;
