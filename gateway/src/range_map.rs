@@ -1,3 +1,4 @@
+use crate::{Error, Result};
 use itertools::Itertools;
 use std::collections::BTreeSet;
 use std::ops::Bound::Included;
@@ -11,14 +12,14 @@ pub struct RangeMap {
 }
 
 impl RangeMap {
-    pub fn from_sorted(nums: &[(u32, u32)]) -> Result<Self, ()> {
+    pub fn from_sorted(nums: &[(u32, u32)]) -> Result<Self> {
         let mut inner = BTreeSet::new();
 
         inner.insert(0);
 
         for &(start, end) in nums.iter() {
             if !inner.contains(&start) {
-                return Err(());
+                return Err(Error::MissingEntryInSortedRanges(start));
             }
 
             inner.insert(end);
