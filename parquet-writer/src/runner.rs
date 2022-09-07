@@ -159,29 +159,33 @@ impl ParquetWriterRunner {
                 to: block_number + step,
             };
 
-            for block in blocks.iter() {
-                let transactions = self
+            self.block_writer.send((block_range, blocks)).await;
+
+            const STEP: usize = 100;
+            for from in (block_range.from..block_range.to).step_by(STEP) {
+                let to = cmp::min(block_range.to, from + STEP);
+
+                let block_range = BlockRange { from, to };
+
+                let from = i64::try_from(from).unwrap();
+                let to = i64::try_from(to).unwrap();
+
+                let txs = self
                     .db
-                    .get_txs_of_block(block.number.0)
+                    .get_txs(from, to)
                     .await
                     .map_err(Error::GetTxsFromDb)?;
 
-                self.transaction_writer
-                    .send((block_range, transactions))
-                    .await;
+                self.transaction_writer.send((block_range, txs)).await;
+
+                let logs = self
+                    .db
+                    .get_logs(from, to)
+                    .await
+                    .map_err(Error::GetLogsFromDb)?;
+
+                self.log_writer.send((block_range, logs)).await;
             }
-
-            self.block_writer.send((block_range, blocks)).await;
-
-            let from = i64::try_from(block_number).unwrap();
-            let to = i64::try_from(block_number + step).unwrap();
-            let logs = self
-                .db
-                .get_logs(from, to)
-                .await
-                .map_err(Error::GetLogsFromDb)?;
-
-            self.log_writer.send((block_range, logs)).await;
 
             log::info!(
                 "sent blocks {}-{} to writer",

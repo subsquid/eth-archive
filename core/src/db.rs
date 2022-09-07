@@ -491,7 +491,7 @@ impl DbHandle {
         Ok(blocks)
     }
 
-    pub async fn get_txs_of_block(&self, block_number: i64) -> Result<Vec<Transaction>> {
+    pub async fn get_txs(&self, from: i64, to: i64) -> Result<Vec<Transaction>> {
         let rows = self
             .get_conn()
             .await?
@@ -514,8 +514,8 @@ impl DbHandle {
                     r,
                     s
                 from eth_tx
-                WHERE block_number = $1;",
-                &[&block_number],
+                WHERE block_number >= $1 AND block_number < $2;",
+                &[&from, &to],
             )
             .await
             .map_err(Error::DbQuery)?;
