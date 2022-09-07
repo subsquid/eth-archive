@@ -29,7 +29,7 @@ name = "tx"
 path = "data/tx"
 items_per_file = 65536
 items_per_row_group = 512
-channel_size = 65536
+channel_size = 3072
 
 [log]
 name = "log"
