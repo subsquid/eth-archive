@@ -135,7 +135,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
     }
 
     fn get_start_block<P: AsRef<Path>>(path: P, prefix: &str) -> Result<usize> {
-        let dir = fs::read_dir(path).map_err(Error::ReadParquetDir)?;
+        let dir = fs::read_dir(&path).map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
         let mut max_block_num = 0;
@@ -176,8 +176,16 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
         ranges.sort_by_key(|r| r.start);
 
-        for (r1, r2) in ranges.iter().tuple_windows() {
+        for ((_, r1), (i, r2)) in ranges.iter().enumerate().tuple_windows() {
+            // check for a gap
             if r1.end != r2.start {
+                // delete files that come after the gap
+                for range in ranges[i..].iter() {
+                    let mut path = path.as_ref().to_path_buf();
+                    path.push(format!("{}{}_{}.parquet", prefix, range.start, range.end));
+
+                    fs::remove_file(&path).unwrap();
+                }
                 return Ok(r1.end);
             }
         }
