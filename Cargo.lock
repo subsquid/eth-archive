@@ -1009,6 +1009,7 @@ dependencies = [
  "env_logger",
  "eth-archive-core",
  "futures",
+ "itertools",
  "log",
  "mimalloc",
  "rayon",

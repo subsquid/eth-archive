@@ -3,6 +3,7 @@ use crate::schema::{BlockNum, IntoRowGroups};
 use crate::{Error, Result};
 use arrow2::io::parquet::write::*;
 use eth_archive_core::types::BlockRange;
+use itertools::Itertools;
 use std::path::Path;
 use std::time::Instant;
 use std::{cmp, fs, mem};
@@ -26,7 +27,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
 
         fs::create_dir_all(&cfg.path).unwrap();
 
-        let from_block = Self::get_start_block(&cfg.path).unwrap();
+        let from_block = Self::get_start_block(&cfg.path, &cfg.name).unwrap();
 
         let join_handle = std::thread::spawn(move || {
             let mut row_group = vec![T::default()];
@@ -133,26 +134,54 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         self._join_handle.join().unwrap();
     }
 
-    fn get_start_block<P: AsRef<Path>>(path: P) -> Result<usize> {
+    fn get_start_block<P: AsRef<Path>>(path: P, prefix: &str) -> Result<usize> {
         let dir = fs::read_dir(path).map_err(Error::ReadParquetDir)?;
-        let mut block_num = 0;
+
+        let mut ranges = Vec::new();
+        let mut max_block_num = 0;
+
         for entry in dir {
             let entry = entry.unwrap();
-
-            if entry.path().extension().unwrap() != "parquet" {
-                continue;
-            }
 
             let file_name = entry
                 .file_name()
                 .into_string()
-                .map_err(|_| Error::InvalidParquetFileName)?;
-            let num = file_name.split('_').last().unwrap();
-            let num = &num[..num.len() - ".parquet".len()];
-            let num = num.parse::<usize>().unwrap();
-            block_num = cmp::max(block_num, num);
+                .map_err(|_| Error::ReadParquetFileName)?;
+            let file_name = match file_name.strip_prefix(prefix) {
+                Some(file_name) => file_name,
+                None => return Err(Error::InvalidParquetFilename(file_name.to_owned())),
+            };
+            let file_name = match file_name.strip_suffix(".parquet") {
+                Some(file_name) => file_name,
+                None => continue,
+            };
+            let (start, end) = file_name
+                .split_once('_')
+                .ok_or_else(|| Error::InvalidParquetFilename(file_name.to_owned()))?;
+
+            let (start, end) = {
+                let start = start
+                    .parse::<usize>()
+                    .map_err(|_| Error::InvalidParquetFilename(file_name.to_owned()))?;
+                let end = end
+                    .parse::<usize>()
+                    .map_err(|_| Error::InvalidParquetFilename(file_name.to_owned()))?;
+
+                (start, end)
+            };
+
+            ranges.push(start..end);
+            max_block_num = cmp::max(max_block_num, end - 1);
         }
 
-        Ok(block_num)
+        ranges.sort_by_key(|r| r.start);
+
+        for (r1, r2) in ranges.iter().tuple_windows() {
+            if r1.end != r2.start {
+                return Ok(r1.end);
+            }
+        }
+
+        Ok(max_block_num + 1)
     }
 }
