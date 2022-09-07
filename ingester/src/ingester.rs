@@ -104,7 +104,7 @@ impl Ingester {
                 || block_number - min_block_number.unwrap() <= self.cfg.block_window_size
             {
                 self.db
-                    .insert_blocks(&[block], &logs)
+                    .insert_blocks_data(&[block], &logs)
                     .await
                     .map_err(Error::InsertBlocks)?;
 
@@ -143,7 +143,7 @@ impl Ingester {
                                 .retry(move || {
                                     let db = db.clone();
                                     async move {
-                                        db.insert_blocks(blocks, logs)
+                                        db.insert_blocks_data(blocks, logs)
                                             .await
                                             .map_err(Error::InsertBlocks)
                                     }
@@ -247,23 +247,27 @@ impl Ingester {
         Ok(())
     }
 
-    pub async fn run(&self) -> Result<()> {
+    async fn get_start_block(&self) -> Result<usize> {
         let max_block_number = self
             .db
             .get_max_block_number()
             .await
             .map_err(Error::GetMaxBlockNumber)?;
-        let mut block_number = match max_block_number {
-            Some(block_number) => block_number + 1,
+        match max_block_number {
+            Some(block_number) => Ok(block_number + 1),
             None => {
                 let block_number = self.get_best_block().await?;
                 if block_number <= self.cfg.block_window_size {
                     return Err(Error::BlockWindowBiggerThanBestblock);
                 }
 
-                block_number - self.cfg.block_window_size
+                Ok(block_number - self.cfg.block_window_size)
             }
-        };
+        }
+    }
+
+    pub async fn run(&self) -> Result<()> {
+        let mut block_number = self.get_start_block().await?;
 
         log::info!("starting to ingest from block {}", block_number);
 
