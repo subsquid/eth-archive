@@ -127,27 +127,26 @@ impl DataCtx {
             let file_name = entry
                 .file_name()
                 .into_string()
-                .map_err(|_| Error::InvalidParquetSubdirectory)?;
+                .map_err(|_| Error::ReadParquetFileName)?;
             let file_name = match file_name.strip_prefix(prefix) {
                 Some(file_name) => file_name,
-                None => return Err(Error::InvalidParquetSubdirectory),
+                None => return Err(Error::InvalidParquetFilename(file_name.to_owned())),
             };
             let file_name = match file_name.strip_suffix(".parquet") {
                 Some(file_name) => file_name,
                 None => continue,
             };
-
             let (start, end) = file_name
                 .split_once('_')
-                .ok_or(Error::InvalidParquetSubdirectory)?;
+                .ok_or_else(|| Error::InvalidParquetFilename(file_name.to_owned()))?;
 
             let (start, end) = {
                 let start = start
                     .parse::<u32>()
-                    .map_err(|_| Error::InvalidParquetSubdirectory)?;
+                    .map_err(|_| Error::InvalidParquetFilename(file_name.to_owned()))?;
                 let end = end
                     .parse::<u32>()
-                    .map_err(|_| Error::InvalidParquetSubdirectory)?;
+                    .map_err(|_| Error::InvalidParquetFilename(file_name.to_owned()))?;
 
                 (start, end)
             };
@@ -159,7 +158,7 @@ impl DataCtx {
         ranges.sort_by_key(|r| r.0);
 
         let range_map =
-            RangeMap::from_sorted(&ranges).map_err(|_| Error::InvalidParquetSubdirectory)?;
+            RangeMap::from_sorted(&ranges).map_err(|e| Error::CreateRangeMap(Box::new(e)))?;
 
         Ok((range_map, max_block_num))
     }
