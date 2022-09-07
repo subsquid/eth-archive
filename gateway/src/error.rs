@@ -48,8 +48,6 @@ pub enum Error {
     InvalidHexInTopic(prefix_hex::Error),
     #[error("failed to read parquet directory:\n{0}")]
     ReadParquetDir(io::Error),
-    #[error("invalid parquet subdirectory name")]
-    InvalidParquetSubdirectory,
     #[error("invalid block range in query")]
     InvalidBlockRange,
     #[error("failed to concatenate arrow data in memory:\n{0}")]
