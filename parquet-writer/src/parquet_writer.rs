@@ -138,7 +138,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         let dir = fs::read_dir(&path).map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
-        let mut max_block_num = 0;
+        let mut next_block_num = 0;
 
         for entry in dir {
             let entry = entry.unwrap();
@@ -171,7 +171,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             };
 
             ranges.push(start..end);
-            max_block_num = cmp::max(max_block_num, end - 1);
+            next_block_num = cmp::max(next_block_num, end);
         }
 
         ranges.sort_by_key(|r| r.start);
@@ -190,6 +190,6 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             }
         }
 
-        Ok(max_block_num + 1)
+        Ok(next_block_num)
     }
 }
