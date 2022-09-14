@@ -20,6 +20,8 @@ pub struct DataConfig {
     pub max_block_range: u32,
     pub default_block_range: u32,
     pub response_log_limit: usize,
+    pub query_chunk_size: u32,
+    pub query_time_limit_ms: u128,
     pub parquet_state_refresh_interval_secs: u64,
 }
 

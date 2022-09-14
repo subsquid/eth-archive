@@ -190,13 +190,22 @@ pub struct ResponseRow {
     pub log: ResponseLog,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryMetrics {
     pub build_query: u128,
     pub run_query: u128,
     pub serialize_result: u128,
     pub total: u128,
+}
+
+impl std::ops::AddAssign for QueryMetrics {
+    fn add_assign(&mut self, other: Self) {
+        self.build_query += other.build_query;
+        self.run_query += other.run_query;
+        self.serialize_result += other.serialize_result;
+        self.total += other.total;
+    }
 }
 
 #[derive(Serialize, Deserialize)]

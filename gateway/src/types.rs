@@ -2,28 +2,28 @@ use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use datafusion::prelude::*;
 use eth_archive_core::deserialize::{Address, Bytes32};
-use eth_archive_core::types::{QueryMetrics, ResponseRow};
+use eth_archive_core::types::{QueryMetrics, ResponseBlock, ResponseLog, ResponseTransaction};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Query {
+pub struct MiniQuery {
     pub from_block: u32,
-    pub to_block: Option<u32>,
-    pub logs: Vec<LogSelection>,
+    pub to_block: u32,
+    pub logs: Vec<MiniLogSelection>,
+    pub field_selection: FieldSelection,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct LogSelection {
+pub struct MiniLogSelection {
     pub address: Address,
     pub topics: Vec<Vec<Bytes32>>,
-    pub field_selection: Option<FieldSelection>,
 }
 
-impl Query {
-    pub fn to_sql(&self, field_selection: FieldSelection, to_block: u32) -> Result<String> {
+impl MiniQuery {
+    pub fn to_sql(&self) -> Result<String> {
         let mut query = format!(
             "
             SELECT {} FROM eth_log
@@ -33,8 +33,8 @@ impl Query {
                     eth_tx.transaction_index = eth_log.transaction_index
             WHERE eth_log.block_number < {} AND eth_log.block_number >= {}
         ",
-            field_selection.to_cols_sql(),
-            to_block,
+            self.field_selection.to_cols_sql(),
+            self.to_block,
             self.from_block,
         );
 
@@ -55,7 +55,7 @@ impl Query {
     }
 }
 
-impl LogSelection {
+impl MiniLogSelection {
     pub fn to_expr(&self) -> Result<Expr> {
         let mut expr = col("log.address").eq(lit(self.address.to_vec()));
 
@@ -119,6 +119,31 @@ pub struct Status {
 #[serde(rename_all = "camelCase")]
 pub struct QueryResponse {
     pub status: Status,
-    pub data: Vec<ResponseRow>,
+    pub data: Vec<BlockEntry>,
     pub metrics: QueryMetrics,
+    pub next_block: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockEntry {
+    pub block: ResponseBlock,
+    pub transactions: Vec<ResponseTransaction>,
+    pub logs: Vec<ResponseLog>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Query {
+    pub from_block: u32,
+    pub to_block: Option<u32>,
+    pub logs: Vec<LogSelection>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogSelection {
+    pub address: Address,
+    pub topics: Vec<Vec<Bytes32>>,
+    pub field_selection: Option<FieldSelection>,
 }

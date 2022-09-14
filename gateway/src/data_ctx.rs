@@ -1,7 +1,7 @@
 use crate::config::DataConfig;
 use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
-use crate::types::{Query, Status};
+use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, Query, QueryResponse, Status};
 use crate::{Error, Result};
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::{SessionConfig, SessionContext};
@@ -10,6 +10,7 @@ use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
 use std::cmp;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::fs;
@@ -164,7 +165,7 @@ impl DataCtx {
         Ok((range_map, max_block_num))
     }
 
-    pub async fn query(&self, query: Query) -> Result<QueryResult> {
+    pub async fn query(&self, query: Query) -> Result<QueryResponse> {
         let to_block = query
             .to_block
             .unwrap_or(query.from_block + self.config.default_block_range);
@@ -182,7 +183,7 @@ impl DataCtx {
             });
         }
 
-        let field_selection = query
+        let mut field_selection = query
             .logs
             .iter()
             .fold(None, |field_selection, log| {
@@ -190,14 +191,108 @@ impl DataCtx {
             })
             .ok_or(Error::NoFieldsSelected)?;
 
-        let parquet_block_number = self.parquet_state.read().await.parquet_block_number;
+        field_selection.block = Some(field_selection.block.unwrap_or_default());
+        field_selection.transaction = Some(field_selection.transaction.unwrap_or_default());
 
-        if parquet_block_number >= to_block {
-            self.query_parquet(query, field_selection, to_block).await
+        field_selection.block.as_mut().unwrap().number = Some(true);
+        field_selection.transaction.as_mut().unwrap().hash = Some(true);
+
+        let log_selection: Vec<MiniLogSelection> = query
+            .logs
+            .into_iter()
+            .map(|log| MiniLogSelection {
+                address: log.address,
+                topics: log.topics,
+            })
+            .collect();
+
+        let status = self.status().await?;
+
+        let mut data = Vec::new();
+
+        let mut block_idxs = HashMap::new();
+        let mut tx_idxs = HashMap::new();
+        let mut metrics = QueryMetrics::default();
+
+        let mut num_logs = 0;
+
+        let start_time = Instant::now();
+
+        let step = self.config.query_chunk_size;
+        for start in (query.from_block..to_block).step_by(usize::try_from(step).unwrap()) {
+            let end = cmp::min(to_block, start + step);
+
+            let res = self
+                .query_impl(MiniQuery {
+                    from_block: start,
+                    to_block: end,
+                    logs: log_selection.clone(),
+                    field_selection,
+                })
+                .await?;
+
+            metrics += res.metrics;
+
+            num_logs += res.data.len();
+
+            for row in res.data {
+                let block_number = row.block.number.unwrap().0;
+                let tx_hash = row.transaction.hash.clone().unwrap().0;
+
+                let block_idx = match block_idxs.get(&block_number) {
+                    Some(block_idx) => *block_idx,
+                    None => {
+                        let block_idx = data.len();
+
+                        data.push(BlockEntry {
+                            block: row.block,
+                            logs: Vec::new(),
+                            transactions: Vec::new(),
+                        });
+
+                        block_idxs.insert(block_number, block_idx);
+
+                        block_idx
+                    }
+                };
+
+                if let std::collections::hash_map::Entry::Vacant(e) = tx_idxs.entry(tx_hash) {
+                    e.insert(data[block_idx].transactions.len());
+                    data[block_idx].transactions.push(row.transaction);
+                }
+
+                data[block_idx].logs.push(row.log);
+            }
+
+            if num_logs > self.config.response_log_limit
+                || start_time.elapsed().as_millis() > self.config.query_time_limit_ms
+            {
+                return Ok(QueryResponse {
+                    status,
+                    data,
+                    metrics,
+                    next_block: end,
+                });
+            }
+        }
+
+        Ok(QueryResponse {
+            status,
+            data,
+            metrics,
+            next_block: to_block,
+        })
+    }
+
+    async fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
+        let parquet_block_number = { self.parquet_state.read().await.parquet_block_number };
+
+        if parquet_block_number >= query.to_block {
+            self.query_parquet(query).await
         } else {
             let start_time = Instant::now();
 
-            let query = query.to_sql(field_selection, to_block)?;
+            let query = query.to_sql()?;
 
             let build_query = start_time.elapsed().as_millis();
 
@@ -307,23 +402,18 @@ impl DataCtx {
         Ok(())
     }
 
-    async fn query_parquet(
-        &self,
-        query: Query,
-        field_selection: FieldSelection,
-        to_block: u32,
-    ) -> Result<QueryResult> {
+    async fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {
         use datafusion::prelude::*;
 
         let start_time = Instant::now();
 
-        let select_columns = field_selection.to_cols();
+        let select_columns = query.field_selection.to_cols();
         if select_columns.is_empty() {
             return Err(Error::NoFieldsSelected);
         }
 
         let session = self
-            .setup_pruned_session(query.from_block, to_block)
+            .setup_pruned_session(query.from_block, query.to_block)
             .await?;
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
@@ -364,7 +454,7 @@ impl DataCtx {
             .filter(
                 col("log.block_number")
                     .gt_eq(lit(query.from_block))
-                    .and(col("log.block_number").lt(lit(to_block))),
+                    .and(col("log.block_number").lt(lit(query.to_block))),
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
 

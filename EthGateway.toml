@@ -17,6 +17,8 @@ transactions_path = "data/tx"
 max_block_range = 1000000
 default_block_range = 500000
 response_log_limit = 100000
+query_chunk_size = 1000
+query_time_limit_ms = 5000
 parquet_state_refresh_interval_secs = 10
 
 [http_server]

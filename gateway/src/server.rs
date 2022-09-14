@@ -52,11 +52,6 @@ async fn query(
     ctx: web::Data<Arc<DataCtx>>,
 ) -> Result<web::Json<QueryResponse>> {
     let res = ctx.query(query.into_inner()).await?;
-    let status = ctx.status().await?;
 
-    Ok(web::Json(QueryResponse {
-        status,
-        data: res.data,
-        metrics: res.metrics,
-    }))
+    Ok(web::Json(res))
 }

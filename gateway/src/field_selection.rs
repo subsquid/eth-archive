@@ -28,8 +28,8 @@ macro_rules! append_col_sql {
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSelection {
-    block: Option<BlockFieldSelection>,
-    transaction: Option<TransactionFieldSelection>,
+    pub block: Option<BlockFieldSelection>,
+    pub transaction: Option<TransactionFieldSelection>,
     log: Option<LogFieldSelection>,
 }
 
@@ -88,7 +88,7 @@ impl FieldSelection {
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockFieldSelection {
-    number: Option<bool>,
+    pub number: Option<bool>,
     hash: Option<bool>,
     parent_hash: Option<bool>,
     nonce: Option<bool>,
@@ -192,7 +192,7 @@ pub struct TransactionFieldSelection {
     source: Option<bool>,
     gas: Option<bool>,
     gas_price: Option<bool>,
-    hash: Option<bool>,
+    pub hash: Option<bool>,
     input: Option<bool>,
     nonce: Option<bool>,
     #[serde(alias = "to")]
