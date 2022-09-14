@@ -14,7 +14,9 @@ batch_size = 512
 logs_path = "data/log"
 blocks_path = "data/block"
 transactions_path = "data/tx"
-max_block_range = 4000
+max_block_range = 1000000
+default_block_range = 500000
+response_log_limit = 100000
 parquet_state_refresh_interval_secs = 10
 
 [http_server]

@@ -18,6 +18,8 @@ pub struct DataConfig {
     pub transactions_path: String,
     pub logs_path: String,
     pub max_block_range: u32,
+    pub default_block_range: u32,
+    pub response_log_limit: usize,
     pub parquet_state_refresh_interval_secs: u64,
 }
 

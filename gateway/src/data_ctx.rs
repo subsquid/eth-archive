@@ -1,6 +1,7 @@
 use crate::config::DataConfig;
+use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
-use crate::types::{QueryLogs, Status};
+use crate::types::{Query, Status};
 use crate::{Error, Result};
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::{SessionConfig, SessionContext};
@@ -163,12 +164,16 @@ impl DataCtx {
         Ok((range_map, max_block_num))
     }
 
-    pub async fn query(&self, query: QueryLogs) -> Result<QueryResult> {
-        if query.to_block == 0 || query.from_block >= query.to_block {
+    pub async fn query(&self, query: Query) -> Result<QueryResult> {
+        let to_block = query
+            .to_block
+            .unwrap_or(query.from_block + self.config.default_block_range);
+
+        if to_block == 0 || query.from_block >= to_block {
             return Err(Error::InvalidBlockRange);
         }
 
-        let block_range = query.to_block - query.from_block;
+        let block_range = to_block - query.from_block;
 
         if block_range > self.config.max_block_range {
             return Err(Error::MaximumBlockRange {
@@ -177,14 +182,22 @@ impl DataCtx {
             });
         }
 
+        let field_selection = query
+            .logs
+            .iter()
+            .fold(None, |field_selection, log| {
+                FieldSelection::merge(field_selection, log.field_selection)
+            })
+            .ok_or(Error::NoFieldsSelected)?;
+
         let parquet_block_number = self.parquet_state.read().await.parquet_block_number;
 
-        if parquet_block_number >= query.to_block {
-            self.query_parquet(query).await
+        if parquet_block_number >= to_block {
+            self.query_parquet(query, field_selection, to_block).await
         } else {
             let start_time = Instant::now();
 
-            let query = query.to_sql()?;
+            let query = query.to_sql(field_selection, to_block)?;
 
             let build_query = start_time.elapsed().as_millis();
 
@@ -294,29 +307,34 @@ impl DataCtx {
         Ok(())
     }
 
-    async fn query_parquet(&self, query: QueryLogs) -> Result<QueryResult> {
+    async fn query_parquet(
+        &self,
+        query: Query,
+        field_selection: FieldSelection,
+        to_block: u32,
+    ) -> Result<QueryResult> {
         use datafusion::prelude::*;
 
         let start_time = Instant::now();
 
-        let select_columns = query.field_selection.to_cols();
+        let select_columns = field_selection.to_cols();
         if select_columns.is_empty() {
             return Err(Error::NoFieldsSelected);
         }
 
         let session = self
-            .setup_pruned_session(query.from_block, query.to_block)
+            .setup_pruned_session(query.from_block, to_block)
             .await?;
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
 
-        if !query.addresses.is_empty() {
-            let mut addresses = query.addresses;
+        if !query.logs.is_empty() {
+            let mut logs = query.logs;
 
-            let mut expr: Expr = addresses.pop().unwrap().to_expr()?;
+            let mut expr: Expr = logs.pop().unwrap().to_expr()?;
 
-            for addr in addresses {
-                expr = expr.or(addr.to_expr()?);
+            for log in logs {
+                expr = expr.or(log.to_expr()?);
             }
 
             data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
@@ -346,7 +364,7 @@ impl DataCtx {
             .filter(
                 col("log.block_number")
                     .gt_eq(lit(query.from_block))
-                    .and(col("log.block_number").lt(lit(query.to_block))),
+                    .and(col("log.block_number").lt(lit(to_block))),
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
 
