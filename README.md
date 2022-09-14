@@ -40,29 +40,39 @@ response:
 
 <details>
 <summary>POST /query</summary>
+Query can terminate due to;
+
+- maximum query time limit being reached
+- maximum number of logs being found
+- scanning up to the target block
+
+Client can continue querying using the `nextBlock` field in the response
+
 request:
 
 ```javascript
 {
   "fromBlock": number, // starting block number to include in range
-  "toBlock": number, // ending block number of the range. returned block range is [fromBlock, toBlock). So toBlock is not included.
-  "addresses": [{
+  "toBlock": Option<number>, // ending block number of the range. returned block range is [fromBlock, toBlock). So toBlock is not included.
+  "logs": [{
     "address": string, // address of the contract
     // if topics[0] is ["a", "b", "c"] the logs will be filtered so only logs that have "a", "b" or "c" as their first topic will be returned.
     // if topics[0] is an empty array, any topic will pass the filter
-    "topics": [[string]] 
+    "topics": [[string]],
+    "fieldSelection": FieldSelection
   }],
-  "fieldSelection": FieldSelection
 }
 ```
-
-[FieldSelection](https://github.com/subsquid/eth-archive/blob/21376a8a92c993c10376bc992f1d0627ec3e9f09/gateway/src/field_selection.rs#L30)
 
 response:
 
 ```javascript
 {
-  "data": [ResponseRow],
+  "data": [{
+    "block": BlockData,
+    "transactions": [TransacitonData],
+    "logs": [LogData],
+  }],
   "metrics": {
     "buildQuery": number, // milliseconds it took to build the query
     "runQuery": number, // milliseconds it took to run the query
@@ -73,11 +83,10 @@ response:
     "parquetBlockNumber": number, // max block number in the parquet storage
     "dbMaxBlockNumber": number, // max block number in hot storage
     "dbMinBlockNumber": number, // min block number in hot storage
-  }
+  },
+  "nextBlock": number, // next block number to query from
 }
 
 ```
-
-[ResponseRow](https://github.com/subsquid/eth-archive/blob/21376a8a92c993c10376bc992f1d0627ec3e9f09/core/src/types.rs#L185)
 
 </details>
