@@ -9,16 +9,16 @@ host = "localhost"
 port = 5432
 
 [data]
-target_partitions = 12
-batch_size = 512
+target_partitions = 1
+batch_size = 3072
 logs_path = "data/log"
 blocks_path = "data/block"
 transactions_path = "data/tx"
 max_block_range = 1000000
 default_block_range = 500000
 response_log_limit = 100000
-query_chunk_size = 1000
-query_time_limit_ms = 5000
+query_chunk_size = 3072
+query_time_limit_ms = 6000
 parquet_state_refresh_interval_secs = 10
 
 [http_server]
