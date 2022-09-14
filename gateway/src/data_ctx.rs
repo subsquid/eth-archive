@@ -265,7 +265,7 @@ impl DataCtx {
             }
 
             if num_logs > self.config.response_log_limit
-                || start_time.elapsed().as_millis() > self.config.query_time_limit_ms
+                || start_time.elapsed().as_millis() > u128::from(self.config.query_time_limit_ms)
             {
                 return Ok(QueryResponse {
                     status,
