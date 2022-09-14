@@ -63,6 +63,7 @@ request:
   }],
 }
 ```
+[FieldSelection](https://github.com/subsquid/eth-archive/blob/master/gateway/src/field_selection.rs)
 
 response:
 
