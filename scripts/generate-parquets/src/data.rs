@@ -106,7 +106,7 @@ impl From<RawTransaction> for Transaction {
             nonce: Nonce::new(&decode_hex(&raw.nonce)),
             dest: raw.dest.map(|dest| Address::new(&decode_hex(&dest))),
             transaction_index: BigInt(raw.transaction_index.into()),
-            value: Bytes::new(&raw.value.as_bytes()),
+            value: Bytes::new(raw.value.as_bytes()),
             kind: BigInt(raw.kind.into()),
             chain_id: BigInt(raw.chain_id.into()),
             v: BigInt(raw.v.into()),
