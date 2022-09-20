@@ -7,5 +7,5 @@ mod parquet;
 #[tokio::main]
 async fn main() {
     let data = read_data_from_file("./scripts/generate-parquets/data.json");
-    generate_parquets(data, "./tests/data").await;
+    generate_parquets(data, "./gateway/tests/data").await;
 }

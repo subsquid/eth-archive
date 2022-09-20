@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use tokio::sync::mpsc;
 use eth_archive_core::types::{Block, Transaction, Log};
 use eth_archive_parquet_writer::{
@@ -28,7 +29,7 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
 
     let block_config = ParquetConfig {
         name: "block".to_string(),
-        path: target_dir.into(),
+        path: PathBuf::from(target_dir).join("block"),
         items_per_file: blocks.len(),
         items_per_row_group: blocks.len(),
         channel_size: 1,
@@ -36,8 +37,8 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
     let block_writer: ParquetWriter<Blocks> = ParquetWriter::new(block_config, tx.clone());
 
     let transaction_config = ParquetConfig {
-        name: "transaction".to_string(),
-        path: target_dir.into(),
+        name: "tx".to_string(),
+        path: PathBuf::from(target_dir).join("tx"),
         items_per_file: transactions.len(),
         items_per_row_group: transactions.len(),
         channel_size: 1,
@@ -46,7 +47,7 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
 
     let log_config = ParquetConfig {
         name: "log".to_string(),
-        path: target_dir.into(),
+        path: PathBuf::from(target_dir).join("log"),
         items_per_file: logs.len(),
         items_per_row_group: logs.len(),
         channel_size: 1,
