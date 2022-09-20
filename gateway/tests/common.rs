@@ -1,11 +1,11 @@
+use actix_web::rt::time::sleep;
+use actix_web::rt::{spawn, Runtime};
+use eth_archive_gateway::{Options, Server};
+use serde::Deserialize;
+use serde_json::Value;
 use std::sync::Once;
 use std::thread;
-use actix_web::rt::{Runtime, spawn};
-use actix_web::rt::time::sleep;
 use std::time::Duration;
-use serde_json::Value;
-use serde::Deserialize;
-use eth_archive_gateway::{Server, Options};
 
 static INIT: Once = Once::new();
 
@@ -113,7 +113,9 @@ impl Client {
     }
 
     pub async fn query(&self, args: Value) -> QueryResponse {
-        let response = self.0.post("http://127.0.0.1:8080/query")
+        let response = self
+            .0
+            .post("http://127.0.0.1:8080/query")
             .json(&args)
             .send()
             .await
@@ -121,7 +123,7 @@ impl Client {
         let text = response.text().await.unwrap();
         match serde_json::from_str(&text) {
             Ok(data) => data,
-            Err(_) => panic!("Unexpected response body: {}", text)
+            Err(_) => panic!("Unexpected response body: {}", text),
         }
     }
 }

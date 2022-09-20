@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
-use eth_archive_core::types::{Block, Transaction, Log};
-use eth_archive_core::deserialize::{BigInt, Bytes32, Nonce, BloomFilterBytes, Address, Bytes};
 use crate::parquet::BlockData;
+use eth_archive_core::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
+use eth_archive_core::types::{Block, Log, Transaction};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct RawBlock {
@@ -125,7 +125,8 @@ impl From<RawLog> for Log {
             data: Bytes::new(&decode_hex(&raw.data)),
             log_index: BigInt(raw.log_index.into()),
             removed: raw.removed,
-            topics: raw.topics
+            topics: raw
+                .topics
                 .into_iter()
                 .map(|topic| Bytes32::new(&decode_hex(&topic)))
                 .collect(),
@@ -139,7 +140,11 @@ impl From<RawData> for BlockData {
     fn from(raw: RawData) -> BlockData {
         BlockData {
             block: Block::from(raw.block),
-            transactions: raw.transactions.into_iter().map(Transaction::from).collect(),
+            transactions: raw
+                .transactions
+                .into_iter()
+                .map(Transaction::from)
+                .collect(),
             logs: raw.logs.into_iter().map(Log::from).collect(),
         }
     }
@@ -151,10 +156,7 @@ fn read_raw_data_from_file(path: &str) -> Vec<RawData> {
 }
 
 fn convert_raw_data(block_data: Vec<RawData>) -> Vec<BlockData> {
-    block_data
-        .into_iter()
-        .map(BlockData::from)
-        .collect()
+    block_data.into_iter().map(BlockData::from).collect()
 }
 
 pub fn read_data_from_file(path: &str) -> Vec<BlockData> {

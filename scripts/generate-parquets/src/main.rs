@@ -1,5 +1,5 @@
-use parquet::generate_parquets;
 use data::read_data_from_file;
+use parquet::generate_parquets;
 
 mod data;
 mod parquet;

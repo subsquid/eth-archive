@@ -1,9 +1,9 @@
+use eth_archive_core::types::{Block, Log, Transaction};
+use eth_archive_parquet_writer::{
+    BlockRange, Blocks, Logs, ParquetConfig, ParquetWriter, Transactions,
+};
 use std::path::PathBuf;
 use tokio::sync::mpsc;
-use eth_archive_core::types::{Block, Transaction, Log};
-use eth_archive_parquet_writer::{
-    ParquetWriter, ParquetConfig, Blocks, Transactions, Logs, BlockRange
-};
 
 pub struct BlockData {
     pub block: Block,
@@ -34,7 +34,7 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
         items_per_row_group: blocks.len(),
         channel_size: 1,
     };
-    let block_writer: ParquetWriter<Blocks> = ParquetWriter::new(block_config, tx.clone());
+    let block_writer = ParquetWriter::<Blocks>::new(block_config, tx.clone());
 
     let transaction_config = ParquetConfig {
         name: "tx".to_string(),
@@ -43,7 +43,7 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
         items_per_row_group: transactions.len(),
         channel_size: 1,
     };
-    let transaction_writer: ParquetWriter<Transactions> = ParquetWriter::new(transaction_config, tx.clone());
+    let transaction_writer = ParquetWriter::<Transactions>::new(transaction_config, tx.clone());
 
     let log_config = ParquetConfig {
         name: "log".to_string(),
@@ -52,7 +52,7 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
         items_per_row_group: logs.len(),
         channel_size: 1,
     };
-    let log_writer: ParquetWriter<Logs> = ParquetWriter::new(log_config, tx);
+    let log_writer = ParquetWriter::<Logs>::new(log_config, tx);
 
     block_writer.send((block_range, blocks)).await;
     transaction_writer.send((block_range, transactions)).await;
