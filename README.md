@@ -91,3 +91,8 @@ response:
 ```
 
 </details>
+
+## Testing
+
+Tests can be executed by the following command: `cargo test`.
+In order to update [tests fixtures](gateway/tests/data) you should update [data.json](scripts/generate-parquets/data.json) and run `scripts/generate-parquets.sh`.
