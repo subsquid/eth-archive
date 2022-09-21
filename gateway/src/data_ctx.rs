@@ -1,7 +1,7 @@
 use crate::config::DataConfig;
 use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
-use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, Query, QueryResponse, Status};
+use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, Query, Status};
 use crate::{Error, Result};
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::{SessionConfig, SessionContext};
@@ -9,12 +9,12 @@ use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
-use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
+use std::{cmp, mem};
 use tokio::fs;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 
 pub struct DataCtx {
     db: Arc<DbHandle>,
@@ -165,7 +165,9 @@ impl DataCtx {
         Ok((range_map, max_block_num))
     }
 
-    pub async fn query(&self, query: Query) -> Result<QueryResponse> {
+    pub async fn query(&self, query: Query) -> Result<Vec<u8>> {
+        let query_start = Instant::now();
+
         let to_block = query
             .to_block
             .unwrap_or(query.from_block + self.config.default_block_range);
@@ -193,9 +195,14 @@ impl DataCtx {
 
         field_selection.block = Some(field_selection.block.unwrap_or_default());
         field_selection.transaction = Some(field_selection.transaction.unwrap_or_default());
+        field_selection.log = Some(field_selection.log.unwrap_or_default());
 
         field_selection.block.as_mut().unwrap().number = Some(true);
+
         field_selection.transaction.as_mut().unwrap().hash = Some(true);
+        field_selection.transaction.as_mut().unwrap().block_number = Some(true);
+
+        field_selection.log.as_mut().unwrap().block_number = Some(true);
 
         let log_selection: Vec<MiniLogSelection> = query
             .logs
@@ -208,17 +215,92 @@ impl DataCtx {
 
         let status = self.status().await?;
 
-        let mut data = Vec::new();
+        let (tx, mut rx): (mpsc::Sender<(QueryResult, _)>, _) = mpsc::channel(1);
 
-        let mut block_idxs = HashMap::new();
-        let mut tx_idxs = HashMap::new();
-        let mut metrics = QueryMetrics::default();
+        let serialize_thread = tokio::task::spawn_blocking(move || {
+            let mut metrics = QueryMetrics::default();
+
+            let mut bytes = br#"{"data":["#.to_vec();
+
+            let mut comma = false;
+
+            let mut next_block = 0;
+
+            while let Some((res, end)) = rx.blocking_recv() {
+                let mut data = Vec::new();
+
+                let mut block_idxs = HashMap::new();
+                let mut tx_idxs = HashMap::new();
+
+                for row in res.data.into_iter().flat_map(|rows| rows.into_iter()) {
+                    let block_number = row.block.number.unwrap().0;
+                    let tx_hash = row.transaction.hash.clone().unwrap().0;
+
+                    let block_idx = match block_idxs.get(&block_number) {
+                        Some(block_idx) => *block_idx,
+                        None => {
+                            let block_idx = data.len();
+
+                            data.push(BlockEntry {
+                                block: row.block,
+                                logs: Vec::new(),
+                                transactions: Vec::new(),
+                            });
+
+                            block_idxs.insert(block_number, block_idx);
+
+                            block_idx
+                        }
+                    };
+
+                    if let std::collections::hash_map::Entry::Vacant(e) = tx_idxs.entry(tx_hash) {
+                        e.insert(data[block_idx].transactions.len());
+                        data[block_idx].transactions.push(row.transaction);
+                    }
+
+                    data[block_idx].logs.push(row.log);
+                }
+
+                if comma {
+                    bytes.push(b',');
+                }
+                comma = true;
+
+                let start = Instant::now();
+
+                serde_json::to_writer(&mut bytes, &data).unwrap();
+
+                let elapsed = start.elapsed().as_millis();
+                metrics.serialize_result += elapsed;
+                metrics.total += elapsed;
+
+                next_block = end;
+                metrics += res.metrics;
+            }
+
+            let status = serde_json::to_string(&status).unwrap();
+            let metrics = serde_json::to_string(&metrics).unwrap();
+
+            bytes.extend_from_slice(
+                format!(
+                    r#"],"metrics":{},"status":{},"next_block":{},"total_time":{}}}"#,
+                    metrics,
+                    status,
+                    next_block,
+                    query_start.elapsed().as_millis(),
+                )
+                .as_bytes(),
+            );
+
+            Ok(bytes)
+        });
 
         let mut num_logs = 0;
 
         let start_time = Instant::now();
 
         let step = self.config.query_chunk_size;
+
         for start in (query.from_block..to_block).step_by(usize::try_from(step).unwrap()) {
             let end = cmp::min(to_block, start + step);
 
@@ -231,57 +313,22 @@ impl DataCtx {
                 })
                 .await?;
 
-            metrics += res.metrics;
+            num_logs += res.data.iter().map(Vec::len).sum::<usize>();
 
-            num_logs += res.data.len();
-
-            for row in res.data {
-                let block_number = row.block.number.unwrap().0;
-                let tx_hash = row.transaction.hash.clone().unwrap().0;
-
-                let block_idx = match block_idxs.get(&block_number) {
-                    Some(block_idx) => *block_idx,
-                    None => {
-                        let block_idx = data.len();
-
-                        data.push(BlockEntry {
-                            block: row.block,
-                            logs: Vec::new(),
-                            transactions: Vec::new(),
-                        });
-
-                        block_idxs.insert(block_number, block_idx);
-
-                        block_idx
-                    }
-                };
-
-                if let std::collections::hash_map::Entry::Vacant(e) = tx_idxs.entry(tx_hash) {
-                    e.insert(data[block_idx].transactions.len());
-                    data[block_idx].transactions.push(row.transaction);
-                }
-
-                data[block_idx].logs.push(row.log);
-            }
+            tx.send((res, end)).await.ok().unwrap();
 
             if num_logs > self.config.response_log_limit
                 || start_time.elapsed().as_millis() > u128::from(self.config.query_time_limit_ms)
             {
-                return Ok(QueryResponse {
-                    status,
-                    data,
-                    metrics,
-                    next_block: end,
-                });
+                break;
             }
         }
 
-        Ok(QueryResponse {
-            status,
-            data,
-            metrics,
-            next_block: to_block,
-        })
+        mem::drop(tx);
+
+        let bytes = serialize_thread.await.unwrap()?;
+
+        Ok(bytes)
     }
 
     async fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
@@ -418,18 +465,6 @@ impl DataCtx {
 
         let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
 
-        if !query.logs.is_empty() {
-            let mut logs = query.logs;
-
-            let mut expr: Expr = logs.pop().unwrap().to_expr()?;
-
-            for log in logs {
-                expr = expr.or(log.to_expr()?);
-            }
-
-            data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
-        }
-
         data_frame = data_frame
             .join(
                 session.table("block").map_err(Error::BuildQuery)?,
@@ -452,15 +487,50 @@ impl DataCtx {
 
         data_frame = data_frame
             .filter(
-                col("log.block_number")
+                col("log_block_number")
                     .gt_eq(lit(query.from_block))
-                    .and(col("log.block_number").lt(lit(query.to_block))),
+                    .and(col("log_block_number").lt(lit(query.to_block))),
             )
             .map_err(Error::ApplyBlockRangeFilter)?;
+
+        data_frame = data_frame
+            .filter(
+                col("tx_block_number")
+                    .gt_eq(lit(query.from_block))
+                    .and(col("tx_block_number").lt(lit(query.to_block))),
+            )
+            .map_err(Error::ApplyBlockRangeFilter)?;
+
+        data_frame = data_frame
+            .filter(
+                col("block_number")
+                    .gt_eq(lit(query.from_block))
+                    .and(col("block_number").lt(lit(query.to_block))),
+            )
+            .map_err(Error::ApplyBlockRangeFilter)?;
+
+        if !query.logs.is_empty() {
+            let mut logs = query.logs;
+
+            let mut expr: Expr = logs.pop().unwrap().to_expr()?;
+
+            for log in logs {
+                expr = expr.or(log.to_expr()?);
+            }
+
+            data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
+        }
 
         let build_query = start_time.elapsed().as_millis();
 
         let start_time = Instant::now();
+
+        /*
+        let explanation = data_frame.explain(false, true).unwrap();
+
+        println!("EXPLANATION:\n");
+        explanation.show().await.unwrap();
+        */
 
         let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
 
@@ -468,24 +538,16 @@ impl DataCtx {
 
         let start_time = Instant::now();
 
-        let schema = match batches.get(0) {
-            Some(batch) => batch.schema(),
-            None => {
-                return Ok(QueryResult {
-                    data: Vec::new(),
-                    metrics: QueryMetrics {
-                        build_query,
-                        run_query,
-                        serialize_result: 0,
-                        total: build_query + run_query,
-                    },
-                })
-            }
-        };
+        use rayon::prelude::*;
 
-        let batch = RecordBatch::concat(&schema, &batches).map_err(Error::ConcatRecordBatches)?;
-
-        let data = response_rows_from_batch(batch);
+        let data = tokio::task::spawn_blocking(move || {
+            batches
+                .into_par_iter()
+                .map(response_rows_from_batch)
+                .collect()
+        })
+        .await
+        .unwrap();
 
         let serialize_result = start_time.elapsed().as_millis();
 

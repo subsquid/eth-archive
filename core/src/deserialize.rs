@@ -294,7 +294,7 @@ impl Serialize for Nonce {
     where
         S: Serializer,
     {
-        serializer.serialize_u64(self.0)
+        serializer.serialize_str(&self.0.to_string())
     }
 }
 

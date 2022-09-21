@@ -94,7 +94,7 @@ fn log_schema() -> Schema {
 fn options() -> WriteOptions {
     WriteOptions {
         write_statistics: true,
-        compression: CompressionOptions::Zstd(None),
+        compression: CompressionOptions::Snappy,
         version: Version::V2,
     }
 }
@@ -402,7 +402,10 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
     fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
         let schema = Self::schema();
 
-        let encoding_map = |_data_type: &DataType| Encoding::Plain;
+        let encoding_map = |data_type: &DataType| match data_type {
+            DataType::Binary | DataType::LargeBinary => Encoding::DeltaLengthByteArray,
+            _ => Encoding::Plain,
+        };
 
         let encodings = schema
             .fields

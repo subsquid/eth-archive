@@ -2,7 +2,7 @@ use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use datafusion::prelude::*;
 use eth_archive_core::deserialize::{Address, Bytes32};
-use eth_archive_core::types::{QueryMetrics, ResponseBlock, ResponseLog, ResponseTransaction};
+use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 
@@ -57,7 +57,7 @@ impl MiniQuery {
 
 impl MiniLogSelection {
     pub fn to_expr(&self) -> Result<Expr> {
-        let mut expr = col("log.address").eq(lit(self.address.to_vec()));
+        let mut expr = col("log_address").eq(lit(self.address.to_vec()));
 
         if self.topics.len() > 4 {
             return Err(Error::TooManyTopics(self.topics.len()));
@@ -66,7 +66,7 @@ impl MiniLogSelection {
         for (i, topic) in self.topics.iter().enumerate() {
             if !topic.is_empty() {
                 let topic = topic.iter().map(|topic| lit(topic.to_vec())).collect();
-                expr = expr.and(col(&format!("log.topic{}", i)).in_list(topic, false));
+                expr = expr.and(col(&format!("log_topic{}", i)).in_list(topic, false));
             }
         }
 
@@ -113,15 +113,6 @@ pub struct Status {
     pub parquet_block_number: u32,
     pub db_max_block_number: usize,
     pub db_min_block_number: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryResponse {
-    pub status: Status,
-    pub data: Vec<BlockEntry>,
-    pub metrics: QueryMetrics,
-    pub next_block: u32,
 }
 
 #[derive(Serialize, Deserialize)]

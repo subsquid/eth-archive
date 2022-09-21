@@ -30,7 +30,7 @@ macro_rules! append_col_sql {
 pub struct FieldSelection {
     pub block: Option<BlockFieldSelection>,
     pub transaction: Option<TransactionFieldSelection>,
-    log: Option<LogFieldSelection>,
+    pub log: Option<LogFieldSelection>,
 }
 
 impl FieldSelection {
@@ -187,17 +187,17 @@ impl BlockFieldSelection {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionFieldSelection {
     block_hash: Option<bool>,
-    block_number: Option<bool>,
-    #[serde(alias = "from")]
+    pub block_number: Option<bool>,
+    #[serde(rename = "from")]
     source: Option<bool>,
     gas: Option<bool>,
     gas_price: Option<bool>,
     pub hash: Option<bool>,
     input: Option<bool>,
     nonce: Option<bool>,
-    #[serde(alias = "to")]
+    #[serde(rename = "to")]
     dest: Option<bool>,
-    #[serde(alias = "index")]
+    #[serde(rename = "index")]
     transaction_index: Option<bool>,
     value: Option<bool>,
     kind: Option<bool>,
@@ -285,9 +285,9 @@ impl TransactionFieldSelection {
 pub struct LogFieldSelection {
     address: Option<bool>,
     block_hash: Option<bool>,
-    block_number: Option<bool>,
+    pub block_number: Option<bool>,
     data: Option<bool>,
-    #[serde(alias = "index")]
+    #[serde(rename = "index")]
     log_index: Option<bool>,
     removed: Option<bool>,
     topics: Option<bool>,

@@ -2,11 +2,11 @@ use crate::config::Config;
 use crate::data_ctx::DataCtx;
 use crate::error::{Error, Result};
 use crate::options::Options;
-use crate::types::{Query, QueryResponse, Status};
+use crate::types::{Query, Status};
 use eth_archive_core::db::DbHandle;
 use std::sync::Arc;
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpResponse, HttpServer};
 
 pub struct Server {}
 
@@ -47,11 +47,10 @@ async fn status(ctx: web::Data<Arc<DataCtx>>) -> Result<web::Json<Status>> {
     Ok(web::Json(status))
 }
 
-async fn query(
-    query: web::Json<Query>,
-    ctx: web::Data<Arc<DataCtx>>,
-) -> Result<web::Json<QueryResponse>> {
+async fn query(query: web::Json<Query>, ctx: web::Data<Arc<DataCtx>>) -> Result<HttpResponse> {
     let res = ctx.query(query.into_inner()).await?;
 
-    Ok(web::Json(res))
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(res))
 }

@@ -30,18 +30,18 @@ pub struct Block {
 pub struct Transaction {
     pub block_hash: Bytes32,
     pub block_number: BigInt,
-    #[serde(alias = "from")]
+    #[serde(rename = "from")]
     pub source: Address,
     pub gas: BigInt,
     pub gas_price: BigInt,
     pub hash: Bytes32,
     pub input: Bytes,
     pub nonce: Nonce,
-    #[serde(alias = "to")]
+    #[serde(rename = "to")]
     pub dest: Option<Address>,
     pub transaction_index: BigInt,
     pub value: Bytes,
-    #[serde(alias = "type")]
+    #[serde(rename = "type")]
     pub kind: BigInt,
     pub chain_id: BigInt,
     pub v: BigInt,
@@ -125,7 +125,7 @@ pub struct ResponseTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_number: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(alias = "from")]
+    #[serde(rename = "from")]
     pub source: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas: Option<BigInt>,
@@ -138,14 +138,14 @@ pub struct ResponseTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<Nonce>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(alias = "to")]
+    #[serde(rename = "to")]
     pub dest: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(alias = "index")]
+    #[serde(rename = "index")]
     pub transaction_index: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<Bytes>,
-    #[serde(alias = "type")]
+    #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,7 +170,7 @@ pub struct ResponseLog {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(alias = "index")]
+    #[serde(rename = "index")]
     pub log_index: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<bool>,
@@ -211,6 +211,6 @@ impl std::ops::AddAssign for QueryMetrics {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
-    pub data: Vec<ResponseRow>,
+    pub data: Vec<Vec<ResponseRow>>,
     pub metrics: QueryMetrics,
 }
