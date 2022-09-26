@@ -1822,7 +1822,7 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "polars-core",
  "polars-io",
@@ -1834,7 +1834,7 @@ dependencies = [
 [[package]]
 name = "polars-arrow"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "arrow2",
  "hashbrown",
@@ -1845,7 +1845,7 @@ dependencies = [
 [[package]]
 name = "polars-core"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1870,7 +1870,7 @@ dependencies = [
 [[package]]
 name = "polars-io"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1895,7 +1895,7 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "ahash",
  "bitflags",
@@ -1913,7 +1913,7 @@ dependencies = [
 [[package]]
 name = "polars-ops"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "polars-arrow",
  "polars-core",
@@ -1922,7 +1922,7 @@ dependencies = [
 [[package]]
 name = "polars-time"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "chrono",
  "lexical",
@@ -1934,7 +1934,7 @@ dependencies = [
 [[package]]
 name = "polars-utils"
 version = "0.24.0"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
+source = "git+https://github.com/ozgrakkurt/polars?branch=master#90a58cb187ad91e1095ea978b3903d2c0e7e6a74"
 dependencies = [
  "parking_lot",
  "rayon",
