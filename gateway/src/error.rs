@@ -37,8 +37,6 @@ pub enum Error {
     GetMinBlockNumber(eth_archive_core::Error),
     #[error("failed get maximum block number from database:\n{0}")]
     GetMaxBlockNumber(eth_archive_core::Error),
-    #[error("maximum block range exceeded in query. max is {max} query had {range}.")]
-    MaximumBlockRange { max: u32, range: u32 },
     #[error("failed to run sql query:\n{0}")]
     SqlQuery(eth_archive_core::Error),
     #[error("invalid hex in an address:\n{0}")]

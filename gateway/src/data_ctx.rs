@@ -175,14 +175,7 @@ impl DataCtx {
             return Err(Error::InvalidBlockRange);
         }
 
-        let block_range = to_block - query.from_block;
-
-        if block_range > self.config.max_block_range {
-            return Err(Error::MaximumBlockRange {
-                range: block_range,
-                max: self.config.max_block_range,
-            });
-        }
+        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range);
 
         let mut field_selection = query
             .logs
