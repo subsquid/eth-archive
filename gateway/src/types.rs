@@ -18,7 +18,7 @@ pub struct MiniQuery {
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct MiniLogSelection {
-    pub address: Address,
+    pub address: Option<Vec<Address>>,
     pub topics: Vec<Vec<Bytes32>>,
 }
 
@@ -57,7 +57,18 @@ impl MiniQuery {
 
 impl MiniLogSelection {
     pub fn to_expr(&self) -> Result<Expr> {
-        let mut expr = col("log_address").eq(lit(self.address.to_vec()));
+        let mut expr = match &self.address {
+            Some(addr) if !addr.is_empty() => {
+                let address = addr
+                    .iter()
+                    .map(|addr| addr.as_slice().to_vec())
+                    .collect::<Vec<_>>();
+
+                let series = Series::new("series", address).lit();
+                col("log_address").is_in(series)
+            }
+            _ => true.lit().eq(true.lit()),
+        };
 
         if self.topics.len() > 4 {
             return Err(Error::TooManyTopics(self.topics.len()));
@@ -78,13 +89,27 @@ impl MiniLogSelection {
     }
 
     pub fn to_sql(&self) -> Result<String> {
-        let mut sql = format!(
-            "(
-            eth_log.address = decode('{}', 'hex')",
-            prefix_hex::encode(&*self.address.0)
-                .strip_prefix("0x")
-                .unwrap()
-        );
+        let mut sql = match &self.address {
+            Some(addr) if !addr.is_empty() => {
+                let address = addr
+                    .iter()
+                    .map(|addr| {
+                        let addr = prefix_hex::encode(&*addr.0);
+                        let addr = addr.strip_prefix("0x").unwrap();
+                        format!("decode('{}', 'hex')", addr)
+                    })
+                    .collect::<Vec<_>>();
+
+                format!(
+                    "(
+                eth_log.address IN ({})",
+                    address.join(", ")
+                )
+            }
+            _ => "(
+                TRUE"
+                .to_owned(),
+        };
 
         if self.topics.len() > 4 {
             return Err(Error::TooManyTopics(self.topics.len()));
@@ -138,7 +163,7 @@ pub struct Query {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {
-    pub address: Address,
+    pub address: Option<Vec<Address>>,
     pub topics: Vec<Vec<Bytes32>>,
     pub field_selection: Option<FieldSelection>,
 }
