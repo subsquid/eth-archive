@@ -21,7 +21,7 @@ itertools = "0.10.3"
 eth-archive-core = { path = "../core" }
 
 [dependencies.arrow2]
-version = "0.14.0"
+git = "https://github.com/ozgrakkurt/arrow2"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

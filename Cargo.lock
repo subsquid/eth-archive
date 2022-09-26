@@ -252,8 +252,7 @@ dependencies = [
 [[package]]
 name = "arrow2"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467e88c67d518f9992bb1f6c8faa202eaf93b0ce244889d241c9c44d0df0ab46"
+source = "git+https://github.com/ozgrakkurt/arrow2#bc759a1ddd70880b60cff60548e1763ce989c923"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -274,32 +273,6 @@ dependencies = [
  "parquet2",
  "regex",
  "regex-syntax",
- "simdutf8",
- "streaming-iterator",
- "strength_reduce",
-]
-
-[[package]]
-name = "arrow2"
-version = "0.14.0"
-source = "git+https://github.com/ozgrakkurt/arrow2#2ca230e3971ab3d6f030f409fbc6b789993f80d1"
-dependencies = [
- "ahash",
- "arrow-format",
- "base64",
- "bytemuck",
- "chrono",
- "dyn-clone",
- "either",
- "ethnum",
- "fallible-streaming-iterator",
- "foreign_vec",
- "futures",
- "hash_hasher",
- "lexical-core",
- "multiversion",
- "num-traits",
- "parquet2",
  "simdutf8",
  "streaming-iterator",
  "strength_reduce",
@@ -844,7 +817,7 @@ dependencies = [
 name = "eth-archive-parquet-writer"
 version = "0.0.1"
 dependencies = [
- "arrow2 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arrow2",
  "clap",
  "env_logger",
  "eth-archive-core",
@@ -1863,7 +1836,7 @@ name = "polars-arrow"
 version = "0.24.0"
 source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c296681fba48fabd2f6c24123d03"
 dependencies = [
- "arrow2 0.14.0 (git+https://github.com/ozgrakkurt/arrow2)",
+ "arrow2",
  "hashbrown",
  "num",
  "thiserror",
@@ -1876,7 +1849,7 @@ source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c29
 dependencies = [
  "ahash",
  "anyhow",
- "arrow2 0.14.0 (git+https://github.com/ozgrakkurt/arrow2)",
+ "arrow2",
  "bitflags",
  "chrono",
  "comfy-table",
@@ -1901,7 +1874,7 @@ source = "git+https://github.com/ozgrakkurt/polars?branch=master#14353efb8747c29
 dependencies = [
  "ahash",
  "anyhow",
- "arrow2 0.14.0 (git+https://github.com/ozgrakkurt/arrow2)",
+ "arrow2",
  "csv-core",
  "dirs",
  "lexical",
@@ -2559,9 +2532,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "syn"
-version = "1.0.100"
+version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52205623b1b0f064a4e71182c3b18ae902267282930c6d5462c91b859668426e"
+checksum = "e90cde112c4b9690b8cbe810cba9ddd8bc1d7472e2cae317b69e9438c1cba7d2"
 dependencies = [
  "proc-macro2",
  "quote",
