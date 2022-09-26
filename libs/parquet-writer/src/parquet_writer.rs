@@ -1,13 +1,27 @@
 use crate::config::ParquetConfig;
-use crate::schema::{BlockNum, IntoRowGroups};
+use crate::schema::IntoRowGroups;
 use crate::{Error, Result};
 use arrow2::io::parquet::write::*;
-use eth_archive_core::types::BlockRange;
 use itertools::Itertools;
 use std::path::Path;
 use std::time::Instant;
 use std::{cmp, fs, mem};
 use tokio::sync::mpsc;
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BlockRange {
+    pub from: usize,
+    pub to: usize,
+}
+
+impl BlockRange {
+    pub fn merge(&self, other: Self) -> Self {
+        Self {
+            from: cmp::min(self.from, other.from),
+            to: cmp::max(self.to, other.to),
+        }
+    }
+}
 
 pub struct ParquetWriter<T: IntoRowGroups> {
     tx: Sender<T::Elem>,
@@ -103,7 +117,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 }
 
                 for elem in elems.into_iter() {
-                    let block_num = usize::try_from(elem.block_num()).unwrap();
+                    let block_num: usize = row.block_num(&elem).try_into().unwrap();
                     if block_num >= from_block {
                         row.push(elem).unwrap();
                     }

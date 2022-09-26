@@ -5,4 +5,5 @@ members = [
     "core",
     "gateway",
     "scripts/generate-parquets",
+    "libs/parquet-writer",
 ]
