@@ -1,21 +1,13 @@
-use crate::{Error, Result};
+use crate::Error;
 use arrow2::array::{
-    Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
-    MutableBooleanArray, UInt64Vec,
+    Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
+    UInt64Vec,
 };
-use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
-use arrow2::error::Error as ArrowError;
-use arrow2::io::parquet::write::{
-    transverse, CompressionOptions, Encoding, RowGroupIterator, Version, WriteOptions,
-};
 use eth_archive_core::types::{Block, Log, Transaction};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::result::Result as StdResult;
-
-type Chunk = ArrowChunk<Box<dyn Array>>;
+use parquet_writer::{Chunk, IntoRowGroups, Result};
 
 type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
 
@@ -91,14 +83,6 @@ fn log_schema() -> Schema {
     ])
 }
 
-fn options() -> WriteOptions {
-    WriteOptions {
-        write_statistics: true,
-        compression: CompressionOptions::Lz4Raw,
-        version: Version::V2,
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct Blocks {
     pub number: Int64Vec,
@@ -120,8 +104,6 @@ pub struct Blocks {
     pub timestamp: Int64Vec,
     pub len: usize,
 }
-
-type RowGroups = RowGroupIterator<Box<dyn Array>, std::vec::IntoIter<StdResult<Chunk, ArrowError>>>;
 
 impl IntoRowGroups for Blocks {
     type Elem = Block;
@@ -185,6 +167,10 @@ impl IntoRowGroups for Blocks {
         self.len += 1;
 
         Ok(())
+    }
+
+    fn block_num(&self, elem: &Self::Elem) -> i64 {
+        elem.number.0
     }
 
     fn len(&self) -> usize {
@@ -293,6 +279,10 @@ impl IntoRowGroups for Transactions {
         Ok(())
     }
 
+    fn block_num(&self, elem: &Self::Elem) -> i64 {
+        elem.block_number.0
+    }
+
     fn len(&self) -> usize {
         self.len
     }
@@ -385,73 +375,15 @@ impl IntoRowGroups for Logs {
         Ok(())
     }
 
+    fn block_num(&self, elem: &Self::Elem) -> i64 {
+        elem.block_number.0
+    }
+
     fn len(&self) -> usize {
         self.len
     }
 
     fn schema() -> Schema {
         log_schema()
-    }
-}
-
-pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
-    type Elem: Send + Sync + std::fmt::Debug + 'static + std::marker::Sized + BlockNum;
-
-    fn schema() -> Schema;
-    fn into_chunk(self) -> Chunk;
-    fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
-        let schema = Self::schema();
-
-        let encoding_map = |data_type: &DataType| match data_type {
-            DataType::Binary | DataType::LargeBinary => Encoding::DeltaLengthByteArray,
-            _ => Encoding::Plain,
-        };
-
-        let encodings = schema
-            .fields
-            .iter()
-            .map(|f| transverse(&f.data_type, encoding_map))
-            .collect::<Vec<_>>();
-
-        let row_groups = RowGroupIterator::try_new(
-            elems
-                .into_par_iter()
-                .map(|elem| Ok(Self::into_chunk(elem)))
-                .collect::<Vec<_>>()
-                .into_iter(),
-            &schema,
-            options(),
-            encodings,
-        )
-        .unwrap();
-
-        (row_groups, schema, options())
-    }
-    fn push(&mut self, elem: Self::Elem) -> Result<()>;
-    fn len(&self) -> usize;
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-pub trait BlockNum {
-    fn block_num(&self) -> i64;
-}
-
-impl BlockNum for Block {
-    fn block_num(&self) -> i64 {
-        self.number.0
-    }
-}
-
-impl BlockNum for Transaction {
-    fn block_num(&self) -> i64 {
-        self.block_number.0
-    }
-}
-
-impl BlockNum for Log {
-    fn block_num(&self) -> i64 {
-        self.block_number.0
     }
 }

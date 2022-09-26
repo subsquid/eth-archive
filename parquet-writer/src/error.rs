@@ -1,5 +1,4 @@
 use arrow2::error::Error as ArrowError;
-use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
 
@@ -9,23 +8,15 @@ pub enum Error {
     ReadConfigFile(std::io::Error),
     #[error("failed to parse config:\n{0}")]
     ParseConfig(toml::de::Error),
-    #[error("failed to push element to arrow array:\n{0}")]
-    PushRow(ArrowError),
     #[error("failed to sort row group:\n{0}")]
     SortRowGroup(ArrowError),
-    #[error("no blocks in database yet. need to start parquet writer after ingester.")]
-    NoBlocksInDb,
     #[error("failed to create database handle:\n{0}")]
     CreateDbHandle(Box<eth_archive_core::Error>),
     #[error("failed to build ethereum rpc client:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
     #[error("ethereum rpc client error:\n{0}")]
     EthClient(eth_archive_core::Error),
-    #[error("failed to read parquet directory:\n{0}")]
-    ReadParquetDir(io::Error),
     #[error("invalid parquet file name.")]
-    InvalidParquetFileName,
-    #[error("failed get minimum block number from database:\n{0}")]
     GetMinBlockNumber(eth_archive_core::Error),
     #[error("failed to get block from database:\n{0}")]
     GetBlockFromDb(eth_archive_core::Error),
@@ -35,10 +26,6 @@ pub enum Error {
     GetTxsFromDb(eth_archive_core::Error),
     #[error("failed to get logs from database:\n{0}")]
     GetLogsFromDb(eth_archive_core::Error),
-    #[error("invalid parquet file name \"{0}\"")]
-    InvalidParquetFilename(String),
-    #[error("failed to read parquet file name")]
-    ReadParquetFileName,
 }
 
 pub type Result<T> = StdResult<T, Error>;

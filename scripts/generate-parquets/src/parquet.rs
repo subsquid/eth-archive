@@ -1,7 +1,6 @@
 use eth_archive_core::types::{Block, Log, Transaction};
-use eth_archive_parquet_writer::{
-    BlockRange, Blocks, Logs, ParquetConfig, ParquetWriter, Transactions,
-};
+use eth_archive_parquet_writer::{Blocks, Logs, Transactions};
+use parquet_writer::{BlockRange, ParquetConfig, ParquetWriter};
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
