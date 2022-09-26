@@ -383,8 +383,8 @@ impl DataCtx {
         let frame = logs
             .join(
                 blocks,
-                &[col("log_block_number"), col("log_block_hash")],
-                &[col("block_number"), col("block_hash")],
+                &[col("log_block_number")],
+                &[col("block_number")],
                 JoinType::Inner,
             )
             .join(
