@@ -211,6 +211,6 @@ impl std::ops::AddAssign for QueryMetrics {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
-    pub data: Vec<Vec<ResponseRow>>,
+    pub data: Vec<ResponseRow>,
     pub metrics: QueryMetrics,
 }

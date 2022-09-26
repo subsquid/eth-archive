@@ -157,7 +157,7 @@ impl DbHandle {
         let serialize_result = start_time.elapsed().as_millis();
 
         Ok(QueryResult {
-            data: vec![data],
+            data,
             metrics: QueryMetrics {
                 build_query,
                 run_query,

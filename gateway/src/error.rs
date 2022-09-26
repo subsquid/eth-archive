@@ -1,6 +1,7 @@
 use std::result::Result as StdResult;
 
 use actix_web::{HttpResponse, ResponseError};
+use polars::error::PolarsError;
 use std::io;
 use thiserror::Error as ThisError;
 
@@ -13,13 +14,11 @@ pub enum Error {
     #[error("failed to create database handle:\n{0}")]
     CreateDbHandle(Box<eth_archive_core::Error>),
     #[error("failed to execute query:\n{0}")]
-    ExecuteQuery(datafusion::error::DataFusionError),
+    ExecuteQuery(PolarsError),
     #[error("failed to build query:\n{0}")]
-    BuildQuery(datafusion::error::DataFusionError),
-    #[error("failed to register parquet files to datafusion context:\n{0}")]
-    RegisterParquet(datafusion::error::DataFusionError),
+    BuildQuery(PolarsError),
     #[error("failed to collect results of query:\n{0}")]
-    CollectResults(arrow::error::ArrowError),
+    CollectResults(PolarsError),
     #[error("no block found")]
     NoBlocks,
     #[error("invalid block number returned from query")]
@@ -27,9 +26,9 @@ pub enum Error {
     #[error("at least one field has to be selected")]
     NoFieldsSelected,
     #[error("failed to apply address filters to query:\n{0}")]
-    ApplyAddrFilters(datafusion::error::DataFusionError),
+    ApplyAddrFilters(PolarsError),
     #[error("failed to apply block range filter to query:\n{0}")]
-    ApplyBlockRangeFilter(datafusion::error::DataFusionError),
+    ApplyBlockRangeFilter(PolarsError),
     #[error("failed to run http server:\n{0}")]
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]
@@ -50,8 +49,6 @@ pub enum Error {
     ReadParquetDir(io::Error),
     #[error("invalid block range in query")]
     InvalidBlockRange,
-    #[error("failed to concatenate arrow data in memory:\n{0}")]
-    ConcatRecordBatches(arrow::error::ArrowError),
     #[error("invalid address in query")]
     InvalidAddress,
     #[error("invalid topic in query")]
@@ -68,6 +65,14 @@ pub enum Error {
     InvalidParquetFilename(String),
     #[error("failed to read parquet file name")]
     ReadParquetFileName,
+    #[error("failed to scan for parquet file:\n{0}")]
+    ScanParquet(PolarsError),
+    #[error("failed to union data frames:\n{0}")]
+    UnionFrames(PolarsError),
+    #[error("failed to get column from result frame:\n{0}")]
+    GetColumn(PolarsError),
+    #[error("failed to join async task\n{0}")]
+    TaskJoinError(tokio::task::JoinError),
 }
 
 pub type Result<T> = StdResult<T, Error>;

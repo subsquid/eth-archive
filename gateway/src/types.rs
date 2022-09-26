@@ -1,8 +1,8 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
-use datafusion::prelude::*;
 use eth_archive_core::deserialize::{Address, Bytes32};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
+use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 
@@ -65,8 +65,12 @@ impl MiniLogSelection {
 
         for (i, topic) in self.topics.iter().enumerate() {
             if !topic.is_empty() {
-                let topic = topic.iter().map(|topic| lit(topic.to_vec())).collect();
-                expr = expr.and(col(&format!("log_topic{}", i)).in_list(topic, false));
+                let series = topic
+                    .iter()
+                    .map(|topic| topic.as_slice())
+                    .collect::<Vec<_>>();
+                let series = Series::new("series", series).lit();
+                expr = expr.and(col(&format!("log_topic{}", i)).is_in(series));
             }
         }
 

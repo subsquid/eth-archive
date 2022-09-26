@@ -20,20 +20,20 @@ connect_timeout_ms = 1000
 [block]
 name = "block"
 path = "data/block"
-items_per_file = 524288
-items_per_row_group = 16384
-channel_size = 128
+items_per_file = 32768
+items_per_row_group = 512
+channel_size = 1024
 
 [transaction]
 name = "tx"
 path = "data/tx"
-items_per_file = 524288
-items_per_row_group = 16384
+items_per_file = 65536
+items_per_row_group = 512
 channel_size = 3072
 
 [log]
 name = "log"
 path = "data/log"
-items_per_file = 1048576
-items_per_row_group = 16384
-channel_size = 32768
+items_per_file = 65536
+items_per_row_group = 512
+channel_size = 2048

@@ -3,12 +3,11 @@ use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
 use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, Query, Status};
 use crate::{Error, Result};
-use arrow::record_batch::RecordBatch;
-use datafusion::execution::context::{SessionConfig, SessionContext};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
+use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -193,16 +192,12 @@ impl DataCtx {
             })
             .ok_or(Error::NoFieldsSelected)?;
 
-        field_selection.block = Some(field_selection.block.unwrap_or_default());
-        field_selection.transaction = Some(field_selection.transaction.unwrap_or_default());
-        field_selection.log = Some(field_selection.log.unwrap_or_default());
-
-        field_selection.block.as_mut().unwrap().number = Some(true);
-
-        field_selection.transaction.as_mut().unwrap().hash = Some(true);
-        field_selection.transaction.as_mut().unwrap().block_number = Some(true);
-
-        field_selection.log.as_mut().unwrap().block_number = Some(true);
+        field_selection.block.number = Some(true);
+        field_selection.transaction.hash = Some(true);
+        field_selection.transaction.block_number = Some(true);
+        field_selection.transaction.transaction_index = Some(true);
+        field_selection.log.block_number = Some(true);
+        field_selection.log.transaction_index = Some(true);
 
         let log_selection: Vec<MiniLogSelection> = query
             .logs
@@ -232,7 +227,7 @@ impl DataCtx {
                 let mut block_idxs = HashMap::new();
                 let mut tx_idxs = HashMap::new();
 
-                for row in res.data.into_iter().flat_map(|rows| rows.into_iter()) {
+                for row in res.data {
                     let block_number = row.block.number.unwrap().0;
                     let tx_hash = row.transaction.hash.clone().unwrap().0;
 
@@ -313,7 +308,7 @@ impl DataCtx {
                 })
                 .await?;
 
-            num_logs += res.data.iter().map(Vec::len).sum::<usize>();
+            num_logs += res.data.len();
 
             tx.send((res, end)).await.ok().unwrap();
 
@@ -335,7 +330,15 @@ impl DataCtx {
         let parquet_block_number = { self.parquet_state.read().await.parquet_block_number };
 
         if parquet_block_number >= query.to_block {
-            self.query_parquet(query).await
+            let ctx = DataCtx {
+                db: self.db.clone(),
+                parquet_state: self.parquet_state.clone(),
+                config: self.config.clone(),
+            };
+
+            tokio::task::spawn_blocking(move || ctx.query_parquet(query))
+                .await
+                .map_err(Error::TaskJoinError)?
         } else {
             let start_time = Instant::now();
 
@@ -350,56 +353,64 @@ impl DataCtx {
         }
     }
 
-    async fn setup_pruned_session(&self, from_block: u32, to_block: u32) -> Result<SessionContext> {
+    fn setup_pruned_frame(
+        &self,
+        field_selection: FieldSelection,
+        from_block: u32,
+        to_block: u32,
+    ) -> Result<LazyFrame> {
         let range = (from_block, to_block);
 
-        let cfg = SessionConfig::new()
-            .with_target_partitions(self.config.target_partitions)
-            .with_batch_size(self.config.batch_size)
-            .with_parquet_pruning(true);
+        let parquet_state = self.parquet_state.blocking_read();
 
-        let mut ctx = SessionContext::with_config(cfg);
-
-        let parquet_state = self.parquet_state.read().await;
-
-        self.register_table(
-            &mut ctx,
+        let blocks = self.get_lazy_frame_from_parquet(
             &parquet_state.block_ranges,
             range,
             "block",
             &self.config.blocks_path,
-        )
-        .await?;
-        self.register_table(
-            &mut ctx,
+        )?;
+        let transactions = self.get_lazy_frame_from_parquet(
             &parquet_state.tx_ranges,
             range,
             "tx",
             &self.config.transactions_path,
-        )
-        .await?;
-        self.register_table(
-            &mut ctx,
+        )?;
+        let logs = self.get_lazy_frame_from_parquet(
             &parquet_state.log_ranges,
             range,
             "log",
             &self.config.logs_path,
-        )
-        .await?;
+        )?;
 
-        Ok(ctx)
+        let blocks = blocks.select(field_selection.block.to_cols());
+
+        let transactions = transactions.select(field_selection.transaction.to_cols());
+        let logs = logs.select(field_selection.log.to_cols());
+
+        let frame = logs
+            .join(
+                blocks,
+                &[col("log_block_number"), col("log_block_hash")],
+                &[col("block_number"), col("block_hash")],
+                JoinType::Inner,
+            )
+            .join(
+                transactions,
+                &[col("log_block_number"), col("log_transaction_index")],
+                &[col("tx_block_number"), col("tx_transaction_index")],
+                JoinType::Inner,
+            );
+
+        Ok(frame)
     }
 
-    async fn register_table(
+    fn get_lazy_frame_from_parquet(
         &self,
-        ctx: &mut SessionContext,
         map: &RangeMap,
         range: (u32, u32),
         table_name: &'static str,
         folder_path: &str,
-    ) -> Result<()> {
-        use datafusion::prelude::ParquetReadOptions;
-
+    ) -> Result<LazyFrame> {
         let block_ranges = map.get(range.0..range.1).collect::<Vec<_>>();
         if block_ranges.is_empty() {
             return Err(Error::RangeNotFoundInParquetFiles(range, table_name));
@@ -409,105 +420,32 @@ impl DataCtx {
             "{}/{}{}_{}.parquet",
             folder_path, table_name, file_range.start, file_range.end
         );
-        let mut main_frame = ctx
-            .read_parquet(
-                &file_path,
-                ParquetReadOptions {
-                    file_extension: ".parquet",
-                    table_partition_cols: Vec::new(),
-                    parquet_pruning: true,
-                    skip_metadata: true,
-                },
-            )
-            .await
-            .map_err(Error::RegisterParquet)?;
+
+        let mut main_frame =
+            LazyFrame::scan_parquet(file_path, Default::default()).map_err(Error::ScanParquet)?;
+
         for file_range in block_ranges.iter().skip(1) {
             let file_path = format!(
                 "{}/{}{}_{}.parquet",
                 folder_path, table_name, file_range.start, file_range.end
             );
-            let data_frame = ctx
-                .read_parquet(
-                    &file_path,
-                    ParquetReadOptions {
-                        file_extension: ".parquet",
-                        table_partition_cols: Vec::new(),
-                        parquet_pruning: true,
-                        skip_metadata: true,
-                    },
-                )
-                .await
-                .map_err(Error::RegisterParquet)?;
+            let data_frame = LazyFrame::scan_parquet(file_path, Default::default())
+                .map_err(Error::ScanParquet)?;
 
-            main_frame = main_frame
-                .union(data_frame)
-                .map_err(Error::RegisterParquet)?;
+            main_frame =
+                concat(&[main_frame, data_frame], true, true).map_err(Error::UnionFrames)?;
         }
-        ctx.register_table(table_name, main_frame)
-            .map_err(Error::RegisterParquet)?;
 
-        Ok(())
+        Ok(main_frame)
     }
 
-    async fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {
-        use datafusion::prelude::*;
+    fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {
+        use polars::prelude::*;
 
         let start_time = Instant::now();
 
-        let select_columns = query.field_selection.to_cols();
-        if select_columns.is_empty() {
-            return Err(Error::NoFieldsSelected);
-        }
-
-        let session = self
-            .setup_pruned_session(query.from_block, query.to_block)
-            .await?;
-
-        let mut data_frame = session.table("log").map_err(Error::BuildQuery)?;
-
-        data_frame = data_frame
-            .join(
-                session.table("block").map_err(Error::BuildQuery)?,
-                JoinType::Inner,
-                &["log.block_number"],
-                &["block.number"],
-                None,
-            )
-            .map_err(Error::BuildQuery)?
-            .join(
-                session.table("tx").map_err(Error::BuildQuery)?,
-                JoinType::Inner,
-                &["log.block_number", "log.transaction_index"],
-                &["tx.block_number", "tx.transaction_index"],
-                None,
-            )
-            .map_err(Error::BuildQuery)?
-            .select(select_columns)
-            .map_err(Error::BuildQuery)?;
-
-        data_frame = data_frame
-            .filter(
-                col("log_block_number")
-                    .gt_eq(lit(query.from_block))
-                    .and(col("log_block_number").lt(lit(query.to_block))),
-            )
-            .map_err(Error::ApplyBlockRangeFilter)?;
-
-        data_frame = data_frame
-            .filter(
-                col("tx_block_number")
-                    .gt_eq(lit(query.from_block))
-                    .and(col("tx_block_number").lt(lit(query.to_block))),
-            )
-            .map_err(Error::ApplyBlockRangeFilter)?;
-
-        data_frame = data_frame
-            .filter(
-                col("block_number")
-                    .gt_eq(lit(query.from_block))
-                    .and(col("block_number").lt(lit(query.to_block))),
-            )
-            .map_err(Error::ApplyBlockRangeFilter)?;
+        let mut data_frame =
+            self.setup_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
 
         if !query.logs.is_empty() {
             let mut logs = query.logs;
@@ -518,36 +456,32 @@ impl DataCtx {
                 expr = expr.or(log.to_expr()?);
             }
 
-            data_frame = data_frame.filter(expr).map_err(Error::ApplyAddrFilters)?;
+            data_frame = data_frame.filter(expr);
         }
+
+        data_frame = data_frame.filter(
+            col("log_block_number")
+                .gt_eq(lit(query.from_block))
+                .and(col("log_block_number").lt(lit(query.to_block))),
+        );
+
+        data_frame = data_frame.filter(
+            col("tx_block_number")
+                .gt_eq(lit(query.from_block))
+                .and(col("tx_block_number").lt(lit(query.to_block))),
+        );
 
         let build_query = start_time.elapsed().as_millis();
 
         let start_time = Instant::now();
 
-        /*
-        let explanation = data_frame.explain(false, true).unwrap();
-
-        println!("EXPLANATION:\n");
-        explanation.show().await.unwrap();
-        */
-
-        let batches = data_frame.collect().await.map_err(Error::ExecuteQuery)?;
+        let result_frame = data_frame.collect().map_err(Error::ExecuteQuery)?;
 
         let run_query = start_time.elapsed().as_millis();
 
         let start_time = Instant::now();
 
-        use rayon::prelude::*;
-
-        let data = tokio::task::spawn_blocking(move || {
-            batches
-                .into_par_iter()
-                .map(response_rows_from_batch)
-                .collect()
-        })
-        .await
-        .unwrap();
+        let data = response_rows_from_result_frame(result_frame)?;
 
         let serialize_result = start_time.elapsed().as_millis();
 
@@ -563,246 +497,484 @@ impl DataCtx {
     }
 }
 
-// defines columns using the record batch and a list of column names
+// defines columns using the result frame and a list of column names
 macro_rules! define_cols {
-    ($batch:expr, $($name:ident),*) => {
-        let schema = $batch.schema();
-
+    ($batch:expr, $schema:expr, $($name:ident),*) => {
+        let columns = $batch.columns();
         $(
-            let $name = schema.column_with_name(stringify!($name)).map(|(i, _)| {
-                $batch.column(i)
+            let $name = $schema.get_full(stringify!($name)).map(|(i, _, _)| {
+                columns.get(i).unwrap()
             });
         )*
     };
 }
 
-fn response_rows_from_batch(batch: RecordBatch) -> Vec<ResponseRow> {
-    use arrow::array::{BinaryArray, BooleanArray, Int64Array, UInt64Array};
+fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<ResponseRow>> {
     use eth_archive_core::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
+    use polars::export::arrow::array::{self, BooleanArray, Int64Array, UInt64Array};
 
-    define_cols!(
-        batch,
-        block_number,
-        block_hash,
-        block_parent_hash,
-        block_nonce,
-        block_sha3_uncles,
-        block_logs_bloom,
-        block_transactions_root,
-        block_state_root,
-        block_receipts_root,
-        block_miner,
-        block_difficulty,
-        block_total_difficulty,
-        block_extra_data,
-        block_size,
-        block_gas_limit,
-        block_gas_used,
-        block_timestamp,
-        tx_block_hash,
-        tx_block_number,
-        tx_source,
-        tx_gas,
-        tx_gas_price,
-        tx_hash,
-        tx_input,
-        tx_nonce,
-        tx_dest,
-        tx_transaction_index,
-        tx_value,
-        tx_kind,
-        tx_chain_id,
-        tx_v,
-        tx_r,
-        tx_s,
-        log_address,
-        log_block_hash,
-        log_block_number,
-        log_data,
-        log_log_index,
-        log_removed,
-        log_topic0,
-        log_topic1,
-        log_topic2,
-        log_topic3,
-        log_transaction_hash,
-        log_transaction_index
-    );
+    type BinaryArray = array::BinaryArray<i64>;
 
-    (0..batch.num_rows())
-        .map(|i| ResponseRow {
-            block: ResponseBlock {
-                number: block_number
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                hash: block_hash
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                parent_hash: block_parent_hash
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                nonce: block_nonce
-                    .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().value(i))
-                    .map(Nonce),
-                sha3_uncles: block_sha3_uncles
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                logs_bloom: block_logs_bloom
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(BloomFilterBytes::new),
-                transactions_root: block_transactions_root
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                state_root: block_state_root
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                receipts_root: block_receipts_root
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                miner: block_miner
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Address::new),
-                difficulty: block_difficulty
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                total_difficulty: block_total_difficulty
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                extra_data: block_extra_data
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                size: block_size
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                gas_limit: block_gas_limit
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                gas_used: block_gas_used
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                timestamp: block_timestamp
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-            },
-            transaction: ResponseTransaction {
-                block_hash: tx_block_hash
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                block_number: tx_block_number
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                source: tx_source
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Address::new),
-                gas: tx_gas
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                gas_price: tx_gas_price
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                hash: tx_hash
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                input: tx_input
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                nonce: tx_nonce
-                    .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().value(i))
-                    .map(Nonce),
-                dest: match tx_dest
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                {
-                    Some(addr) if !addr.is_empty() => Some(Address::new(addr)),
-                    _ => None,
+    let mut data = Vec::new();
+
+    let schema = result_frame.schema();
+
+    for batch in result_frame.iter_chunks() {
+        define_cols!(
+            batch,
+            schema,
+            block_hash,
+            block_parent_hash,
+            block_nonce,
+            block_sha3_uncles,
+            block_logs_bloom,
+            block_transactions_root,
+            block_state_root,
+            block_receipts_root,
+            block_miner,
+            block_difficulty,
+            block_total_difficulty,
+            block_extra_data,
+            block_size,
+            block_gas_limit,
+            block_gas_used,
+            block_timestamp,
+            tx_block_hash,
+            tx_source,
+            tx_gas,
+            tx_gas_price,
+            tx_hash,
+            tx_input,
+            tx_nonce,
+            tx_dest,
+            tx_value,
+            tx_kind,
+            tx_chain_id,
+            tx_v,
+            tx_r,
+            tx_s,
+            log_address,
+            log_block_hash,
+            log_block_number,
+            log_data,
+            log_log_index,
+            log_removed,
+            log_topic0,
+            log_topic1,
+            log_topic2,
+            log_topic3,
+            log_transaction_hash,
+            log_transaction_index
+        );
+
+        let len = log_block_number.as_ref().unwrap().len();
+
+        for i in 0..len {
+            let response_row = ResponseRow {
+                block: ResponseBlock {
+                    number: log_block_number
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    hash: block_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    parent_hash: block_parent_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    nonce: block_nonce
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Nonce),
+                    sha3_uncles: block_sha3_uncles
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    logs_bloom: block_logs_bloom
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BloomFilterBytes::new),
+                    transactions_root: block_transactions_root
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    state_root: block_state_root
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    receipts_root: block_receipts_root
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    miner: block_miner
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Address::new),
+                    difficulty: block_difficulty
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    total_difficulty: block_total_difficulty
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    extra_data: block_extra_data
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    size: block_size
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    gas_limit: block_gas_limit
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    gas_used: block_gas_used
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    timestamp: block_timestamp
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
                 },
-                transaction_index: tx_transaction_index
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                value: tx_value
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                kind: tx_kind
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                chain_id: tx_chain_id
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                v: tx_v
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                r: tx_r
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                s: tx_s
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-            },
-            log: ResponseLog {
-                address: log_address
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Address::new),
-                block_hash: log_block_hash
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                block_number: log_block_number
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                data: log_data
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes::new),
-                log_index: log_log_index
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-                removed: log_removed.map(|arr| {
-                    arr.as_any()
-                        .downcast_ref::<BooleanArray>()
-                        .unwrap()
-                        .value(i)
-                }),
-                topics: {
-                    let mut topics = vec![];
-
-                    if let Some(topic) = log_topic0
-                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
+                transaction: ResponseTransaction {
+                    block_hash: tx_block_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    block_number: log_block_number
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    source: tx_source
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Address::new),
+                    gas: tx_gas
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    gas_price: tx_gas_price
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    hash: tx_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    input: tx_input
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    nonce: tx_nonce
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Nonce),
+                    dest: match tx_dest
+                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
                     {
-                        if !topic.is_empty() {
-                            topics.push(Bytes32::new(topic));
-                        }
-                    }
-
-                    if let Some(topic) = log_topic1
-                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    {
-                        if !topic.is_empty() {
-                            topics.push(Bytes32::new(topic));
-                        }
-                    }
-
-                    if let Some(topic) = log_topic2
-                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    {
-                        if !topic.is_empty() {
-                            topics.push(Bytes32::new(topic));
-                        }
-                    }
-
-                    if let Some(topic) = log_topic3
-                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    {
-                        if !topic.is_empty() {
-                            topics.push(Bytes32::new(topic));
-                        }
-                    }
-
-                    Some(topics)
+                        Some(Some(addr)) => Some(Address::new(addr)),
+                        _ => None,
+                    },
+                    transaction_index: log_transaction_index
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    value: tx_value
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    kind: tx_kind
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    chain_id: tx_chain_id
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    v: tx_v
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    r: tx_r
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    s: tx_s
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
                 },
-                transaction_hash: log_transaction_hash
-                    .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().value(i))
-                    .map(Bytes32::new),
-                transaction_index: log_transaction_index
-                    .map(|arr| arr.as_any().downcast_ref::<Int64Array>().unwrap().value(i))
-                    .map(BigInt),
-            },
-        })
-        .collect()
+                log: ResponseLog {
+                    address: log_address
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Address::new),
+                    block_hash: log_block_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    block_number: log_block_number
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    data: log_data
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    log_index: log_log_index
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    removed: log_removed.map(|arr| {
+                        arr.as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .unwrap()
+                            .get(i)
+                            .unwrap()
+                    }),
+                    topics: {
+                        let mut topics = vec![];
+
+                        if let Some(Some(topic)) = log_topic0
+                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
+                        {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        if let Some(Some(topic)) = log_topic1
+                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
+                        {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        if let Some(Some(topic)) = log_topic2
+                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
+                        {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        if let Some(Some(topic)) = log_topic3
+                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
+                        {
+                            topics.push(Bytes32::new(topic));
+                        }
+
+                        Some(topics)
+                    },
+                    transaction_hash: log_transaction_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    transaction_index: log_transaction_index
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                },
+            };
+
+            data.push(response_row);
+        }
+    }
+
+    Ok(data)
 }
