@@ -14,5 +14,5 @@ thiserror = "1.0"
 serde = { version = "1.0.137", features = ["derive"] }
 
 [dependencies.arrow2]
-git = "https://github.com/ozgrakkurt/arrow2"
+version = "0.14.1"
 features = ["io_parquet", "io_parquet_compression", "compute"]
