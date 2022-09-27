@@ -108,6 +108,7 @@ pub struct QueryResponse {
 pub struct Client(reqwest::Client);
 
 impl Client {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Client {
         Client(reqwest::Client::new())
     }

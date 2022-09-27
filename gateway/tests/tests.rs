@@ -45,5 +45,5 @@ async fn log_topics_filtering() {
             }]
         }))
         .await;
-    assert!(response.data.len() == 0);
+    assert!(response.data.is_empty());
 }
