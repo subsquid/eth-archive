@@ -27,18 +27,26 @@ macro_rules! append_col_sql {
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSelection {
-    pub block: BlockFieldSelection,
-    pub transaction: TransactionFieldSelection,
-    pub log: LogFieldSelection,
+    pub block: Option<BlockFieldSelection>,
+    pub transaction: Option<TransactionFieldSelection>,
+    pub log: Option<LogFieldSelection>,
 }
 
 impl FieldSelection {
     pub fn to_cols_sql(self) -> String {
         let mut cols = Vec::new();
 
-        self.block.to_cols_sql(&mut cols);
-        self.transaction.to_cols_sql(&mut cols);
-        self.log.to_cols_sql(&mut cols);
+        if let Some(block) = self.block {
+            block.to_cols_sql(&mut cols);
+        }
+
+        if let Some(tx) = self.transaction {
+            tx.to_cols_sql(&mut cols);
+        }
+
+        if let Some(log) = self.log {
+            log.to_cols_sql(&mut cols);
+        }
 
         cols.join(",\n")
     }
@@ -131,8 +139,18 @@ impl BlockFieldSelection {
         cols
     }
 
-    pub fn merge(left: Self, right: Self) -> Self {
-        Self {
+    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
+        let left = match left {
+            Some(left) => left,
+            None => return right,
+        };
+
+        let right = match right {
+            Some(right) => right,
+            None => return Some(left),
+        };
+
+        Some(Self {
             number: merge_opt(left.number, right.number),
             hash: merge_opt(left.hash, right.hash),
             parent_hash: merge_opt(left.parent_hash, right.parent_hash),
@@ -150,7 +168,7 @@ impl BlockFieldSelection {
             gas_limit: merge_opt(left.gas_limit, right.gas_limit),
             gas_used: merge_opt(left.gas_used, right.gas_used),
             timestamp: merge_opt(left.timestamp, right.timestamp),
-        }
+        })
     }
 }
 
@@ -223,8 +241,18 @@ impl TransactionFieldSelection {
         cols
     }
 
-    pub fn merge(left: Self, right: Self) -> Self {
-        Self {
+    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
+        let left = match left {
+            Some(left) => left,
+            None => return right,
+        };
+
+        let right = match right {
+            Some(right) => right,
+            None => return Some(left),
+        };
+
+        Some(Self {
             block_hash: merge_opt(left.block_hash, right.block_hash),
             block_number: merge_opt(left.block_number, right.block_number),
             source: merge_opt(left.source, right.source),
@@ -241,7 +269,7 @@ impl TransactionFieldSelection {
             v: merge_opt(left.v, right.v),
             r: merge_opt(left.r, right.r),
             s: merge_opt(left.s, right.s),
-        }
+        })
     }
 }
 
@@ -302,8 +330,18 @@ impl LogFieldSelection {
         cols
     }
 
-    pub fn merge(left: Self, right: Self) -> Self {
-        Self {
+    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
+        let left = match left {
+            Some(left) => left,
+            None => return right,
+        };
+
+        let right = match right {
+            Some(right) => right,
+            None => return Some(left),
+        };
+
+        Some(Self {
             address: merge_opt(left.address, right.address),
             block_hash: merge_opt(left.block_hash, right.block_hash),
             block_number: merge_opt(left.block_number, right.block_number),
@@ -313,7 +351,7 @@ impl LogFieldSelection {
             topics: merge_opt(left.topics, right.topics),
             transaction_hash: merge_opt(left.transaction_hash, right.transaction_hash),
             transaction_index: merge_opt(left.transaction_index, right.transaction_index),
-        }
+        })
     }
 }
 

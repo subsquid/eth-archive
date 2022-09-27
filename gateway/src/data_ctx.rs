@@ -185,14 +185,22 @@ impl DataCtx {
             })
             .ok_or(Error::NoFieldsSelected)?;
 
-        field_selection.block.number = Some(true);
-        field_selection.transaction.hash = Some(true);
-        field_selection.transaction.block_number = Some(true);
-        field_selection.transaction.transaction_index = Some(true);
-        field_selection.log.block_number = Some(true);
-        field_selection.log.transaction_index = Some(true);
-        field_selection.log.address = Some(true);
-        field_selection.log.topics = Some(true);
+        let mut block_selection = field_selection.block.unwrap_or_default();
+        let mut tx_selection = field_selection.transaction.unwrap_or_default();
+        let mut log_selection = field_selection.log.unwrap_or_default();
+
+        block_selection.number = Some(true);
+        tx_selection.hash = Some(true);
+        tx_selection.block_number = Some(true);
+        tx_selection.transaction_index = Some(true);
+        log_selection.block_number = Some(true);
+        log_selection.transaction_index = Some(true);
+        log_selection.address = Some(true);
+        log_selection.topics = Some(true);
+
+        field_selection.block = Some(block_selection);
+        field_selection.transaction = Some(tx_selection);
+        field_selection.log = Some(log_selection);
 
         let log_selection: Vec<MiniLogSelection> = query
             .logs
@@ -377,10 +385,9 @@ impl DataCtx {
             &self.config.logs_path,
         )?;
 
-        let blocks = blocks.select(field_selection.block.to_cols());
-
-        let transactions = transactions.select(field_selection.transaction.to_cols());
-        let logs = logs.select(field_selection.log.to_cols());
+        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
+        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
+        let logs = logs.select(field_selection.log.unwrap().to_cols());
 
         let frame = logs
             .join(
