@@ -66,22 +66,22 @@ impl FieldSelection {
 #[serde(rename_all = "camelCase")]
 pub struct BlockFieldSelection {
     pub number: Option<bool>,
-    hash: Option<bool>,
-    parent_hash: Option<bool>,
-    nonce: Option<bool>,
-    sha3_uncles: Option<bool>,
-    logs_bloom: Option<bool>,
-    transactions_root: Option<bool>,
-    state_root: Option<bool>,
-    receipts_root: Option<bool>,
-    miner: Option<bool>,
-    difficulty: Option<bool>,
-    total_difficulty: Option<bool>,
-    extra_data: Option<bool>,
-    size: Option<bool>,
-    gas_limit: Option<bool>,
-    gas_used: Option<bool>,
-    timestamp: Option<bool>,
+    pub hash: Option<bool>,
+    pub parent_hash: Option<bool>,
+    pub nonce: Option<bool>,
+    pub sha3_uncles: Option<bool>,
+    pub logs_bloom: Option<bool>,
+    pub transactions_root: Option<bool>,
+    pub state_root: Option<bool>,
+    pub receipts_root: Option<bool>,
+    pub miner: Option<bool>,
+    pub difficulty: Option<bool>,
+    pub total_difficulty: Option<bool>,
+    pub extra_data: Option<bool>,
+    pub size: Option<bool>,
+    pub gas_limit: Option<bool>,
+    pub gas_used: Option<bool>,
+    pub timestamp: Option<bool>,
 }
 
 impl BlockFieldSelection {
@@ -160,22 +160,22 @@ pub struct TransactionFieldSelection {
     block_hash: Option<bool>,
     pub block_number: Option<bool>,
     #[serde(rename = "from")]
-    source: Option<bool>,
-    gas: Option<bool>,
-    gas_price: Option<bool>,
+    pub source: Option<bool>,
+    pub gas: Option<bool>,
+    pub gas_price: Option<bool>,
     pub hash: Option<bool>,
-    input: Option<bool>,
-    nonce: Option<bool>,
+    pub input: Option<bool>,
+    pub nonce: Option<bool>,
     #[serde(rename = "to")]
-    dest: Option<bool>,
+    pub dest: Option<bool>,
     #[serde(rename = "index")]
     pub transaction_index: Option<bool>,
-    value: Option<bool>,
-    kind: Option<bool>,
-    chain_id: Option<bool>,
-    v: Option<bool>,
-    r: Option<bool>,
-    s: Option<bool>,
+    pub value: Option<bool>,
+    pub kind: Option<bool>,
+    pub chain_id: Option<bool>,
+    pub v: Option<bool>,
+    pub r: Option<bool>,
+    pub s: Option<bool>,
 }
 
 impl TransactionFieldSelection {
@@ -248,15 +248,15 @@ impl TransactionFieldSelection {
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LogFieldSelection {
-    address: Option<bool>,
-    block_hash: Option<bool>,
+    pub address: Option<bool>,
+    pub block_hash: Option<bool>,
     pub block_number: Option<bool>,
-    data: Option<bool>,
+    pub data: Option<bool>,
     #[serde(rename = "index")]
-    log_index: Option<bool>,
-    removed: Option<bool>,
-    topics: Option<bool>,
-    transaction_hash: Option<bool>,
+    pub log_index: Option<bool>,
+    pub removed: Option<bool>,
+    pub topics: Option<bool>,
+    pub transaction_hash: Option<bool>,
     pub transaction_index: Option<bool>,
 }
 

@@ -191,6 +191,8 @@ impl DataCtx {
         field_selection.transaction.transaction_index = Some(true);
         field_selection.log.block_number = Some(true);
         field_selection.log.transaction_index = Some(true);
+        field_selection.log.address = Some(true);
+        field_selection.log.topics = Some(true);
 
         let log_selection: Vec<MiniLogSelection> = query
             .logs
