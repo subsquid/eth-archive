@@ -491,10 +491,7 @@ impl DataCtx {
 
         let start_time = Instant::now();
 
-        let result_frame = data_frame
-            .with_predicate_pushdown(false)
-            .collect()
-            .map_err(Error::ExecuteQuery)?;
+        let result_frame = data_frame.collect().map_err(Error::ExecuteQuery)?;
 
         let run_query = start_time.elapsed().as_millis();
 
