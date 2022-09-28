@@ -56,18 +56,15 @@ impl MiniQuery {
 }
 
 impl MiniLogSelection {
-    pub fn to_expr(&self) -> Result<Expr> {
+    pub fn to_expr(&self) -> Result<Option<Expr>> {
         let mut expr = match &self.address {
             Some(addr) if !addr.is_empty() => {
-                let address = addr
-                    .iter()
-                    .map(|addr| addr.as_slice().to_vec())
-                    .collect::<Vec<_>>();
+                let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
 
-                let series = Series::new("series", address).lit();
-                col("log_address").is_in(series)
+                let series = Series::new("", address).lit();
+                Some(col("log_address").is_in(series))
             }
-            _ => true.lit().eq(true.lit()),
+            _ => None,
         };
 
         if self.topics.len() > 4 {
@@ -80,8 +77,14 @@ impl MiniLogSelection {
                     .iter()
                     .map(|topic| topic.as_slice())
                     .collect::<Vec<_>>();
-                let series = Series::new("series", series).lit();
-                expr = expr.and(col(&format!("log_topic{}", i)).is_in(series));
+
+                let series = Series::new("", series).lit();
+                let inner_expr = col(&format!("log_topic{}", i)).is_in(series);
+
+                expr = match expr {
+                    Some(expr) => Some(expr.and(inner_expr)),
+                    None => Some(inner_expr),
+                };
             }
         }
 

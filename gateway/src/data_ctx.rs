@@ -171,11 +171,24 @@ impl DataCtx {
             .to_block
             .unwrap_or(query.from_block + self.config.default_block_range);
 
-        if to_block == 0 || query.from_block >= to_block {
+        if to_block == 0 || query.from_block > to_block {
             return Err(Error::InvalidBlockRange);
         }
 
         let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range) + 1;
+
+        let status = self.status().await?;
+
+        let db_min_block_number = u32::try_from(status.db_min_block_number).unwrap();
+        let db_max_block_number = u32::try_from(status.db_max_block_number).unwrap();
+
+        let valid_up_to = if status.parquet_block_number > db_min_block_number {
+            db_max_block_number
+        } else {
+            status.parquet_block_number
+        };
+
+        let to_block = cmp::min(to_block, valid_up_to);
 
         let mut field_selection = query
             .logs
@@ -211,8 +224,6 @@ impl DataCtx {
             })
             .collect();
 
-        let status = self.status().await?;
-
         let (tx, mut rx): (mpsc::Sender<(QueryResult, _)>, _) = mpsc::channel(1);
 
         let serialize_thread = tokio::task::spawn_blocking(move || {
@@ -229,6 +240,10 @@ impl DataCtx {
 
                 let mut block_idxs = HashMap::new();
                 let mut tx_idxs = HashMap::new();
+
+                if res.data.is_empty() {
+                    continue;
+                }
 
                 for row in res.data {
                     let block_number = row.block.number.unwrap().0;
@@ -449,35 +464,37 @@ impl DataCtx {
         let mut data_frame =
             self.setup_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
 
-        if !query.logs.is_empty() {
-            let mut logs = query.logs;
-
-            let mut expr: Expr = logs.pop().unwrap().to_expr()?;
-
-            for log in logs {
-                expr = expr.or(log.to_expr()?);
-            }
-
-            data_frame = data_frame.filter(expr);
-        }
-
         data_frame = data_frame.filter(
             col("log_block_number")
                 .gt_eq(lit(query.from_block))
                 .and(col("log_block_number").lt(lit(query.to_block))),
         );
 
-        data_frame = data_frame.filter(
-            col("tx_block_number")
-                .gt_eq(lit(query.from_block))
-                .and(col("tx_block_number").lt(lit(query.to_block))),
-        );
+        if !query.logs.is_empty() {
+            let mut expr: Option<Expr> = None;
+
+            for log in query.logs {
+                if let Some(inner_expr) = log.to_expr()? {
+                    expr = match expr {
+                        Some(expr) => Some(expr.or(inner_expr)),
+                        None => Some(inner_expr),
+                    };
+                }
+            }
+
+            if let Some(expr) = expr {
+                data_frame = data_frame.filter(expr);
+            }
+        }
 
         let build_query = start_time.elapsed().as_millis();
 
         let start_time = Instant::now();
 
-        let result_frame = data_frame.collect().map_err(Error::ExecuteQuery)?;
+        let result_frame = data_frame
+            .with_predicate_pushdown(false)
+            .collect()
+            .map_err(Error::ExecuteQuery)?;
 
         let run_query = start_time.elapsed().as_millis();
 
