@@ -175,7 +175,7 @@ impl DataCtx {
             return Err(Error::InvalidBlockRange);
         }
 
-        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range);
+        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range) + 1;
 
         let mut field_selection = query
             .logs
@@ -281,7 +281,7 @@ impl DataCtx {
 
             bytes.extend_from_slice(
                 format!(
-                    r#"],"metrics":{},"status":{},"next_block":{},"total_time":{}}}"#,
+                    r#"],"metrics":{},"status":{},"nextBlock":{},"totalTime":{}}}"#,
                     metrics,
                     status,
                     next_block,
