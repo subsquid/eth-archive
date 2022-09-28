@@ -241,6 +241,9 @@ impl DataCtx {
                 let mut block_idxs = HashMap::new();
                 let mut tx_idxs = HashMap::new();
 
+                next_block = end;
+                metrics += res.metrics;
+
                 if res.data.is_empty() {
                     continue;
                 }
@@ -286,9 +289,6 @@ impl DataCtx {
                 let elapsed = start.elapsed().as_millis();
                 metrics.serialize_result += elapsed;
                 metrics.total += elapsed;
-
-                next_block = end;
-                metrics += res.metrics;
             }
 
             let status = serde_json::to_string(&status).unwrap();
