@@ -1,4 +1,4 @@
-FROM rust:1.63.0-bullseye AS builder
+FROM rust:1.64.0-bullseye AS builder
 ARG component
 RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake
 WORKDIR /eth
