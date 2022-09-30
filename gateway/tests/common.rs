@@ -102,7 +102,7 @@ pub struct BlockData {
 #[derive(Deserialize)]
 pub struct QueryResponse {
     pub status: Status,
-    pub data: Vec<BlockData>,
+    pub data: Vec<Vec<BlockData>>,
 }
 
 pub struct Client(reqwest::Client);

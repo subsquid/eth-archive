@@ -12,17 +12,19 @@ async fn log_address_filtering() {
         .query(json!({
             "fromBlock": 0,
             "logs": [{
-                "address": address,
+                "address": [address],
                 "topics": [],
                 "fieldSelection": {
                     "log": {
                         "address": true,
-                    }
+                    },
+                    "block": {},
+                    "transaction": {},
                 }
             }]
         }))
         .await;
-    let logs = &response.data[0].logs;
+    let logs = &response.data[0][0].logs;
     assert!(logs.len() == 1);
     assert!(logs[0].address == Some(address));
 }
@@ -35,12 +37,14 @@ async fn log_topics_filtering() {
         .query(json!({
             "fromBlock": 0,
             "logs": [{
-                "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+                "address": ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
                 "topics": [["0x0000000000000000000000000000000000000000000000000000000000000000"]],
                 "fieldSelection": {
                     "log": {
                         "address": true,
-                    }
+                    },
+                    "block": {},
+                    "transaction": {},
                 }
             }]
         }))
