@@ -1,6 +1,6 @@
 use crate::Error;
 use arrow2::array::{
-    Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
+    MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray, UInt32Vec,
     UInt64Vec,
 };
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
@@ -25,7 +25,7 @@ fn address() -> DataType {
 
 fn block_schema() -> Schema {
     Schema::from(vec![
-        Field::new("number", DataType::Int64, false),
+        Field::new("number", DataType::UInt32, false),
         Field::new("hash", bytes32(), false),
         Field::new("parent_hash", bytes32(), false),
         Field::new("nonce", DataType::UInt64, false),
@@ -38,29 +38,29 @@ fn block_schema() -> Schema {
         Field::new("difficulty", DataType::Binary, false),
         Field::new("total_difficulty", DataType::Binary, false),
         Field::new("extra_data", DataType::Binary, false),
-        Field::new("size", DataType::Int64, false),
+        Field::new("size", DataType::UInt32, false),
         Field::new("gas_limit", DataType::Binary, false),
         Field::new("gas_used", DataType::Binary, false),
-        Field::new("timestamp", DataType::Int64, false),
+        Field::new("timestamp", DataType::UInt32, false),
     ])
 }
 
 fn transaction_schema() -> Schema {
     Schema::from(vec![
         Field::new("block_hash", bytes32(), false),
-        Field::new("block_number", DataType::Int64, false),
+        Field::new("block_number", DataType::UInt32, false),
         Field::new("source", address(), false),
-        Field::new("gas", DataType::Int64, false),
-        Field::new("gas_price", DataType::Int64, false),
+        Field::new("gas", DataType::UInt32, false),
+        Field::new("gas_price", DataType::UInt32, false),
         Field::new("hash", bytes32(), false),
         Field::new("input", DataType::Binary, false),
         Field::new("nonce", DataType::UInt64, false),
         Field::new("dest", address(), true),
-        Field::new("transaction_index", DataType::Int64, false),
+        Field::new("transaction_index", DataType::UInt32, false),
         Field::new("value", DataType::Binary, false),
-        Field::new("kind", DataType::Int64, false),
-        Field::new("chain_id", DataType::Int64, false),
-        Field::new("v", DataType::Int64, false),
+        Field::new("kind", DataType::UInt32, false),
+        Field::new("chain_id", DataType::UInt32, false),
+        Field::new("v", DataType::UInt32, false),
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
     ])
@@ -70,22 +70,22 @@ fn log_schema() -> Schema {
     Schema::from(vec![
         Field::new("address", address(), false),
         Field::new("block_hash", bytes32(), false),
-        Field::new("block_number", DataType::Int64, false),
+        Field::new("block_number", DataType::UInt32, false),
         Field::new("data", DataType::Binary, false),
-        Field::new("log_index", DataType::Int64, false),
+        Field::new("log_index", DataType::UInt32, false),
         Field::new("removed", DataType::Boolean, false),
         Field::new("topic0", bytes32(), true),
         Field::new("topic1", bytes32(), true),
         Field::new("topic2", bytes32(), true),
         Field::new("topic3", bytes32(), true),
         Field::new("transaction_hash", bytes32(), false),
-        Field::new("transaction_index", DataType::Int64, false),
+        Field::new("transaction_index", DataType::UInt32, false),
     ])
 }
 
 #[derive(Debug, Default)]
 pub struct Blocks {
-    pub number: Int64Vec,
+    pub number: UInt32Vec,
     pub hash: MutableBinaryArray,
     pub parent_hash: MutableBinaryArray,
     pub nonce: UInt64Vec,
@@ -98,10 +98,10 @@ pub struct Blocks {
     pub difficulty: MutableBinaryArray,
     pub total_difficulty: MutableBinaryArray,
     pub extra_data: MutableBinaryArray,
-    pub size: Int64Vec,
+    pub size: UInt32Vec,
     pub gas_limit: MutableBinaryArray,
     pub gas_used: MutableBinaryArray,
-    pub timestamp: Int64Vec,
+    pub timestamp: UInt32Vec,
     pub len: usize,
 }
 
@@ -169,7 +169,7 @@ impl IntoRowGroups for Blocks {
         Ok(())
     }
 
-    fn block_num(&self, elem: &Self::Elem) -> i64 {
+    fn block_num(&self, elem: &Self::Elem) -> u32 {
         elem.number.0
     }
 
@@ -185,19 +185,19 @@ impl IntoRowGroups for Blocks {
 #[derive(Debug, Default)]
 pub struct Transactions {
     pub block_hash: MutableBinaryArray,
-    pub block_number: Int64Vec,
+    pub block_number: UInt32Vec,
     pub source: MutableBinaryArray,
-    pub gas: Int64Vec,
-    pub gas_price: Int64Vec,
+    pub gas: UInt32Vec,
+    pub gas_price: UInt32Vec,
     pub hash: MutableBinaryArray,
     pub input: MutableBinaryArray,
     pub nonce: UInt64Vec,
     pub dest: MutableBinaryArray,
-    pub transaction_index: Int64Vec,
+    pub transaction_index: UInt32Vec,
     pub value: MutableBinaryArray,
-    pub kind: Int64Vec,
-    pub chain_id: Int64Vec,
-    pub v: Int64Vec,
+    pub kind: UInt32Vec,
+    pub chain_id: UInt32Vec,
+    pub v: UInt32Vec,
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
     pub len: usize,
@@ -279,7 +279,7 @@ impl IntoRowGroups for Transactions {
         Ok(())
     }
 
-    fn block_num(&self, elem: &Self::Elem) -> i64 {
+    fn block_num(&self, elem: &Self::Elem) -> u32 {
         elem.block_number.0
     }
 
@@ -296,16 +296,16 @@ impl IntoRowGroups for Transactions {
 pub struct Logs {
     pub address: MutableBinaryArray,
     pub block_hash: MutableBinaryArray,
-    pub block_number: Int64Vec,
+    pub block_number: UInt32Vec,
     pub data: MutableBinaryArray,
-    pub log_index: Int64Vec,
+    pub log_index: UInt32Vec,
     pub removed: MutableBooleanArray,
     pub topic0: MutableBinaryArray,
     pub topic1: MutableBinaryArray,
     pub topic2: MutableBinaryArray,
     pub topic3: MutableBinaryArray,
     pub transaction_hash: MutableBinaryArray,
-    pub transaction_index: Int64Vec,
+    pub transaction_index: UInt32Vec,
     pub len: usize,
 }
 
@@ -375,7 +375,7 @@ impl IntoRowGroups for Logs {
         Ok(())
     }
 
-    fn block_num(&self, elem: &Self::Elem) -> i64 {
+    fn block_num(&self, elem: &Self::Elem) -> u32 {
         elem.block_number.0
     }
 

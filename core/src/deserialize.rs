@@ -131,7 +131,7 @@ impl ToSql for BloomFilterBytes {
 }
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct BigInt(pub i64);
+pub struct BigInt(pub u32);
 
 impl ToSql for BigInt {
     fn to_sql(
@@ -142,7 +142,7 @@ impl ToSql for BigInt {
         self.0.to_sql(ty, out)
     }
     fn accepts(ty: &Type) -> bool {
-        i64::accepts(ty)
+        u32::accepts(ty)
     }
     fn to_sql_checked(
         &self,
@@ -395,7 +395,7 @@ impl<'de> Visitor<'de> for BigIntVisitor {
         E: de::Error,
     {
         let without_prefix = value.trim_start_matches("0x");
-        let val = i64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
+        let val = u32::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(BigInt(val))
     }
@@ -415,6 +415,6 @@ impl Serialize for BigInt {
     where
         S: Serializer,
     {
-        serializer.serialize_i64(self.0)
+        serializer.serialize_u32(self.0)
     }
 }

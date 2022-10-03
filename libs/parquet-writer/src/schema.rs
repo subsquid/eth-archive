@@ -54,7 +54,7 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
         (row_groups, schema, options())
     }
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
-    fn block_num(&self, elem: &Self::Elem) -> i64;
+    fn block_num(&self, elem: &Self::Elem) -> u32;
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {
         self.len() == 0

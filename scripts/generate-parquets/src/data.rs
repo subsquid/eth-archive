@@ -71,7 +71,7 @@ fn decode_hex(value: &str) -> Vec<u8> {
 impl From<RawBlock> for Block {
     fn from(raw: RawBlock) -> Block {
         Block {
-            number: BigInt(raw.number.into()),
+            number: BigInt(raw.number),
             hash: Bytes32::new(&decode_hex(&raw.hash)),
             parent_hash: Bytes32::new(&decode_hex(&raw.parent_hash)),
             nonce: Nonce::new(&decode_hex(&raw.nonce)),
@@ -84,10 +84,10 @@ impl From<RawBlock> for Block {
             difficulty: Bytes::new(raw.difficulty.to_string().as_bytes()),
             total_difficulty: Bytes::new(raw.total_difficulty.to_string().as_bytes()),
             extra_data: Bytes::new(&decode_hex(&raw.extra_data)),
-            size: BigInt(raw.size.into()),
+            size: BigInt(raw.size),
             gas_limit: Bytes::new(raw.gas_limit.to_string().as_bytes()),
             gas_used: Bytes::new(raw.gas_used.to_string().as_bytes()),
-            timestamp: BigInt(raw.timestamp.into()),
+            timestamp: BigInt(raw.timestamp),
             transactions: vec![],
         }
     }
@@ -97,7 +97,7 @@ impl From<RawTransaction> for Transaction {
     fn from(raw: RawTransaction) -> Transaction {
         Transaction {
             block_hash: Bytes32::new(&decode_hex(&raw.block_hash)),
-            block_number: BigInt(raw.block_number.into()),
+            block_number: BigInt(raw.block_number),
             source: Address::new(&decode_hex(&raw.source)),
             gas: BigInt(raw.gas.try_into().unwrap()),
             gas_price: BigInt(raw.gas_price.try_into().unwrap()),
@@ -105,11 +105,11 @@ impl From<RawTransaction> for Transaction {
             input: Bytes::new(&decode_hex(&raw.input)),
             nonce: Nonce::new(&decode_hex(&raw.nonce)),
             dest: raw.dest.map(|dest| Address::new(&decode_hex(&dest))),
-            transaction_index: BigInt(raw.transaction_index.into()),
+            transaction_index: BigInt(raw.transaction_index),
             value: Bytes::new(raw.value.as_bytes()),
-            kind: BigInt(raw.kind.into()),
-            chain_id: BigInt(raw.chain_id.into()),
-            v: BigInt(raw.v.into()),
+            kind: BigInt(raw.kind),
+            chain_id: BigInt(raw.chain_id),
+            v: BigInt(raw.v),
             r: Bytes::new(raw.r.as_bytes()),
             s: Bytes::new(raw.s.as_bytes()),
         }
@@ -121,9 +121,9 @@ impl From<RawLog> for Log {
         Log {
             address: Address::new(&decode_hex(&raw.address)),
             block_hash: Bytes32::new(&decode_hex(&raw.block_hash)),
-            block_number: BigInt(raw.block_number.into()),
+            block_number: BigInt(raw.block_number),
             data: Bytes::new(&decode_hex(&raw.data)),
-            log_index: BigInt(raw.log_index.into()),
+            log_index: BigInt(raw.log_index),
             removed: raw.removed,
             topics: raw
                 .topics
@@ -131,7 +131,7 @@ impl From<RawLog> for Log {
                 .map(|topic| Bytes32::new(&decode_hex(&topic)))
                 .collect(),
             transaction_hash: Bytes32::new(&decode_hex(&raw.transaction_hash)),
-            transaction_index: BigInt(raw.transaction_index.into()),
+            transaction_index: BigInt(raw.transaction_index),
         }
     }
 }
