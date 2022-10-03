@@ -1,5 +1,5 @@
 use crate::config::DbConfig;
-use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
+use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce};
 use crate::types::{
     Block, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
     ResponseTransaction, Transaction,
@@ -69,7 +69,7 @@ impl DbHandle {
             .into_iter()
             .map(|row| ResponseRow {
                 block: ResponseBlock {
-                    number: row.try_get("eth_block_number").ok().map(BigInt),
+                    number: row.try_get("eth_block_number").ok().map(Index),
                     hash: row.try_get("eth_block_hash").ok().map(Bytes32::new),
                     parent_hash: row.try_get("eth_block_parent_hash").ok().map(Bytes32::new),
                     nonce: row.try_get("eth_block_nonce").ok().map(Nonce::new),
@@ -98,7 +98,7 @@ impl DbHandle {
                 },
                 transaction: ResponseTransaction {
                     block_hash: row.try_get("eth_tx_block_hash").ok().map(Bytes32::new),
-                    block_number: row.try_get("eth_tx_block_number").ok().map(BigInt),
+                    block_number: row.try_get("eth_tx_block_number").ok().map(Index),
                     source: row.try_get("eth_tx_source").ok().map(Address::new),
                     gas: row.try_get("eth_tx_gas").ok().map(BigInt),
                     gas_price: row.try_get("eth_tx_gas_price").ok().map(BigInt),
@@ -109,10 +109,10 @@ impl DbHandle {
                         Ok(Some(dest)) => Some(Address::new(dest)),
                         _ => None,
                     },
-                    transaction_index: row.try_get("eth_tx_transaction_index").ok().map(BigInt),
+                    transaction_index: row.try_get("eth_tx_transaction_index").ok().map(Index),
                     value: row.try_get("eth_tx_value").ok().map(Bytes),
-                    kind: row.try_get("eth_tx_kind").ok().map(BigInt),
-                    chain_id: row.try_get("eth_tx_chain_id").ok().map(BigInt),
+                    kind: row.try_get("eth_tx_kind").ok().map(Index),
+                    chain_id: row.try_get("eth_tx_chain_id").ok().map(Index),
                     v: row.try_get("eth_tx_v").ok().map(BigInt),
                     r: row.try_get("eth_tx_r").ok().map(Bytes),
                     s: row.try_get("eth_tx_s").ok().map(Bytes),
@@ -120,9 +120,9 @@ impl DbHandle {
                 log: ResponseLog {
                     address: row.try_get("eth_log_address").ok().map(Address::new),
                     block_hash: row.try_get("eth_log_block_hash").ok().map(Bytes32::new),
-                    block_number: row.try_get("eth_log_block_number").ok().map(BigInt),
+                    block_number: row.try_get("eth_log_block_number").ok().map(Index),
                     data: row.try_get("eth_log_data").ok().map(Bytes),
-                    log_index: row.try_get("eth_log_log_index").ok().map(BigInt),
+                    log_index: row.try_get("eth_log_log_index").ok().map(Index),
                     removed: row.try_get("eth_log_removed").ok(),
                     topics: {
                         let mut topics = Vec::new();
@@ -149,7 +149,7 @@ impl DbHandle {
                         .try_get("eth_log_transaction_hash")
                         .ok()
                         .map(Bytes32::new),
-                    transaction_index: row.try_get("eth_log_transaction_index").ok().map(BigInt),
+                    transaction_index: row.try_get("eth_log_transaction_index").ok().map(Index),
                 },
             })
             .collect();
@@ -590,7 +590,7 @@ impl DbHandle {
 
 fn block_from_row(row: &tokio_postgres::Row) -> Block {
     Block {
-        number: BigInt(row.get(0)),
+        number: Index::new(row.get(0)),
         hash: Bytes32::new(row.get(1)),
         parent_hash: Bytes32::new(row.get(2)),
         nonce: Nonce::new(row.get(3)),
@@ -614,7 +614,7 @@ fn block_from_row(row: &tokio_postgres::Row) -> Block {
 fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
     Transaction {
         block_hash: Bytes32::new(row.get(0)),
-        block_number: BigInt(row.get(1)),
+        block_number: Index::new(row.get(1)),
         source: Address::new(row.get(2)),
         gas: BigInt(row.get(3)),
         gas_price: BigInt(row.get(4)),
@@ -622,10 +622,10 @@ fn transaction_from_row(row: &tokio_postgres::Row) -> Transaction {
         input: Bytes(row.get(6)),
         nonce: Nonce::new(row.get(7)),
         dest: row.get::<_, Option<_>>(8).map(Address::new),
-        transaction_index: BigInt(row.get(9)),
+        transaction_index: Index::new(row.get(9)),
         value: Bytes(row.get(10)),
-        kind: BigInt(row.get(11)),
-        chain_id: BigInt(row.get(12)),
+        kind: Index::new(row.get(11)),
+        chain_id: Index::new(row.get(12)),
         v: BigInt(row.get(13)),
         r: Bytes(row.get(14)),
         s: Bytes(row.get(15)),
@@ -644,13 +644,13 @@ fn log_from_row(row: &tokio_postgres::Row) -> Log {
     Log {
         address: Address::new(row.get(0)),
         block_hash: Bytes32::new(row.get(1)),
-        block_number: BigInt(row.get(2)),
+        block_number: Index::new(row.get(2)),
         data: Bytes(row.get(3)),
-        log_index: BigInt(row.get(4)),
+        log_index: Index::new(row.get(4)),
         removed: row.get(5),
         topics,
         transaction_hash: Bytes32::new(row.get(10)),
-        transaction_index: BigInt(row.get(11)),
+        transaction_index: Index::new(row.get(11)),
     }
 }
 

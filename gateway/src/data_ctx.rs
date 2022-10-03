@@ -526,8 +526,10 @@ macro_rules! define_cols {
 }
 
 fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<ResponseRow>> {
-    use eth_archive_core::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
-    use polars::export::arrow::array::{self, BooleanArray, UInt32Array, UInt64Array};
+    use eth_archive_core::deserialize::{
+        Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce,
+    };
+    use polars::export::arrow::array::{self, BooleanArray, Int64Array, UInt32Array, UInt64Array};
 
     type BinaryArray = array::BinaryArray<i64>;
 
@@ -596,7 +598,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     hash: block_hash
                         .map(|arr| {
                             arr.as_any()
@@ -708,7 +710,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     size: block_size
                         .map(|arr| {
                             arr.as_any()
-                                .downcast_ref::<UInt32Array>()
+                                .downcast_ref::<Int64Array>()
                                 .unwrap()
                                 .get(i)
                                 .unwrap()
@@ -735,7 +737,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     timestamp: block_timestamp
                         .map(|arr| {
                             arr.as_any()
-                                .downcast_ref::<UInt32Array>()
+                                .downcast_ref::<Int64Array>()
                                 .unwrap()
                                 .get(i)
                                 .unwrap()
@@ -760,7 +762,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     source: tx_source
                         .map(|arr| {
                             arr.as_any()
@@ -773,7 +775,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     gas: tx_gas
                         .map(|arr| {
                             arr.as_any()
-                                .downcast_ref::<UInt32Array>()
+                                .downcast_ref::<Int64Array>()
                                 .unwrap()
                                 .get(i)
                                 .unwrap()
@@ -782,7 +784,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     gas_price: tx_gas_price
                         .map(|arr| {
                             arr.as_any()
-                                .downcast_ref::<UInt32Array>()
+                                .downcast_ref::<Int64Array>()
                                 .unwrap()
                                 .get(i)
                                 .unwrap()
@@ -829,7 +831,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     value: tx_value
                         .map(|arr| {
                             arr.as_any()
@@ -847,7 +849,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     chain_id: tx_chain_id
                         .map(|arr| {
                             arr.as_any()
@@ -856,11 +858,11 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     v: tx_v
                         .map(|arr| {
                             arr.as_any()
-                                .downcast_ref::<UInt32Array>()
+                                .downcast_ref::<Int64Array>()
                                 .unwrap()
                                 .get(i)
                                 .unwrap()
@@ -912,7 +914,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     data: log_data
                         .map(|arr| {
                             arr.as_any()
@@ -930,7 +932,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                     removed: log_removed.map(|arr| {
                         arr.as_any()
                             .downcast_ref::<BooleanArray>()
@@ -984,7 +986,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .get(i)
                                 .unwrap()
                         })
-                        .map(BigInt),
+                        .map(Index),
                 },
             };
 

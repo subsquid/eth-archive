@@ -1,10 +1,10 @@
-use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Nonce};
+use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
-    pub number: BigInt,
+    pub number: Index,
     pub hash: Bytes32,
     pub parent_hash: Bytes32,
     pub nonce: Nonce,
@@ -28,7 +28,7 @@ pub struct Block {
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub block_hash: Bytes32,
-    pub block_number: BigInt,
+    pub block_number: Index,
     #[serde(rename = "from")]
     pub source: Address,
     pub gas: BigInt,
@@ -38,11 +38,11 @@ pub struct Transaction {
     pub nonce: Nonce,
     #[serde(rename = "to")]
     pub dest: Option<Address>,
-    pub transaction_index: BigInt,
+    pub transaction_index: Index,
     pub value: Bytes,
     #[serde(rename = "type")]
-    pub kind: BigInt,
-    pub chain_id: BigInt,
+    pub kind: Index,
+    pub chain_id: Index,
     pub v: BigInt,
     pub r: Bytes,
     pub s: Bytes,
@@ -53,20 +53,20 @@ pub struct Transaction {
 pub struct Log {
     pub address: Address,
     pub block_hash: Bytes32,
-    pub block_number: BigInt,
+    pub block_number: Index,
     pub data: Bytes,
-    pub log_index: BigInt,
+    pub log_index: Index,
     pub removed: bool,
     pub topics: Vec<Bytes32>,
     pub transaction_hash: Bytes32,
-    pub transaction_index: BigInt,
+    pub transaction_index: Index,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub number: Option<BigInt>,
+    pub number: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<Bytes32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -107,7 +107,7 @@ pub struct ResponseTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_hash: Option<Bytes32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub block_number: Option<BigInt>,
+    pub block_number: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "from")]
     pub source: Option<Address>,
@@ -126,14 +126,14 @@ pub struct ResponseTransaction {
     pub dest: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "index")]
-    pub transaction_index: Option<BigInt>,
+    pub transaction_index: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<Bytes>,
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<BigInt>,
+    pub kind: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain_id: Option<BigInt>,
+    pub chain_id: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub v: Option<BigInt>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -150,12 +150,12 @@ pub struct ResponseLog {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_hash: Option<Bytes32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub block_number: Option<BigInt>,
+    pub block_number: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "index")]
-    pub log_index: Option<BigInt>,
+    pub log_index: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -163,7 +163,7 @@ pub struct ResponseLog {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_hash: Option<Bytes32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_index: Option<BigInt>,
+    pub transaction_index: Option<Index>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

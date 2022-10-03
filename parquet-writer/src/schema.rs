@@ -1,7 +1,7 @@
 use crate::Error;
 use arrow2::array::{
-    MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray, UInt32Vec,
-    UInt64Vec,
+    Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
+    UInt32Vec, UInt64Vec,
 };
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
@@ -38,10 +38,10 @@ fn block_schema() -> Schema {
         Field::new("difficulty", DataType::Binary, false),
         Field::new("total_difficulty", DataType::Binary, false),
         Field::new("extra_data", DataType::Binary, false),
-        Field::new("size", DataType::UInt32, false),
+        Field::new("size", DataType::Int64, false),
         Field::new("gas_limit", DataType::Binary, false),
         Field::new("gas_used", DataType::Binary, false),
-        Field::new("timestamp", DataType::UInt32, false),
+        Field::new("timestamp", DataType::Int64, false),
     ])
 }
 
@@ -50,8 +50,8 @@ fn transaction_schema() -> Schema {
         Field::new("block_hash", bytes32(), false),
         Field::new("block_number", DataType::UInt32, false),
         Field::new("source", address(), false),
-        Field::new("gas", DataType::UInt32, false),
-        Field::new("gas_price", DataType::UInt32, false),
+        Field::new("gas", DataType::Int64, false),
+        Field::new("gas_price", DataType::Int64, false),
         Field::new("hash", bytes32(), false),
         Field::new("input", DataType::Binary, false),
         Field::new("nonce", DataType::UInt64, false),
@@ -60,7 +60,7 @@ fn transaction_schema() -> Schema {
         Field::new("value", DataType::Binary, false),
         Field::new("kind", DataType::UInt32, false),
         Field::new("chain_id", DataType::UInt32, false),
-        Field::new("v", DataType::UInt32, false),
+        Field::new("v", DataType::Int64, false),
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
     ])
@@ -98,10 +98,10 @@ pub struct Blocks {
     pub difficulty: MutableBinaryArray,
     pub total_difficulty: MutableBinaryArray,
     pub extra_data: MutableBinaryArray,
-    pub size: UInt32Vec,
+    pub size: Int64Vec,
     pub gas_limit: MutableBinaryArray,
     pub gas_used: MutableBinaryArray,
-    pub timestamp: UInt32Vec,
+    pub timestamp: Int64Vec,
     pub len: usize,
 }
 
@@ -187,8 +187,8 @@ pub struct Transactions {
     pub block_hash: MutableBinaryArray,
     pub block_number: UInt32Vec,
     pub source: MutableBinaryArray,
-    pub gas: UInt32Vec,
-    pub gas_price: UInt32Vec,
+    pub gas: Int64Vec,
+    pub gas_price: Int64Vec,
     pub hash: MutableBinaryArray,
     pub input: MutableBinaryArray,
     pub nonce: UInt64Vec,
@@ -197,7 +197,7 @@ pub struct Transactions {
     pub value: MutableBinaryArray,
     pub kind: UInt32Vec,
     pub chain_id: UInt32Vec,
-    pub v: UInt32Vec,
+    pub v: Int64Vec,
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
     pub len: usize,

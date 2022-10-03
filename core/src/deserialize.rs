@@ -131,7 +131,7 @@ impl ToSql for BloomFilterBytes {
 }
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct BigInt(pub u32);
+pub struct BigInt(pub i64);
 
 impl ToSql for BigInt {
     fn to_sql(
@@ -142,7 +142,7 @@ impl ToSql for BigInt {
         self.0.to_sql(ty, out)
     }
     fn accepts(ty: &Type) -> bool {
-        u32::accepts(ty)
+        i64::accepts(ty)
     }
     fn to_sql_checked(
         &self,
@@ -150,6 +150,35 @@ impl ToSql for BigInt {
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
         self.0.to_sql_checked(ty, out)
+    }
+}
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+pub struct Index(pub u32);
+
+impl Index {
+    pub fn new(val: i64) -> Self {
+        Self(val.try_into().unwrap())
+    }
+}
+
+impl ToSql for Index {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
+        i64::from(self.0).to_sql(ty, out)
+    }
+    fn accepts(ty: &Type) -> bool {
+        i64::accepts(ty)
+    }
+    fn to_sql_checked(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
+        i64::from(self.0).to_sql_checked(ty, out)
     }
 }
 
@@ -395,7 +424,7 @@ impl<'de> Visitor<'de> for BigIntVisitor {
         E: de::Error,
     {
         let without_prefix = value.trim_start_matches("0x");
-        let val = u32::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
+        let val = i64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(BigInt(val))
     }
@@ -411,6 +440,44 @@ impl<'de> Deserialize<'de> for BigInt {
 }
 
 impl Serialize for BigInt {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i64(self.0)
+    }
+}
+
+struct IndexVisitor;
+
+impl<'de> Visitor<'de> for IndexVisitor {
+    type Value = Index;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("hex string")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let without_prefix = value.trim_start_matches("0x");
+        let val = u32::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
+
+        Ok(Index(val))
+    }
+}
+
+impl<'de> Deserialize<'de> for Index {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(IndexVisitor)
+    }
+}
+
+impl Serialize for Index {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
