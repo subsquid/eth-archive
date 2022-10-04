@@ -312,10 +312,15 @@ impl DataCtx {
 
         let start_time = Instant::now();
 
-        let step = self.config.query_chunk_size;
+        let mut start = query.from_block;
 
-        for start in (query.from_block..to_block).step_by(usize::try_from(step).unwrap()) {
-            let end = cmp::min(to_block, start + step);
+        while start < to_block {
+            let end = match self.parquet_state.read().await.log_ranges.get_next(start) {
+                Some(end) => end,
+                None => start + self.config.query_chunk_size,
+            };
+
+            let end = cmp::min(to_block, end);
 
             let res = self
                 .query_impl(MiniQuery {
@@ -335,6 +340,8 @@ impl DataCtx {
             {
                 break;
             }
+
+            start = end;
         }
 
         mem::drop(tx);
@@ -586,6 +593,8 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
         );
 
         let len = log_block_number.as_ref().unwrap().len();
+
+        dbg!(len);
 
         for i in 0..len {
             let response_row = ResponseRow {

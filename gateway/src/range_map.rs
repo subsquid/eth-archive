@@ -41,4 +41,8 @@ impl RangeMap {
             .tuple_windows()
             .map(|(&start, &end)| (start..end))
     }
+
+    pub fn get_next(&self, start: u32) -> Option<u32> {
+        self.inner.range((start + 1)..).next().copied()
+    }
 }
