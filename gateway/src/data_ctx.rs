@@ -486,6 +486,9 @@ impl DataCtx {
                         Some(expr) => Some(expr.or(inner_expr)),
                         None => Some(inner_expr),
                     };
+                } else {
+                    expr = None;
+                    break;
                 }
             }
 
