@@ -117,7 +117,7 @@ impl DbHandle {
                     r: row.try_get("eth_tx_r").ok().map(Bytes),
                     s: row.try_get("eth_tx_s").ok().map(Bytes),
                 },
-                log: ResponseLog {
+                log: Some(ResponseLog {
                     address: row.try_get("eth_log_address").ok().map(Address::new),
                     block_hash: row.try_get("eth_log_block_hash").ok().map(Bytes32::new),
                     block_number: row.try_get("eth_log_block_number").ok().map(Index::new),
@@ -153,7 +153,7 @@ impl DbHandle {
                         .try_get("eth_log_transaction_index")
                         .ok()
                         .map(Index::new),
-                },
+                }),
             })
             .collect();
 

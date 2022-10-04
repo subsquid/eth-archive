@@ -72,6 +72,35 @@ impl ToSql for Address {
     }
 }
 
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+pub struct Sighash(pub Box<[u8; 4]>);
+
+impl Sighash {
+    pub fn new(bytes: &[u8]) -> Self {
+        Self(Box::new(bytes.try_into().unwrap()))
+    }
+}
+
+impl ToSql for Sighash {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
+        self.0.as_slice().to_sql(ty, out)
+    }
+    fn accepts(ty: &Type) -> bool {
+        <&[u8]>::accepts(ty)
+    }
+    fn to_sql_checked(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
+        self.0.as_slice().to_sql_checked(ty, out)
+    }
+}
+
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct Nonce(pub u64);
 
@@ -279,6 +308,45 @@ impl<'de> Deserialize<'de> for Address {
 }
 
 impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex = prefix_hex::encode(&*self.0);
+
+        serializer.serialize_str(&hex)
+    }
+}
+
+struct SighashVisitor;
+
+impl<'de> Visitor<'de> for SighashVisitor {
+    type Value = Sighash;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("hex string")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let buf: [u8; 4] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+
+        Ok(Box::new(buf).into())
+    }
+}
+
+impl<'de> Deserialize<'de> for Sighash {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(SighashVisitor)
+    }
+}
+
+impl Serialize for Sighash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

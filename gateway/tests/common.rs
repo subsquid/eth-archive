@@ -67,7 +67,7 @@ pub struct Transaction {
     pub hash: Option<String>,
     pub input: Option<String>,
     pub nonce: Option<String>,
-    pub dest: Option<String>,
+    pub to: Option<String>,
     pub transaction_index: Option<u32>,
     pub value: Option<String>,
     pub kind: Option<u32>,

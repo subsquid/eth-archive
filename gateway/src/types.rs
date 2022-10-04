@@ -1,6 +1,6 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
-use eth_archive_core::deserialize::{Address, Bytes32};
+use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ pub struct MiniQuery {
     pub from_block: u32,
     pub to_block: u32,
     pub logs: Vec<MiniLogSelection>,
+    pub transactions: Vec<MiniTransactionSelection>,
     pub field_selection: FieldSelection,
 }
 
@@ -20,6 +21,12 @@ pub struct MiniQuery {
 pub struct MiniLogSelection {
     pub address: Option<Vec<Address>>,
     pub topics: Vec<Vec<Bytes32>>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct MiniTransactionSelection {
+    pub address: Option<Vec<Address>>,
+    pub sighash: Option<Sighash>,
 }
 
 impl MiniQuery {
@@ -139,6 +146,22 @@ impl MiniLogSelection {
     }
 }
 
+impl MiniTransactionSelection {
+    pub fn to_expr(&self) -> Result<Option<Expr>> {
+        let expr = match &self.address {
+            Some(addr) if !addr.is_empty() => {
+                let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
+
+                let series = Series::new("", address).lit();
+                Some(col("tx_dest").is_in(series))
+            }
+            _ => None,
+        };
+
+        Ok(expr)
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
@@ -161,6 +184,7 @@ pub struct Query {
     pub from_block: u32,
     pub to_block: Option<u32>,
     pub logs: Vec<LogSelection>,
+    pub transactions: Vec<TransactionSelection>,
 }
 
 #[derive(Deserialize)]
@@ -168,5 +192,13 @@ pub struct Query {
 pub struct LogSelection {
     pub address: Option<Vec<Address>>,
     pub topics: Vec<Vec<Bytes32>>,
+    pub field_selection: Option<FieldSelection>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionSelection {
+    pub address: Option<Vec<Address>>,
+    pub sighash: Option<Sighash>,
     pub field_selection: Option<FieldSelection>,
 }
