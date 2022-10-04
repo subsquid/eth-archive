@@ -12,8 +12,6 @@ pub struct Config {
 
 #[derive(Deserialize, Clone)]
 pub struct DataConfig {
-    pub target_partitions: usize,
-    pub batch_size: usize,
     pub blocks_path: String,
     pub transactions_path: String,
     pub logs_path: String,
