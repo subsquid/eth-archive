@@ -444,7 +444,7 @@ impl Serialize for BigInt {
     where
         S: Serializer,
     {
-        serializer.serialize_i64(self.0)
+        serializer.serialize_str(&self.0.to_string())
     }
 }
 
