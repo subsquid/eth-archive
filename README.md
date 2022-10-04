@@ -51,7 +51,7 @@ request:
 ```javascript
 {
   "fromBlock": number, // starting block number to include in range
-  "toBlock": Option<number>, // ending block number of the range. returned block range is [fromBlock, toBlock). So toBlock is not included.
+  "toBlock": Option<number>, // ending block number of the range. returned block range is [fromBlock, toBlock]. So toBlock is included.
   "logs": [{
     "address": Option<[string]>, // contract addresses to filter by. all addresses are included if null 
     // if topics[0] is ["a", "b", "c"] the logs will be filtered so only logs that have "a", "b" or "c" as their first topic will be returned.
