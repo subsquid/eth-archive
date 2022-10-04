@@ -53,7 +53,7 @@ request:
   "fromBlock": number, // starting block number to include in range
   "toBlock": Option<number>, // ending block number of the range. returned block range is [fromBlock, toBlock). So toBlock is not included.
   "logs": [{
-    "address": string, // address of the contract
+    "address": Option<[string]>, // contract addresses to filter by. all addresses are included if null 
     // if topics[0] is ["a", "b", "c"] the logs will be filtered so only logs that have "a", "b" or "c" as their first topic will be returned.
     // if topics[0] is an empty array, any topic will pass the filter
     "topics": [[string]],
@@ -67,11 +67,11 @@ response:
 
 ```javascript
 {
-  "data": [{
+  "data": [[{
     "block": BlockData,
     "transactions": [TransacitonData],
     "logs": [LogData],
-  }],
+  }]],
   "metrics": {
     "buildQuery": number, // milliseconds it took to build the query
     "runQuery": number, // milliseconds it took to run the query
