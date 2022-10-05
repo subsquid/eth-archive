@@ -212,8 +212,6 @@ impl DbHandle {
             .await
             .map_err(Error::CreateDbTransaction)?;
 
-        self.insert_blocks(blocks, &tx).await?;
-
         let transactions = blocks
             .iter()
             .flat_map(|b| b.transactions.iter())
@@ -227,6 +225,8 @@ impl DbHandle {
         for chunk in logs.chunks(chunk_size) {
             self.insert_logs(chunk, &tx).await?;
         }
+
+        self.insert_blocks(blocks, &tx).await?;
 
         tx.commit().await.map_err(Error::CommitDbTx)?;
 
@@ -568,10 +568,6 @@ impl DbHandle {
             .await
             .map_err(Error::CreateDbTransaction)?;
 
-        tx.execute("DELETE FROM eth_block WHERE number < $1", &[&block_number])
-            .await
-            .map_err(Error::DbQuery)?;
-
         tx.execute(
             "DELETE FROM eth_tx WHERE block_number < $1",
             &[&block_number],
@@ -585,6 +581,10 @@ impl DbHandle {
         )
         .await
         .map_err(Error::DbQuery)?;
+
+        tx.execute("DELETE FROM eth_block WHERE number < $1", &[&block_number])
+            .await
+            .map_err(Error::DbQuery)?;
 
         tx.commit().await.map_err(Error::CommitDbTx)?;
         Ok(())
