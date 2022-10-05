@@ -171,7 +171,7 @@ pub struct ResponseLog {
 pub struct ResponseRow {
     pub block: ResponseBlock,
     pub transaction: ResponseTransaction,
-    pub log: ResponseLog,
+    pub log: Option<ResponseLog>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default)]
