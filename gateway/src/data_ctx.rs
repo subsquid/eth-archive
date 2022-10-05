@@ -383,17 +383,47 @@ impl DataCtx {
                 .await
                 .map_err(Error::TaskJoinError)?
         } else {
+            self.query_sql(query).await
+        }
+    }
+
+    async fn query_sql(&self, query: MiniQuery) -> Result<QueryResult> {
+        let mut metrics = QueryMetrics::default();
+        let mut data = vec![];
+
+        if !query.logs.is_empty() {
             let start_time = Instant::now();
-
-            let query = query.to_sql()?;
-
+            let query = query.to_log_sql()?;
             let build_query = start_time.elapsed().as_millis();
 
-            self.db
-                .raw_query(build_query, &query)
+            let logs = self
+                .db
+                .log_query(build_query, &query)
                 .await
-                .map_err(Error::SqlQuery)
+                .map_err(Error::SqlQuery)?;
+            metrics += logs.metrics;
+            for row in logs.data {
+                data.push(row);
+            }
         }
+
+        if !query.transactions.is_empty() {
+            let start_time = Instant::now();
+            let query = query.to_tx_sql()?;
+            let build_query = start_time.elapsed().as_millis();
+
+            let transactions = self
+                .db
+                .tx_query(build_query, &query)
+                .await
+                .map_err(Error::SqlQuery)?;
+            metrics += transactions.metrics;
+            for row in transactions.data {
+                data.push(row);
+            }
+        }
+
+        Ok(QueryResult { data, metrics })
     }
 
     fn setup_log_pruned_frame(
@@ -622,6 +652,9 @@ impl DataCtx {
                         Some(expr) => Some(expr.or(inner_expr)),
                         None => Some(inner_expr),
                     };
+                } else {
+                    expr = None;
+                    break;
                 }
             }
 

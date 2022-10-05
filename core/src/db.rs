@@ -51,7 +51,7 @@ impl DbHandle {
         self.pool.get().await.map_err(Error::GetDbConnection)
     }
 
-    pub async fn raw_query(&self, build_query: u128, query: &str) -> Result<QueryResult> {
+    pub async fn log_query(&self, build_query: u128, query: &str) -> Result<QueryResult> {
         let start_time = Instant::now();
 
         let rows = self
@@ -154,6 +154,89 @@ impl DbHandle {
                         .ok()
                         .map(Index::new),
                 }),
+            })
+            .collect();
+
+        let serialize_result = start_time.elapsed().as_millis();
+
+        Ok(QueryResult {
+            data,
+            metrics: QueryMetrics {
+                build_query,
+                run_query,
+                serialize_result,
+                total: build_query + run_query + serialize_result,
+            },
+        })
+    }
+
+    pub async fn tx_query(&self, build_query: u128, query: &str) -> Result<QueryResult> {
+        let start_time = Instant::now();
+
+        let rows = self
+            .get_conn()
+            .await?
+            .query(query, &[])
+            .await
+            .map_err(Error::DbQuery)?;
+
+        let run_query = start_time.elapsed().as_millis();
+
+        let start_time = Instant::now();
+
+        let data = rows
+            .into_iter()
+            .map(|row| ResponseRow {
+                block: ResponseBlock {
+                    number: row.try_get("eth_block_number").ok().map(Index::new),
+                    hash: row.try_get("eth_block_hash").ok().map(Bytes32::new),
+                    parent_hash: row.try_get("eth_block_parent_hash").ok().map(Bytes32::new),
+                    nonce: row.try_get("eth_block_nonce").ok().map(Nonce::new),
+                    sha3_uncles: row.try_get("eth_block_sha3_uncles").ok().map(Bytes32::new),
+                    logs_bloom: row
+                        .try_get("eth_block_logs_bloom")
+                        .ok()
+                        .map(BloomFilterBytes::new),
+                    transactions_root: row
+                        .try_get("eth_block_transactions_root")
+                        .ok()
+                        .map(Bytes32::new),
+                    state_root: row.try_get("eth_block_state_root").ok().map(Bytes32::new),
+                    receipts_root: row
+                        .try_get("eth_block_receipts_root")
+                        .ok()
+                        .map(Bytes32::new),
+                    miner: row.try_get("eth_block_miner").ok().map(Address::new),
+                    difficulty: row.try_get("eth_block_difficulty").ok().map(Bytes),
+                    total_difficulty: row.try_get("eth_block_total_difficulty").ok().map(Bytes),
+                    extra_data: row.try_get("eth_block_extra_data").ok().map(Bytes),
+                    size: row.try_get("eth_block_size").ok().map(BigInt),
+                    gas_limit: row.try_get("eth_block_gas_limit").ok().map(Bytes),
+                    gas_used: row.try_get("eth_block_gas_used").ok().map(Bytes),
+                    timestamp: row.try_get("eth_block_timestamp").ok().map(BigInt),
+                },
+                transaction: ResponseTransaction {
+                    block_hash: row.try_get("eth_tx_block_hash").ok().map(Bytes32::new),
+                    block_number: row.try_get("eth_tx_block_number").ok().map(Index::new),
+                    source: row.try_get("eth_tx_source").ok().map(Address::new),
+                    gas: row.try_get("eth_tx_gas").ok().map(BigInt),
+                    gas_price: row.try_get("eth_tx_gas_price").ok().map(BigInt),
+                    hash: row.try_get("eth_tx_hash").ok().map(Bytes32::new),
+                    input: row.try_get("eth_tx_input").ok().map(Bytes::new),
+                    nonce: row.try_get("eth_tx_nonce").ok().map(Nonce::new),
+                    dest: match row.try_get("eth_tx_dest") {
+                        Ok(Some(dest)) => Some(Address::new(dest)),
+                        _ => None,
+                    },
+                    transaction_index: row.try_get("eth_tx_transaction_index").ok().map(Index::new),
+                    value: row.try_get("eth_tx_value").ok().map(Bytes),
+                    kind: row.try_get("eth_tx_kind").ok().map(Index::new),
+                    chain_id: row.try_get("eth_tx_chain_id").ok().map(Index::new),
+                    v: row.try_get("eth_tx_v").ok().map(BigInt),
+                    r: row.try_get("eth_tx_r").ok().map(Bytes),
+                    s: row.try_get("eth_tx_s").ok().map(Bytes),
+                },
+                log: None,
             })
             .collect();
 
