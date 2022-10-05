@@ -597,8 +597,6 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
 
         let len = log_block_number.as_ref().unwrap().len();
 
-        dbg!(len);
-
         for i in 0..len {
             let response_row = ResponseRow {
                 block: ResponseBlock {
