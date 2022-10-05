@@ -69,7 +69,7 @@ impl DbHandle {
             .into_iter()
             .map(|row| ResponseRow {
                 block: ResponseBlock {
-                    number: row.try_get("eth_block_number").ok().map(Index),
+                    number: row.try_get("eth_block_number").ok().map(Index::new),
                     hash: row.try_get("eth_block_hash").ok().map(Bytes32::new),
                     parent_hash: row.try_get("eth_block_parent_hash").ok().map(Bytes32::new),
                     nonce: row.try_get("eth_block_nonce").ok().map(Nonce::new),
@@ -98,7 +98,7 @@ impl DbHandle {
                 },
                 transaction: ResponseTransaction {
                     block_hash: row.try_get("eth_tx_block_hash").ok().map(Bytes32::new),
-                    block_number: row.try_get("eth_tx_block_number").ok().map(Index),
+                    block_number: row.try_get("eth_tx_block_number").ok().map(Index::new),
                     source: row.try_get("eth_tx_source").ok().map(Address::new),
                     gas: row.try_get("eth_tx_gas").ok().map(BigInt),
                     gas_price: row.try_get("eth_tx_gas_price").ok().map(BigInt),
@@ -109,10 +109,10 @@ impl DbHandle {
                         Ok(Some(dest)) => Some(Address::new(dest)),
                         _ => None,
                     },
-                    transaction_index: row.try_get("eth_tx_transaction_index").ok().map(Index),
+                    transaction_index: row.try_get("eth_tx_transaction_index").ok().map(Index::new),
                     value: row.try_get("eth_tx_value").ok().map(Bytes),
-                    kind: row.try_get("eth_tx_kind").ok().map(Index),
-                    chain_id: row.try_get("eth_tx_chain_id").ok().map(Index),
+                    kind: row.try_get("eth_tx_kind").ok().map(Index::new),
+                    chain_id: row.try_get("eth_tx_chain_id").ok().map(Index::new),
                     v: row.try_get("eth_tx_v").ok().map(BigInt),
                     r: row.try_get("eth_tx_r").ok().map(Bytes),
                     s: row.try_get("eth_tx_s").ok().map(Bytes),
@@ -120,9 +120,9 @@ impl DbHandle {
                 log: ResponseLog {
                     address: row.try_get("eth_log_address").ok().map(Address::new),
                     block_hash: row.try_get("eth_log_block_hash").ok().map(Bytes32::new),
-                    block_number: row.try_get("eth_log_block_number").ok().map(Index),
+                    block_number: row.try_get("eth_log_block_number").ok().map(Index::new),
                     data: row.try_get("eth_log_data").ok().map(Bytes),
-                    log_index: row.try_get("eth_log_log_index").ok().map(Index),
+                    log_index: row.try_get("eth_log_log_index").ok().map(Index::new),
                     removed: row.try_get("eth_log_removed").ok(),
                     topics: {
                         let mut topics = Vec::new();
@@ -149,7 +149,10 @@ impl DbHandle {
                         .try_get("eth_log_transaction_hash")
                         .ok()
                         .map(Bytes32::new),
-                    transaction_index: row.try_get("eth_log_transaction_index").ok().map(Index),
+                    transaction_index: row
+                        .try_get("eth_log_transaction_index")
+                        .ok()
+                        .map(Index::new),
                 },
             })
             .collect();
