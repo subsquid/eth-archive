@@ -161,7 +161,7 @@ dependencies = [
  "serde_urlencoded",
  "smallvec",
  "socket2",
- "time 0.3.14",
+ "time 0.3.15",
  "url",
 ]
 
@@ -251,9 +251,9 @@ dependencies = [
 
 [[package]]
 name = "arrow2"
-version = "0.14.1"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bdea100ad0a48ef595adef8bcff646d22ae3c908713da39133e52893c69fe25"
+checksum = "ee6f62e41078c967a4c063fcbdfd3801a2a9632276402c045311c4d73d0845f3"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -1815,7 +1815,7 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "polars-core",
  "polars-io",
@@ -1827,7 +1827,7 @@ dependencies = [
 [[package]]
 name = "polars-arrow"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "arrow2",
  "hashbrown",
@@ -1838,7 +1838,7 @@ dependencies = [
 [[package]]
 name = "polars-core"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1863,7 +1863,7 @@ dependencies = [
 [[package]]
 name = "polars-io"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1888,7 +1888,7 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "ahash",
  "bitflags",
@@ -1906,7 +1906,7 @@ dependencies = [
 [[package]]
 name = "polars-ops"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "polars-arrow",
  "polars-core",
@@ -1915,7 +1915,7 @@ dependencies = [
 [[package]]
 name = "polars-plan"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "ahash",
  "polars-arrow",
@@ -1930,7 +1930,7 @@ dependencies = [
 [[package]]
 name = "polars-time"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "chrono",
  "lexical",
@@ -1942,7 +1942,7 @@ dependencies = [
 [[package]]
 name = "polars-utils"
 version = "0.24.3"
-source = "git+https://github.com/ozgrakkurt/polars?branch=master#1893c47cf18f46146724115cf1b0c1f555c09b50"
+source = "git+https://github.com/pola-rs/polars?branch=master#144c73e1f31542f328a2d099b0bcf0feacd3d431"
 dependencies = [
  "rayon",
 ]
@@ -2631,9 +2631,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3f9a28b618c3a6b9251b6908e9c99e04b9e5c02e6581ccbb67d59c34ef7f9b"
+checksum = "d634a985c4d4238ec39cacaed2e7ae552fbd3c476b552c1deac3021b7d7eaf0c"
 dependencies = [
  "itoa",
  "libc",
