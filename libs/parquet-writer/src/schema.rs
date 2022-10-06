@@ -30,7 +30,6 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
 
         let encoding_map = |data_type: &DataType| match data_type {
             DataType::Binary | DataType::LargeBinary => Encoding::DeltaLengthByteArray,
-            DataType::UInt32 => Encoding::Rle,
             _ => Encoding::Plain,
         };
 
