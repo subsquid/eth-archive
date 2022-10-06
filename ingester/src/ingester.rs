@@ -124,7 +124,7 @@ impl Ingester {
 
         let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(2);
 
-        let insert_batch_size = self.cfg.block_insert_batch_size;
+        let _insert_batch_size = self.cfg.block_insert_batch_size;
 
         let write_task = tokio::spawn({
             let db = self.db.clone();
@@ -134,23 +134,18 @@ impl Ingester {
                     let start_time = Instant::now();
 
                     for (blocks, logs) in block_batches.iter().zip(log_batches.iter()) {
-                        for (blocks, logs) in blocks
-                            .chunks(insert_batch_size)
-                            .zip(logs.chunks(insert_batch_size))
-                        {
-                            let db = db.clone();
-                            retry
-                                .retry(move || {
-                                    let db = db.clone();
-                                    async move {
-                                        db.insert_blocks_data(blocks, logs)
-                                            .await
-                                            .map_err(Error::InsertBlocks)
-                                    }
-                                })
-                                .await
-                                .map_err(Error::Retry)?;
-                        }
+                        let db = db.clone();
+                        retry
+                            .retry(move || {
+                                let db = db.clone();
+                                async move {
+                                    db.insert_blocks_data(blocks, logs)
+                                        .await
+                                        .map_err(Error::InsertBlocks)
+                                }
+                            })
+                            .await
+                            .map_err(Error::Retry)?;
                     }
 
                     log::info!(
@@ -231,14 +226,13 @@ impl Ingester {
                 .await
                 .is_err()
             {
-                log::error!("fast_sync: write_task stopped exiting download loop");
-                break;
+                panic!("fast_sync: write_task stopped prematurely.");
             }
         }
 
         mem::drop(tx);
 
-        log::info!("fast_sync: finished downloding, waiting for writing to end...");
+        log::info!("fast_sync: finished downloading, waiting for writing to end...");
 
         write_task.await.map_err(Error::JoinError)??;
 
