@@ -15,13 +15,12 @@ async fn log_address_filtering() {
                 "address": [address],
                 "topics": [],
                 "fieldSelection": {
-                    "log": {
-                        "address": true,
-                    },
+                    "log": {},
                     "block": {},
                     "transaction": {},
                 }
-            }]
+            }],
+            "transactions": [],
         }))
         .await;
     let logs = &response.data[0][0].logs;
@@ -40,14 +39,37 @@ async fn log_topics_filtering() {
                 "address": ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
                 "topics": [["0x0000000000000000000000000000000000000000000000000000000000000000"]],
                 "fieldSelection": {
-                    "log": {
-                        "address": true,
-                    },
+                    "log": {},
+                    "block": {},
+                    "transaction": {},
+                }
+            }],
+            "transactions": [],
+        }))
+        .await;
+    assert!(response.data.is_empty());
+}
+
+#[actix_web::test]
+async fn transaction_address_filtering() {
+    launch_gateway();
+    let client = Client::new();
+    let address = "0xdac17f958d2ee523a2206206994597c13d831ec7".to_string();
+    let response = client
+        .query(json!({
+            "fromBlock": 0,
+            "logs": [],
+            "transactions": [{
+                "address": [address],
+                "fieldSelection": {
+                    "log": {},
                     "block": {},
                     "transaction": {},
                 }
             }]
         }))
         .await;
-    assert!(response.data.is_empty());
+    let transactions = &response.data[0][0].transactions;
+    assert!(transactions.len() == 1);
+    assert!(transactions[0].to == Some(address));
 }

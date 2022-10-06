@@ -1,7 +1,9 @@
 use crate::config::DataConfig;
 use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
-use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, Query, Status};
+use crate::types::{
+    BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, Status,
+};
 use crate::{Error, Result};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::{
@@ -190,13 +192,14 @@ impl DataCtx {
 
         let to_block = cmp::min(to_block, valid_up_to);
 
-        let mut field_selection = query
-            .logs
-            .iter()
-            .fold(None, |field_selection, log| {
-                FieldSelection::merge(field_selection, log.field_selection)
-            })
-            .ok_or(Error::NoFieldsSelected)?;
+        let mut field_selection = None;
+        for log in &query.logs {
+            field_selection = FieldSelection::merge(field_selection, log.field_selection);
+        }
+        for tx in &query.transactions {
+            field_selection = FieldSelection::merge(field_selection, tx.field_selection);
+        }
+        let mut field_selection = field_selection.ok_or(Error::NoFieldsSelected)?;
 
         let mut block_selection = field_selection.block.unwrap_or_default();
         let mut tx_selection = field_selection.transaction.unwrap_or_default();
@@ -206,6 +209,7 @@ impl DataCtx {
         tx_selection.hash = Some(true);
         tx_selection.block_number = Some(true);
         tx_selection.transaction_index = Some(true);
+        tx_selection.dest = Some(true);
         log_selection.block_number = Some(true);
         log_selection.transaction_index = Some(true);
         log_selection.address = Some(true);
@@ -223,6 +227,17 @@ impl DataCtx {
                 topics: log.topics,
             })
             .collect();
+
+        let transaction_selection: Vec<MiniTransactionSelection> = query
+            .transactions
+            .into_iter()
+            .map(|transaction| MiniTransactionSelection {
+                address: transaction.address,
+                sighash: transaction.sighash,
+            })
+            .collect();
+
+        let status = self.status().await?;
 
         let (tx, mut rx): (mpsc::Sender<(QueryResult, _)>, _) = mpsc::channel(1);
 
@@ -274,7 +289,9 @@ impl DataCtx {
                         data[block_idx].transactions.push(row.transaction);
                     }
 
-                    data[block_idx].logs.push(row.log);
+                    if let Some(log) = row.log {
+                        data[block_idx].logs.push(log);
+                    }
                 }
 
                 if comma {
@@ -327,6 +344,7 @@ impl DataCtx {
                     from_block: start,
                     to_block: end,
                     logs: log_selection.clone(),
+                    transactions: transaction_selection.clone(),
                     field_selection,
                 })
                 .await?;
@@ -365,20 +383,50 @@ impl DataCtx {
                 .await
                 .map_err(Error::TaskJoinError)?
         } else {
-            let start_time = Instant::now();
-
-            let query = query.to_sql()?;
-
-            let build_query = start_time.elapsed().as_millis();
-
-            self.db
-                .raw_query(build_query, &query)
-                .await
-                .map_err(Error::SqlQuery)
+            self.query_sql(query).await
         }
     }
 
-    fn setup_pruned_frame(
+    async fn query_sql(&self, query: MiniQuery) -> Result<QueryResult> {
+        let mut metrics = QueryMetrics::default();
+        let mut data = vec![];
+
+        if !query.logs.is_empty() {
+            let start_time = Instant::now();
+            let query = query.to_log_sql()?;
+            let build_query = start_time.elapsed().as_millis();
+
+            let logs = self
+                .db
+                .log_query(build_query, &query)
+                .await
+                .map_err(Error::SqlQuery)?;
+            metrics += logs.metrics;
+            for row in logs.data {
+                data.push(row);
+            }
+        }
+
+        if !query.transactions.is_empty() {
+            let start_time = Instant::now();
+            let query = query.to_tx_sql()?;
+            let build_query = start_time.elapsed().as_millis();
+
+            let transactions = self
+                .db
+                .tx_query(build_query, &query)
+                .await
+                .map_err(Error::SqlQuery)?;
+            metrics += transactions.metrics;
+            for row in transactions.data {
+                data.push(row);
+            }
+        }
+
+        Ok(QueryResult { data, metrics })
+    }
+
+    fn setup_log_pruned_frame(
         &self,
         field_selection: FieldSelection,
         from_block: u32,
@@ -428,6 +476,42 @@ impl DataCtx {
         Ok(frame)
     }
 
+    fn setup_tx_pruned_frame(
+        &self,
+        field_selection: FieldSelection,
+        from_block: u32,
+        to_block: u32,
+    ) -> Result<LazyFrame> {
+        let range = (from_block, to_block);
+
+        let parquet_state = self.parquet_state.blocking_read();
+
+        let blocks = self.get_lazy_frame_from_parquet(
+            &parquet_state.block_ranges,
+            range,
+            "block",
+            &self.config.blocks_path,
+        )?;
+        let transactions = self.get_lazy_frame_from_parquet(
+            &parquet_state.tx_ranges,
+            range,
+            "tx",
+            &self.config.transactions_path,
+        )?;
+
+        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
+        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
+
+        let frame = transactions.join(
+            blocks,
+            &[col("tx_block_number")],
+            &[col("block_number")],
+            JoinType::Inner,
+        );
+
+        Ok(frame)
+    }
+
     fn get_lazy_frame_from_parquet(
         &self,
         map: &RangeMap,
@@ -464,12 +548,35 @@ impl DataCtx {
     }
 
     fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {
+        let mut metrics = QueryMetrics::default();
+        let mut data = vec![];
+
+        if !query.logs.is_empty() {
+            let logs = self.query_logs(&query)?;
+            metrics += logs.metrics;
+            for row in logs.data {
+                data.push(row);
+            }
+        }
+
+        if !query.transactions.is_empty() {
+            let transactions = self.query_transactions(&query)?;
+            metrics += transactions.metrics;
+            for row in transactions.data {
+                data.push(row);
+            }
+        }
+
+        Ok(QueryResult { data, metrics })
+    }
+
+    fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
 
         let mut data_frame =
-            self.setup_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
+            self.setup_log_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
 
         data_frame = data_frame.filter(
             col("log_block_number")
@@ -480,7 +587,7 @@ impl DataCtx {
         if !query.logs.is_empty() {
             let mut expr: Option<Expr> = None;
 
-            for log in query.logs {
+            for log in &query.logs {
                 if let Some(inner_expr) = log.to_expr()? {
                     expr = match expr {
                         Some(expr) => Some(expr.or(inner_expr)),
@@ -508,6 +615,65 @@ impl DataCtx {
         let start_time = Instant::now();
 
         let data = response_rows_from_result_frame(result_frame)?;
+
+        let serialize_result = start_time.elapsed().as_millis();
+
+        Ok(QueryResult {
+            data,
+            metrics: QueryMetrics {
+                build_query,
+                run_query,
+                serialize_result,
+                total: build_query + run_query + serialize_result,
+            },
+        })
+    }
+
+    fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
+        use polars::prelude::*;
+
+        let start_time = Instant::now();
+
+        let mut data_frame =
+            self.setup_tx_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
+
+        data_frame = data_frame.filter(
+            col("tx_block_number")
+                .gt_eq(lit(query.from_block))
+                .and(col("tx_block_number").lt(lit(query.to_block))),
+        );
+
+        if !query.transactions.is_empty() {
+            let mut expr: Option<Expr> = None;
+
+            for tx in &query.transactions {
+                if let Some(inner_expr) = tx.to_expr()? {
+                    expr = match expr {
+                        Some(expr) => Some(expr.or(inner_expr)),
+                        None => Some(inner_expr),
+                    };
+                } else {
+                    expr = None;
+                    break;
+                }
+            }
+
+            if let Some(expr) = expr {
+                data_frame = data_frame.filter(expr);
+            }
+        }
+
+        let build_query = start_time.elapsed().as_millis();
+
+        let start_time = Instant::now();
+
+        let result_frame = data_frame.collect().map_err(Error::ExecuteQuery)?;
+
+        let run_query = start_time.elapsed().as_millis();
+
+        let start_time = Instant::now();
+
+        let data = tx_response_rows_from_result_frame(result_frame)?;
 
         let serialize_result = start_time.elapsed().as_millis();
 
@@ -897,7 +1063,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                         })
                         .map(Bytes::new),
                 },
-                log: ResponseLog {
+                log: Some(ResponseLog {
                     address: log_address
                         .map(|arr| {
                             arr.as_any()
@@ -997,7 +1163,369 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .unwrap()
                         })
                         .map(Index),
+                }),
+            };
+
+            data.push(response_row);
+        }
+    }
+
+    Ok(data)
+}
+
+fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<ResponseRow>> {
+    use eth_archive_core::deserialize::{
+        Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce,
+    };
+    use polars::export::arrow::array::{self, Int64Array, UInt32Array, UInt64Array};
+
+    type BinaryArray = array::BinaryArray<i64>;
+
+    let mut data = Vec::new();
+
+    let schema = result_frame.schema();
+
+    for batch in result_frame.iter_chunks() {
+        define_cols!(
+            batch,
+            schema,
+            block_hash,
+            block_parent_hash,
+            block_nonce,
+            block_sha3_uncles,
+            block_logs_bloom,
+            block_transactions_root,
+            block_state_root,
+            block_receipts_root,
+            block_miner,
+            block_difficulty,
+            block_total_difficulty,
+            block_extra_data,
+            block_size,
+            block_gas_limit,
+            block_gas_used,
+            block_timestamp,
+            tx_block_hash,
+            tx_block_number,
+            tx_source,
+            tx_gas,
+            tx_gas_price,
+            tx_hash,
+            tx_input,
+            tx_nonce,
+            tx_dest,
+            tx_transaction_index,
+            tx_value,
+            tx_kind,
+            tx_chain_id,
+            tx_v,
+            tx_r,
+            tx_s
+        );
+
+        let len = tx_block_number.as_ref().unwrap().len();
+
+        for i in 0..len {
+            let response_row = ResponseRow {
+                block: ResponseBlock {
+                    number: tx_block_number
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt32Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Index),
+                    hash: block_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    parent_hash: block_parent_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    nonce: block_nonce
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Nonce),
+                    sha3_uncles: block_sha3_uncles
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    logs_bloom: block_logs_bloom
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BloomFilterBytes::new),
+                    transactions_root: block_transactions_root
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    state_root: block_state_root
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    receipts_root: block_receipts_root
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    miner: block_miner
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Address::new),
+                    difficulty: block_difficulty
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    total_difficulty: block_total_difficulty
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    extra_data: block_extra_data
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    size: block_size
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    gas_limit: block_gas_limit
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    gas_used: block_gas_used
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    timestamp: block_timestamp
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
                 },
+                transaction: ResponseTransaction {
+                    block_hash: tx_block_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    block_number: tx_block_number
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt32Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Index),
+                    source: tx_source
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Address::new),
+                    gas: tx_gas
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    gas_price: tx_gas_price
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    hash: tx_hash
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes32::new),
+                    input: tx_input
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    nonce: tx_nonce
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Nonce),
+                    dest: match tx_dest
+                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
+                    {
+                        Some(Some(addr)) => Some(Address::new(addr)),
+                        _ => None,
+                    },
+                    transaction_index: tx_transaction_index
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt32Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Index),
+                    value: tx_value
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    kind: tx_kind
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt32Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Index),
+                    chain_id: tx_chain_id
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<UInt32Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Index),
+                    v: tx_v
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<Int64Array>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(BigInt),
+                    r: tx_r
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                    s: tx_s
+                        .map(|arr| {
+                            arr.as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .unwrap()
+                                .get(i)
+                                .unwrap()
+                        })
+                        .map(Bytes::new),
+                },
+                log: None,
             };
 
             data.push(response_row);
