@@ -51,6 +51,8 @@ impl ParquetWriterRunner {
         let (tx_delete_tx, mut tx_delete_rx) = mpsc::unbounded_channel();
         let (log_delete_tx, mut log_delete_rx) = mpsc::unbounded_channel();
 
+        let retry = Retry::new(config.retry);
+
         {
             let db = db.clone();
             tokio::spawn(async move {
@@ -60,6 +62,8 @@ impl ParquetWriterRunner {
                 let mut prev_min = 0;
 
                 loop {
+                    let db = db.clone();
+
                     tokio::select! {
                         block_num = block_delete_rx.recv() => {
                             block_block_num = block_num.unwrap();
@@ -78,8 +82,15 @@ impl ParquetWriterRunner {
                         let block_num = new_min - config.block_overlap_size;
                         let delete_up_to = i64::try_from(block_num).unwrap();
 
-                        if let Err(e) = db.delete_blocks_up_to(delete_up_to).await {
-                            log::error!("failed to delete blocks up to {}:\n{}", delete_up_to, e);
+                        let res = retry
+                            .retry(move || {
+                                let db = db.clone();
+                                async move { db.delete_blocks_up_to(delete_up_to).await }
+                            })
+                            .await;
+
+                        if res.is_err() {
+                            log::error!("failed to delete blocks up to {}", delete_up_to);
                         }
 
                         prev_min = new_min;
@@ -105,8 +116,6 @@ impl ParquetWriterRunner {
         let block_writer = ParquetWriter::new(config.block, block_delete_tx);
         let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx);
         let log_writer = ParquetWriter::new(config.log, log_delete_tx);
-
-        let retry = Retry::new(config.retry);
 
         Ok(Self {
             db,
