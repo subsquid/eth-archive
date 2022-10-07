@@ -99,6 +99,8 @@ impl DataCtx {
     }
 
     pub async fn status(&self) -> Result<Status> {
+        let parquet_block_number = { self.parquet_state.read().await.parquet_block_number };
+
         let db_max_block_number = self
             .db
             .get_max_block_number()
@@ -113,10 +115,20 @@ impl DataCtx {
             .map_err(Error::GetMinBlockNumber)?
             .unwrap_or(0);
 
+        let db_min_block_number = u32::try_from(db_min_block_number).unwrap();
+        let db_max_block_number = u32::try_from(db_max_block_number).unwrap();
+
+        let archive_height = if parquet_block_number > db_min_block_number {
+            db_max_block_number
+        } else {
+            parquet_block_number
+        };
+
         Ok(Status {
             db_max_block_number,
             db_min_block_number,
-            parquet_block_number: self.parquet_state.read().await.parquet_block_number,
+            parquet_block_number,
+            archive_height,
         })
     }
 
@@ -177,20 +189,15 @@ impl DataCtx {
             return Err(Error::InvalidBlockRange);
         }
 
-        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range) + 1;
+        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range);
 
         let status = self.status().await?;
 
-        let db_min_block_number = u32::try_from(status.db_min_block_number).unwrap();
-        let db_max_block_number = u32::try_from(status.db_max_block_number).unwrap();
+        let archive_height = status.archive_height;
 
-        let valid_up_to = if status.parquet_block_number > db_min_block_number {
-            db_max_block_number
-        } else {
-            status.parquet_block_number
-        };
+        let to_block = cmp::min(to_block, archive_height);
 
-        let to_block = cmp::min(to_block, valid_up_to);
+        let to_block = to_block + 1;
 
         let mut field_selection = None;
         for log in &query.logs {
@@ -236,8 +243,6 @@ impl DataCtx {
                 sighash: transaction.sighash,
             })
             .collect();
-
-        let status = self.status().await?;
 
         let (tx, mut rx): (mpsc::Sender<(QueryResult, _)>, _) = mpsc::channel(1);
 
