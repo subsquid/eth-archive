@@ -11,4 +11,5 @@ pub struct Config {
     pub retry: RetryConfig,
     pub db: DbConfig,
     pub block_overlap_size: usize,
+    pub delete_blocks_chunk_size: usize,
 }

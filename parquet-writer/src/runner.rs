@@ -82,16 +82,37 @@ impl ParquetWriterRunner {
                         let block_num = new_min - config.block_overlap_size;
                         let delete_up_to = i64::try_from(block_num).unwrap();
 
-                        let res = retry
-                            .retry(move || {
-                                let db = db.clone();
-                                async move { db.delete_blocks_up_to(delete_up_to).await }
-                            })
-                            .await;
+                        let min = {
+                            let db = db.clone();
+                            retry
+                                .retry(|| {
+                                    let db = db.clone();
+                                    async move { db.get_min_block_number().await }
+                                })
+                                .await
+                                .unwrap()
+                                .unwrap()
+                        };
 
-                        if res.is_err() {
-                            log::error!("failed to delete blocks up to {}", delete_up_to);
+                        let delete_blocks = |db: Arc<DbHandle>, delete_up_to: i64| async move {
+                            let res = retry
+                                .retry(move || {
+                                    let db = db.clone();
+                                    async move { db.delete_blocks_up_to(delete_up_to).await }
+                                })
+                                .await;
+                            if res.is_err() {
+                                log::error!("failed to delete blocks up to {}", delete_up_to);
+                            }
+                        };
+
+                        for num in (min..block_num)
+                            .step_by(config.delete_blocks_chunk_size)
+                            .skip(1)
+                        {
+                            delete_blocks(db.clone(), i64::try_from(num).unwrap()).await;
                         }
+                        delete_blocks(db.clone(), delete_up_to).await;
 
                         prev_min = new_min;
                     }
