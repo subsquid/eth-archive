@@ -248,7 +248,7 @@ impl DataCtx {
 
             let mut comma = false;
 
-            let mut next_block = 0;
+            let mut next_block = query.from_block;
 
             while let Some((res, end)) = rx.blocking_recv() {
                 let mut data = Vec::new();
