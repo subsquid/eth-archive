@@ -487,6 +487,8 @@ impl DataCtx {
         from_block: u32,
         to_block: u32,
     ) -> Result<LazyFrame> {
+        use polars::prelude::*;
+
         let range = (from_block, to_block);
 
         let parquet_state = self.parquet_state.blocking_read();
@@ -505,7 +507,10 @@ impl DataCtx {
         )?;
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
+        let mut transaction_cols = field_selection.transaction.unwrap().to_cols();
+        let sighash_col = col("sighash").prefix("tx_");
+        transaction_cols.push(sighash_col);
+        let transactions = transactions.select(transaction_cols);
 
         let frame = transactions.join(
             blocks,

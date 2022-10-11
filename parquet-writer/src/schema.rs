@@ -54,6 +54,7 @@ fn transaction_schema() -> Schema {
         Field::new("gas_price", DataType::Int64, false),
         Field::new("hash", bytes32(), false),
         Field::new("input", DataType::Binary, false),
+        Field::new("sighash", DataType::Binary, true),
         Field::new("nonce", DataType::UInt64, false),
         Field::new("dest", address(), true),
         Field::new("transaction_index", DataType::UInt32, false),
@@ -64,6 +65,16 @@ fn transaction_schema() -> Schema {
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
     ])
+}
+
+fn extract_sighash(input: &[u8]) -> Option<[u8; 4]> {
+    if input.len() < 4 {
+        None
+    } else {
+        let mut sighash = [0; 4];
+        sighash.clone_from_slice(&input[0..4]);
+        Some(sighash)
+    }
 }
 
 fn log_schema() -> Schema {
@@ -191,6 +202,7 @@ pub struct Transactions {
     pub gas_price: Int64Vec,
     pub hash: MutableBinaryArray,
     pub input: MutableBinaryArray,
+    pub sighash: MutableBinaryArray,
     pub nonce: UInt64Vec,
     pub dest: MutableBinaryArray,
     pub transaction_index: UInt32Vec,
@@ -241,6 +253,7 @@ impl IntoRowGroups for Transactions {
             arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.sighash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.dest.as_box().as_ref(), &indices).unwrap(),
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
@@ -260,6 +273,7 @@ impl IntoRowGroups for Transactions {
         self.gas.push(Some(elem.gas.0));
         self.gas_price.push(Some(elem.gas_price.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
+        self.sighash.push(extract_sighash(&elem.input));
         self.input.push(Some(elem.input.0));
         self.nonce.push(Some(elem.nonce.0));
         match elem.dest {

@@ -73,3 +73,32 @@ async fn transaction_address_filtering() {
     assert!(transactions.len() == 1);
     assert!(transactions[0].to == Some(address));
 }
+
+#[actix_web::test]
+async fn transaction_sighash_filtering() {
+    launch_gateway();
+    let client = Client::new();
+    let sighash = "0xa9059cbb".to_string();
+    let response = client
+        .query(json!({
+            "fromBlock": 0,
+            "logs": [],
+            "transactions": [{
+                "sighash": sighash,
+                "fieldSelection": {
+                    "log": {},
+                    "block": {},
+                    "transaction": {
+                        "input": true
+                    },
+                }
+            }]
+        }))
+        .await;
+    let transactions = &response.data[0][0].transactions;
+    assert!(transactions.len() == 1);
+
+    let tx = &transactions[0];
+    assert!(tx.block_number == Some(1));
+    assert!(tx.input.as_ref().unwrap().starts_with(&sighash));
+}

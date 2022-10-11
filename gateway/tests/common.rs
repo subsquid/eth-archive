@@ -26,7 +26,7 @@ pub fn launch_gateway() {
     })
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub parquet_block_number: u32,
@@ -34,7 +34,7 @@ pub struct Status {
     pub db_min_block_number: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
     pub number: Option<u32>,
@@ -56,7 +56,7 @@ pub struct Block {
     pub timestamp: Option<u32>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub block_hash: Option<String>,
@@ -77,7 +77,7 @@ pub struct Transaction {
     pub s: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Log {
     pub address: Option<String>,
