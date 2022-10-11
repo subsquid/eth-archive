@@ -179,7 +179,7 @@ impl MiniLogSelection {
 
 impl MiniTransactionSelection {
     pub fn to_expr(&self) -> Result<Option<Expr>> {
-        let expr = match &self.address {
+        let mut expr = match &self.address {
             Some(addr) if !addr.is_empty() => {
                 let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
 
@@ -189,13 +189,19 @@ impl MiniTransactionSelection {
             _ => None,
         };
 
-        // TODO: filter sighash
+        if let Some(sighash) = &self.sighash {
+            let inner_expr = col("tx_sighash").eq(lit(sighash.0.as_slice()));
+            expr = match expr {
+                Some(expr) => Some(expr.and(inner_expr)),
+                None => Some(inner_expr),
+            };
+        }
 
         Ok(expr)
     }
 
     pub fn to_sql(&self) -> Result<String> {
-        let sql = match &self.address {
+        let mut sql = match &self.address {
             Some(addr) if !addr.is_empty() => {
                 let address = addr
                     .iter()
@@ -211,7 +217,16 @@ impl MiniTransactionSelection {
             _ => "TRUE".to_owned(),
         };
 
-        // TODO: filter sighash
+        if let Some(sighash) = &self.sighash {
+            let sighash = prefix_hex::encode(&*sighash.0);
+            let sighash = sighash.strip_prefix("0x").unwrap();
+            write!(
+                &mut sql,
+                " AND position('\\x{}' in eth_tx.input) = 1",
+                sighash
+            )
+            .unwrap();
+        }
 
         Ok(format!("({})", sql))
     }
