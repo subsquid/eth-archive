@@ -135,7 +135,7 @@ impl MiniLogSelection {
                 let address = addr
                     .iter()
                     .map(|addr| {
-                        let addr = prefix_hex::encode(&*addr.0);
+                        let addr = prefix_hex::encode(addr);
                         let addr = addr.strip_prefix("0x").unwrap();
                         format!("decode('{}', 'hex')", addr)
                     })
@@ -161,7 +161,7 @@ impl MiniLogSelection {
                 let topics = topic
                     .iter()
                     .map(|topic| {
-                        let topic = prefix_hex::encode(&*topic.0);
+                        let topic = prefix_hex::encode(topic);
                         let topic = topic.strip_prefix("0x").unwrap();
                         format!("decode('{}', 'hex')", topic)
                     })
@@ -206,7 +206,7 @@ impl MiniTransactionSelection {
                 let address = addr
                     .iter()
                     .map(|addr| {
-                        let addr = prefix_hex::encode(&*addr.0);
+                        let addr = prefix_hex::encode(addr);
                         let addr = addr.strip_prefix("0x").unwrap();
                         format!("decode('{}', 'hex')", addr)
                     })
@@ -218,7 +218,7 @@ impl MiniTransactionSelection {
         };
 
         if let Some(sighash) = &self.sighash {
-            let sighash = prefix_hex::encode(&*sighash.0);
+            let sighash = prefix_hex::encode(sighash);
             let sighash = sighash.strip_prefix("0x").unwrap();
             write!(
                 &mut sql,

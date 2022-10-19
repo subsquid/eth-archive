@@ -1,3 +1,4 @@
+use prefix_hex::ToHexPrefixed;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
@@ -43,12 +44,24 @@ impl ToSql for Bytes32 {
     }
 }
 
+impl ToHexPrefixed for &Bytes32 {
+    fn to_hex_prefixed(self) -> String {
+        ToHexPrefixed::to_hex_prefixed(&*self.0)
+    }
+}
+
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct Address(pub Box<[u8; 20]>);
 
 impl Address {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
+    }
+}
+
+impl ToHexPrefixed for &Address {
+    fn to_hex_prefixed(self) -> String {
+        ToHexPrefixed::to_hex_prefixed(&*self.0)
     }
 }
 
@@ -98,6 +111,12 @@ impl ToSql for Sighash {
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
         self.0.as_slice().to_sql_checked(ty, out)
+    }
+}
+
+impl ToHexPrefixed for &Sighash {
+    fn to_hex_prefixed(self) -> String {
+        ToHexPrefixed::to_hex_prefixed(&*self.0)
     }
 }
 
