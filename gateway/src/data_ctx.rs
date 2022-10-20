@@ -12,7 +12,7 @@ use eth_archive_core::types::{
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
@@ -42,9 +42,7 @@ impl DataCtx {
             let config = config.clone();
             let parquet_state = parquet_state.clone();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(
-                    config.parquet_state_refresh_interval_secs,
-                ));
+                let mut interval = tokio::time::interval(Duration::from_secs(60));
 
                 loop {
                     interval.tick().await;
@@ -179,17 +177,19 @@ impl DataCtx {
     }
 
     pub async fn query(&self, query: Query) -> Result<Vec<u8>> {
+        let default_block_range = 500_000;
+        let max_block_range = 1_000_000;
         let query_start = Instant::now();
 
         let to_block = query
             .to_block
-            .unwrap_or(query.from_block + self.config.default_block_range);
+            .unwrap_or(query.from_block + default_block_range);
 
         if to_block == 0 || query.from_block > to_block {
             return Err(Error::InvalidBlockRange);
         }
 
-        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range);
+        let to_block = cmp::min(to_block, query.from_block + max_block_range);
 
         let status = self.status().await?;
 
@@ -358,7 +358,8 @@ impl DataCtx {
 
             tx.send((res, end)).await.ok().unwrap();
 
-            if num_logs > self.config.response_log_limit
+            let response_log_limit = 100_000;
+            if num_logs > response_log_limit
                 || start_time.elapsed().as_millis() > u128::from(self.config.query_time_limit_ms)
             {
                 break;

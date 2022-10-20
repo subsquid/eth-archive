@@ -53,7 +53,7 @@ impl Ingester {
             .await
             .map_err(Error::GetBestBlock)?;
 
-        let offset = self.cfg.block_depth_offset;
+        let offset = 20;
 
         Ok(if num < offset { 0 } else { num - offset })
     }
@@ -123,8 +123,6 @@ impl Ingester {
         let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
 
         let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(2);
-
-        let _insert_batch_size = self.cfg.block_insert_batch_size;
 
         let write_task = tokio::spawn({
             let db = self.db.clone();

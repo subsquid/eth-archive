@@ -7,6 +7,4 @@ pub struct Config {
     pub ingest: IngestConfig,
     pub retry: RetryConfig,
     pub block_window_size: usize,
-    pub block_depth_offset: usize,
-    pub block_insert_batch_size: usize,
 }

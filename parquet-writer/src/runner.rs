@@ -79,7 +79,8 @@ impl ParquetWriterRunner {
                     let new_min = cmp::min(cmp::min(block_block_num, tx_block_num), log_block_num);
 
                     if new_min != prev_min {
-                        let block_num = new_min - config.block_overlap_size;
+                        let block_overlap_size = 5000;
+                        let block_num = new_min - block_overlap_size;
                         let delete_up_to = i64::try_from(block_num).unwrap();
 
                         let min = {
@@ -106,10 +107,8 @@ impl ParquetWriterRunner {
                             }
                         };
 
-                        for num in (min..block_num)
-                            .step_by(config.delete_blocks_chunk_size)
-                            .skip(1)
-                        {
+                        let delete_blocks_chunk_size = 5000;
+                        for num in (min..block_num).step_by(delete_blocks_chunk_size).skip(1) {
                             delete_blocks(db.clone(), i64::try_from(num).unwrap()).await;
                         }
                         delete_blocks(db.clone(), delete_up_to).await;

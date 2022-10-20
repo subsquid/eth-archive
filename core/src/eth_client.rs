@@ -13,8 +13,8 @@ pub struct EthClient {
 
 impl EthClient {
     pub fn new(config: &IngestConfig) -> Result<EthClient> {
-        let request_timeout = Duration::from_secs(config.request_timeout_secs.get());
-        let connect_timeout = Duration::from_millis(config.connect_timeout_ms.get());
+        let request_timeout = Duration::from_secs(300);
+        let connect_timeout = Duration::from_millis(1000);
 
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)

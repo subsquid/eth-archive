@@ -1,9 +1,3 @@
-block_overlap_size = 5000
-delete_blocks_chunk_size = 5000
-
-[retry]
-secs_between_tries = 3
-
 [db]
 user = "postgres"
 password = "12345"
@@ -15,26 +9,3 @@ port = 5432
 eth_rpc_url = "http://195.201.56.33:8545"
 block_batch_size = 50
 http_req_concurrency = 100
-request_timeout_secs = 300
-connect_timeout_ms = 1000
-
-[block]
-name = "block"
-path = "data/block"
-items_per_file = 32768
-items_per_row_group = 512
-channel_size = 1024
-
-[transaction]
-name = "tx"
-path = "data/tx"
-items_per_file = 65536
-items_per_row_group = 512
-channel_size = 3072
-
-[log]
-name = "log"
-path = "data/log"
-items_per_file = 65536
-items_per_row_group = 512
-channel_size = 2048

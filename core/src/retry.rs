@@ -1,17 +1,18 @@
 use crate::config::RetryConfig;
 use std::future::Future;
+use std::time::Duration;
 
 #[derive(Clone, Copy)]
 pub struct Retry {
     num_tries: Option<usize>,
-    secs_between_tries: u64,
+    secs_between_tries: Duration,
 }
 
 impl Retry {
     pub fn new(cfg: RetryConfig) -> Self {
         Self {
             num_tries: cfg.num_tries,
-            secs_between_tries: cfg.secs_between_tries,
+            secs_between_tries: Duration::from_secs(3),
         }
     }
 
@@ -27,8 +28,7 @@ impl Retry {
                     Ok(r) => return Ok(r),
                     Err(e) => {
                         log::error!("failed to run operation: {}, retrying", e);
-                        tokio::time::sleep(std::time::Duration::from_secs(self.secs_between_tries))
-                            .await;
+                        tokio::time::sleep(self.secs_between_tries).await;
                         errs.push(e);
                     }
                 }
@@ -40,8 +40,7 @@ impl Retry {
                     Ok(r) => return Ok(r),
                     Err(e) => {
                         log::error!("failed to run operation: {}, retrying", e);
-                        tokio::time::sleep(std::time::Duration::from_secs(self.secs_between_tries))
-                            .await;
+                        tokio::time::sleep(self.secs_between_tries).await;
                     }
                 }
             }

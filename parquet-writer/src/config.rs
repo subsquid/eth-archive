@@ -10,6 +10,4 @@ pub struct Config {
     pub ingest: IngestConfig,
     pub retry: RetryConfig,
     pub db: DbConfig,
-    pub block_overlap_size: usize,
-    pub delete_blocks_chunk_size: usize,
 }
