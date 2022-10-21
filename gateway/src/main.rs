@@ -13,7 +13,7 @@ async fn main() {
 
     let options = Options::parse();
 
-    if let Err(e) = Server::run(&options).await {
+    if let Err(e) = Server::run(options).await {
         log::error!("failed to run server:\n{}", e);
     }
 }

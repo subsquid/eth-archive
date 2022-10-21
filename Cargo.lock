@@ -789,7 +789,6 @@ dependencies = [
  "thiserror",
  "tikv-jemallocator",
  "tokio",
- "toml",
 ]
 
 [[package]]

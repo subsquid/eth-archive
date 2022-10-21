@@ -11,6 +11,7 @@ use eth_archive_core::types::{
 };
 use polars::prelude::*;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, mem};
@@ -130,7 +131,7 @@ impl DataCtx {
         })
     }
 
-    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u32)> {
+    async fn get_block_ranges(prefix: &str, path: &PathBuf) -> Result<(RangeMap, u32)> {
         let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
@@ -528,7 +529,7 @@ impl DataCtx {
         map: &RangeMap,
         range: (u32, u32),
         table_name: &'static str,
-        folder_path: &str,
+        folder_path: &Path,
     ) -> Result<LazyFrame> {
         let block_ranges = map.get(range.0..range.1).collect::<Vec<_>>();
         if block_ranges.is_empty() {
@@ -537,7 +538,10 @@ impl DataCtx {
         let file_range = block_ranges[0].clone();
         let file_path = format!(
             "{}/{}{}_{}.parquet",
-            folder_path, table_name, file_range.start, file_range.end
+            folder_path.display(),
+            table_name,
+            file_range.start,
+            file_range.end
         );
 
         let mut main_frame =
@@ -546,7 +550,10 @@ impl DataCtx {
         for file_range in block_ranges.iter().skip(1) {
             let file_path = format!(
                 "{}/{}{}_{}.parquet",
-                folder_path, table_name, file_range.start, file_range.end
+                folder_path.display(),
+                table_name,
+                file_range.start,
+                file_range.end
             );
             let data_frame = LazyFrame::scan_parquet(file_path, Default::default())
                 .map_err(Error::ScanParquet)?;

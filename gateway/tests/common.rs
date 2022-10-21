@@ -3,6 +3,8 @@ use actix_web::rt::{spawn, Runtime};
 use eth_archive_gateway::{Options, Server};
 use serde::Deserialize;
 use serde_json::Value;
+use std::net::Ipv4Addr;
+use std::path::PathBuf;
 use std::sync::Once;
 use std::thread;
 use std::time::Duration;
@@ -15,9 +17,18 @@ pub fn launch_gateway() {
             Runtime::new().unwrap().block_on(async {
                 spawn(async {
                     let options = Options {
-                        cfg_path: Some("./tests/cfg.toml".to_string()),
+                        data_path: PathBuf::from("tests/data"),
+                        db_user: "eth-archive-user".to_string(),
+                        db_password: "password".to_string(),
+                        db_name: "eth-archive-db".to_string(),
+                        db_host: "localhost".to_string(),
+                        db_port: 5432,
+                        ip: Ipv4Addr::new(127, 0, 0, 1),
+                        port: 8080,
+                        query_chunk_size: 2,
+                        query_time_limit_ms: 5000,
                     };
-                    Server::run(&options).await.unwrap()
+                    Server::run(options).await.unwrap()
                 });
                 sleep(Duration::from_secs(1)).await;
             });

@@ -11,13 +11,8 @@ use actix_web::{web, App, HttpResponse, HttpServer};
 pub struct Server {}
 
 impl Server {
-    pub async fn run(options: &Options) -> Result<()> {
-        let config =
-            tokio::fs::read_to_string(options.cfg_path.as_deref().unwrap_or("EthGateway.toml"))
-                .await
-                .map_err(Error::ReadConfigFile)?;
-
-        let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
+    pub async fn run(options: Options) -> Result<()> {
+        let config = Config::from(options);
 
         let db = DbHandle::new(false, &config.db)
             .await

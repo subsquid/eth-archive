@@ -1,3 +1,5 @@
+export RUST_LOG=info
+
 ingester:
 	cargo run --bin eth-archive-ingester -- \
 		-e http://195.201.56.33:8545 \
@@ -22,10 +24,21 @@ writer:
 		--db-host localhost \
 		--db-port 29598
 
+gateway:
+	cargo run --bin eth-archive-gateway -- \
+		--data-path ./data \
+		--query-chunk-size 256 \
+		--query-time-limit-ms 6000 \
+		--db-user postgres \
+		--db-password postgres \
+		--db-name eth_archive_db \
+		--db-host localhost \
+		--db-port 29598
+
 up:
 	docker-compose up -d
 
 down:
 	docker-compose down
 
-.PHONY: ingester
+.PHONY: ingester gateway
