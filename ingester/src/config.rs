@@ -26,7 +26,7 @@ impl From<Options> for Config {
                 http_req_concurrency: options.http_req_concurrency,
             },
             retry: RetryConfig {
-                num_tries: Some(3),
+                num_tries: None,
                 secs_between_tries: 3,
             },
             block_window_size: options.block_window_size,

@@ -3,7 +3,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Options {
-    /// Ethereum node rpc url
+    /// An ethereum node rpc url
     #[clap(short, long)]
     pub eth_rpc_url: url::Url,
 

@@ -27,17 +27,9 @@ pub struct ParquetWriterRunner {
 }
 
 impl ParquetWriterRunner {
-    pub async fn new(options: &Options) -> Result<Self> {
-        let config = tokio::fs::read_to_string(
-            options
-                .cfg_path
-                .as_deref()
-                .unwrap_or("EthParquetWriter.toml"),
-        )
-        .await
-        .map_err(Error::ReadConfigFile)?;
-
-        let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
+    pub async fn new(options: Options) -> Result<Self> {
+        let reset_data = options.reset_data;
+        let config = Config::from(options);
 
         let db = DbHandle::new(false, &config.db)
             .await
@@ -119,7 +111,7 @@ impl ParquetWriterRunner {
             });
         }
 
-        if options.reset_data {
+        if reset_data {
             log::info!("resetting parquet data");
 
             if let Err(e) = fs::remove_dir_all(&config.block.path).await {

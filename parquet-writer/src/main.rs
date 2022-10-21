@@ -13,7 +13,7 @@ async fn main() {
 
     let options = Options::parse();
 
-    let runner = match ParquetWriterRunner::new(&options).await {
+    let runner = match ParquetWriterRunner::new(options).await {
         Ok(runner) => runner,
         Err(e) => {
             log::error!("failed to create parquet writer runner:\n{}", e);
