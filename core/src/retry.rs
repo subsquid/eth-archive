@@ -12,7 +12,7 @@ impl Retry {
     pub fn new(cfg: RetryConfig) -> Self {
         Self {
             num_tries: cfg.num_tries,
-            secs_between_tries: Duration::from_secs(3),
+            secs_between_tries: Duration::from_secs(cfg.secs_between_tries),
         }
     }
 

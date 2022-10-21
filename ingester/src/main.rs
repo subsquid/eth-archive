@@ -13,7 +13,7 @@ async fn main() {
 
     let options = Options::parse();
 
-    let ingester = match Ingester::new(&options).await {
+    let ingester = match Ingester::new(options).await {
         Ok(ingester) => ingester,
         Err(e) => {
             log::error!("failed to create ingester:\n{}", e);

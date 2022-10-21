@@ -20,15 +20,10 @@ pub struct Ingester {
 }
 
 impl Ingester {
-    pub async fn new(options: &Options) -> Result<Self> {
-        let config =
-            tokio::fs::read_to_string(options.cfg_path.as_deref().unwrap_or("EthIngester.toml"))
-                .await
-                .map_err(Error::ReadConfigFile)?;
-
-        let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
-
-        let db = DbHandle::new(options.reset_data, &config.db)
+    pub async fn new(options: Options) -> Result<Self> {
+        let reset_data = options.reset_data;
+        let config = Config::from(options);
+        let db = DbHandle::new(reset_data, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
