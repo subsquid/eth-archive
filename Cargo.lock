@@ -754,11 +754,13 @@ dependencies = [
 name = "eth-archive-core"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "deadpool-postgres",
  "derive_more",
  "futures",
  "log",
  "prefix-hex",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
@@ -1729,11 +1731,11 @@ name = "parquet-writer"
 version = "0.1.0"
 dependencies = [
  "arrow2",
+ "eth-archive-core",
  "futures",
  "itertools",
  "log",
  "rayon",
- "rayon-async",
  "serde",
  "thiserror",
  "tokio",
@@ -2089,14 +2091,6 @@ dependencies = [
  "crossbeam-deque",
  "either",
  "rayon-core",
-]
-
-[[package]]
-name = "rayon-async"
-version = "0.1.0"
-dependencies = [
- "rayon",
- "tokio",
 ]
 
 [[package]]

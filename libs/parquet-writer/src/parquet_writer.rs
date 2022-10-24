@@ -2,6 +2,8 @@ use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use crate::{Error, Result};
 use arrow2::io::parquet::write::*;
+use eth_archive_core::rayon_async;
+use eth_archive_core::types::BlockRange;
 use futures::SinkExt;
 use itertools::Itertools;
 use std::path::Path;
@@ -10,21 +12,6 @@ use std::time::Instant;
 use std::{cmp, mem};
 use tokio::sync::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct BlockRange {
-    pub from: usize,
-    pub to: usize,
-}
-
-impl BlockRange {
-    pub fn merge(&self, other: Self) -> Self {
-        Self {
-            from: cmp::min(self.from, other.from),
-            to: cmp::max(self.to, other.to),
-        }
-    }
-}
 
 pub struct ParquetWriter<T: IntoRowGroups> {
     tx: Sender<T::Elem>,

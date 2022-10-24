@@ -5,5 +5,5 @@ mod schema;
 
 pub use config::ParquetConfig;
 pub use error::{Error, Result};
-pub use parquet_writer::{BlockRange, ParquetWriter};
+pub use parquet_writer::ParquetWriter;
 pub use schema::{Chunk, IntoRowGroups};
