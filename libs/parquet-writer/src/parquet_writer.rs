@@ -50,7 +50,7 @@ impl<T: IntoRowGroups + 'static + Send + Sync> ParquetWriter<T> {
             let mut row_group = vec![T::default()];
             let mut block_range: Option<BlockRange> = None;
 
-            while let Some((other_range, elems)) = rx.blocking_recv() {
+            while let Some((other_range, elems)) = rx.recv().await {
                 let row = row_group.last_mut().unwrap();
 
                 let row = if row.len() >= cfg.items_per_row_group {
