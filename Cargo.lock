@@ -1239,6 +1239,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingest-stream"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "eth-archive-core",
+ "futures",
+ "log",
+]
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1729,6 +1739,7 @@ name = "parquet-writer"
 version = "0.1.0"
 dependencies = [
  "arrow2",
+ "eth-archive-core",
  "itertools",
  "log",
  "rayon",

@@ -1,0 +1,11 @@
+[package]
+name = "ingest-stream"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-stream = "0.3.3"
+log = "0.4"
+futures = "0.3"
+
+eth-archive-core = { path = "../core" }

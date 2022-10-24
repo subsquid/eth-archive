@@ -198,3 +198,20 @@ pub struct QueryResult {
     pub data: Vec<ResponseRow>,
     pub metrics: QueryMetrics,
 }
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BlockRange {
+    pub from: usize,
+    pub to: usize,
+}
+
+impl BlockRange {
+    pub fn merge(&self, other: Self) -> Self {
+        use std::cmp;
+
+        Self {
+            from: cmp::min(self.from, other.from),
+            to: cmp::max(self.to, other.to),
+        }
+    }
+}
