@@ -3,14 +3,13 @@ use arrow2::array::Array;
 use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::datatypes::{DataType, Schema};
 use arrow2::error::Error as ArrowError;
-use arrow2::io::parquet::write::{transverse, Encoding, RowGroupIterator, WriteOptions};
+use arrow2::io::parquet::write::{transverse, Encoding, WriteOptions};
 use arrow2::io::parquet::write::{CompressionOptions, Version};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::result::Result as StdResult;
-use std::vec::IntoIter;
 
 pub type Chunk = ArrowChunk<Box<dyn Array>>;
-pub type RowGroups = RowGroupIterator<Box<dyn Array>, IntoIter<StdResult<Chunk, ArrowError>>>;
+pub type ChunkResult = StdResult<Chunk, ArrowError>;
 
 fn options() -> WriteOptions {
     WriteOptions {
@@ -25,7 +24,9 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
 
     fn schema() -> Schema;
     fn into_chunk(self) -> Chunk;
-    fn into_row_groups(elems: Vec<Self>) -> (RowGroups, Schema, WriteOptions) {
+    fn into_row_groups(
+        elems: Vec<Self>,
+    ) -> (Vec<ChunkResult>, Schema, Vec<Vec<Encoding>>, WriteOptions) {
         let schema = Self::schema();
 
         let encoding_map = |data_type: &DataType| match data_type {
@@ -39,19 +40,12 @@ pub trait IntoRowGroups: Default + std::marker::Sized + Send + Sync {
             .map(|f| transverse(&f.data_type, encoding_map))
             .collect::<Vec<_>>();
 
-        let row_groups = RowGroupIterator::try_new(
-            elems
-                .into_par_iter()
-                .map(|elem| Ok(Self::into_chunk(elem)))
-                .collect::<Vec<_>>()
-                .into_iter(),
-            &schema,
-            options(),
-            encodings,
-        )
-        .unwrap();
+        let chunks = elems
+            .into_par_iter()
+            .map(|elem| Ok(Self::into_chunk(elem)))
+            .collect::<Vec<_>>();
 
-        (row_groups, schema, options())
+        (chunks, schema, encodings, options())
     }
     fn push(&mut self, elem: Self::Elem) -> Result<()>;
     fn block_num(&self, elem: &Self::Elem) -> u32;
