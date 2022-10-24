@@ -1,8 +1,0 @@
-[package]
-name = "rayon-async"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-tokio = { version = "1", features = ["sync"] }
-rayon = "1"

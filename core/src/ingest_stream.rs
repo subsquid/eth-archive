@@ -1,9 +1,10 @@
-use eth_archive_core::config::IngestConfig;
-use eth_archive_core::eth_client::EthClient;
-use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
-use eth_archive_core::retry::Retry;
-use eth_archive_core::types::BlockRange;
-use eth_archive_core::types::{Block, Log};
+use crate::config::IngestConfig;
+use crate::eth_client::EthClient;
+use crate::eth_request::{GetBlockByNumber, GetLogs};
+use crate::retry::Retry;
+use crate::types::BlockRange;
+use crate::types::{Block, Log};
+use crate::Result;
 use futures::stream::Stream;
 use std::cmp;
 use std::sync::Arc;
@@ -28,8 +29,7 @@ impl IngestClient {
         self: Arc<Self>,
         from_block: u32,
         to_block: u32,
-    ) -> impl Stream<Item = eth_archive_core::Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>>
-    {
+    ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
         assert!(to_block > from_block);
         let from_block = usize::try_from(from_block).unwrap();
         let to_block = usize::try_from(to_block).unwrap();

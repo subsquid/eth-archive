@@ -2,6 +2,7 @@ use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use crate::{Error, Result};
 use arrow2::io::parquet::write::*;
+use eth_archive_core::rayon_async;
 use eth_archive_core::types::BlockRange;
 use futures::SinkExt;
 use itertools::Itertools;

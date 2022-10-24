@@ -6,6 +6,4 @@ members = [
     "gateway",
     "scripts/generate-parquets",
     "libs/parquet-writer",
-    "rayon-async",
-    "ingest-stream",
 ]
