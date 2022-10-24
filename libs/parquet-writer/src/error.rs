@@ -12,6 +12,8 @@ pub enum Error {
     InvalidParquetFilename(String),
     #[error("failed to read parquet file name")]
     ReadParquetFileName,
+    #[error("failed to create parquet file:\n{0}")]
+    CreateParquetFile(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

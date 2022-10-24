@@ -2,11 +2,14 @@ use crate::config::ParquetConfig;
 use crate::schema::IntoRowGroups;
 use crate::{Error, Result};
 use arrow2::io::parquet::write::*;
+use futures::SinkExt;
 use itertools::Itertools;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
-use std::{cmp, fs, mem};
+use std::{cmp, mem};
 use tokio::sync::mpsc;
+use tokio_util::compat::TokioAsyncReadCompatExt;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BlockRange {
@@ -25,7 +28,7 @@ impl BlockRange {
 
 pub struct ParquetWriter<T: IntoRowGroups> {
     tx: Sender<T::Elem>,
-    _join_handle: std::thread::JoinHandle<()>,
+    join_handle: tokio::task::JoinHandle<()>,
     pub cfg: ParquetConfig,
     pub from_block: usize,
 }
@@ -33,65 +36,19 @@ pub struct ParquetWriter<T: IntoRowGroups> {
 type Sender<E> = mpsc::Sender<(BlockRange, Vec<E>)>;
 type Receiver<E> = mpsc::Receiver<(BlockRange, Vec<E>)>;
 
-impl<T: IntoRowGroups> ParquetWriter<T> {
-    pub fn new(config: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
-        let cfg = config.clone();
+impl<T: IntoRowGroups + 'static + Send + Sync> ParquetWriter<T> {
+    pub async fn new(config: ParquetConfig, delete_tx: mpsc::UnboundedSender<usize>) -> Self {
+        let cfg = Arc::new(config.clone());
 
-        let (tx, mut rx): (Sender<T::Elem>, Receiver<T::Elem>) = mpsc::channel(config.channel_size);
+        let (tx, mut rx): (Sender<T::Elem>, Receiver<T::Elem>) = mpsc::channel(cfg.channel_size);
 
-        fs::create_dir_all(&cfg.path).unwrap();
+        tokio::fs::create_dir_all(&cfg.path).await.unwrap();
 
-        let from_block = Self::get_start_block(&cfg.path, &cfg.name).unwrap();
+        let from_block = Self::get_start_block(&cfg.path, &cfg.name).await.unwrap();
 
-        let join_handle = std::thread::spawn(move || {
+        let join_handle = tokio::spawn(async move {
             let mut row_group = vec![T::default()];
-            let mut block_range = None;
-
-            let write_group = |row_group: &mut Vec<T>, block_range: &mut Option<BlockRange>| {
-                let start_time = Instant::now();
-
-                let row_group = mem::take(row_group);
-                let block_range = block_range.take().unwrap();
-                let (row_groups, schema, options) = T::into_row_groups(row_group);
-
-                let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
-
-                log::info!(
-                    "starting to write {}s {}-{} to parquet file",
-                    &cfg.name,
-                    block_range.from,
-                    block_range.to,
-                );
-
-                let mut temp_path = cfg.path.clone();
-                temp_path.push(format!("{}.temp", &file_name));
-                let file = fs::File::create(&temp_path).unwrap();
-                let mut writer = FileWriter::try_new(file, schema, options).unwrap();
-
-                for group in row_groups {
-                    writer.write(group.unwrap()).unwrap();
-                }
-                writer.end(None).unwrap();
-
-                let file = writer.into_inner();
-
-                file.sync_all().unwrap();
-                mem::drop(file);
-
-                let mut final_path = cfg.path.clone();
-                final_path.push(format!("{}.parquet", &file_name));
-                fs::rename(&temp_path, final_path).unwrap();
-
-                log::info!(
-                    "wrote {}s {}-{} to parquet file in {}ms",
-                    &cfg.name,
-                    block_range.from,
-                    block_range.to,
-                    start_time.elapsed().as_millis()
-                );
-
-                delete_tx.send(block_range.to).unwrap();
-            };
+            let mut block_range: Option<BlockRange> = None;
 
             while let Some((other_range, elems)) = rx.blocking_recv() {
                 let row = row_group.last_mut().unwrap();
@@ -99,7 +56,10 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                 let row = if row.len() >= cfg.items_per_row_group {
                     if row_group.iter().map(IntoRowGroups::len).sum::<usize>() >= cfg.items_per_file
                     {
-                        write_group(&mut row_group, &mut block_range);
+                        let row_group = mem::take(&mut row_group);
+                        let block_range = block_range.take().unwrap();
+                        Self::write_group(row_group, block_range, cfg.clone(), delete_tx.clone())
+                            .await;
                     }
                     row_group.push(T::default());
                     row_group.last_mut().unwrap()
@@ -125,13 +85,15 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             }
 
             if row_group.last_mut().unwrap().len() > 0 {
-                write_group(&mut row_group, &mut block_range);
+                let row_group = mem::take(&mut row_group);
+                let block_range = block_range.take().unwrap();
+                Self::write_group(row_group, block_range, cfg.clone(), delete_tx.clone()).await;
             }
         });
 
         Self {
             tx,
-            _join_handle: join_handle,
+            join_handle,
             cfg: config,
             from_block,
         }
@@ -143,20 +105,71 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
         }
     }
 
-    pub fn _join(self) {
+    pub async fn join(self) {
         mem::drop(self.tx);
-        self._join_handle.join().unwrap();
+        self.join_handle.await.unwrap();
     }
 
-    fn get_start_block<P: AsRef<Path>>(path: P, prefix: &str) -> Result<usize> {
-        let dir = fs::read_dir(&path).map_err(Error::ReadParquetDir)?;
+    async fn write_group(
+        row_group: Vec<T>,
+        block_range: BlockRange,
+        cfg: Arc<ParquetConfig>,
+        delete_tx: mpsc::UnboundedSender<usize>,
+    ) {
+        let start_time = Instant::now();
+
+        let (chunks, schema, encodings, options) =
+            rayon_async::spawn(move || T::into_row_groups(row_group)).await;
+
+        let file_name = format!("{}{}_{}", &cfg.name, block_range.from, block_range.to);
+
+        log::info!(
+            "starting to write {}s {}-{} to parquet file",
+            &cfg.name,
+            block_range.from,
+            block_range.to,
+        );
+
+        let mut temp_path = cfg.path.clone();
+        temp_path.push(format!("{}.temp", &file_name));
+        let file = tokio::fs::File::create(&temp_path).await.unwrap().compat();
+
+        let mut writer = FileSink::try_new(file, schema, encodings, options).unwrap();
+
+        let mut chunk_stream = futures::stream::iter(chunks);
+        writer.send_all(&mut chunk_stream).await.unwrap();
+        writer.close().await.unwrap();
+
+        /*
+        let file = writer.into_inner();
+        file.sync_all().await.unwrap();
+        mem::drop(file);
+        */
+
+        let mut final_path = cfg.path.clone();
+        final_path.push(format!("{}.parquet", &file_name));
+        tokio::fs::rename(&temp_path, final_path).await.unwrap();
+
+        log::info!(
+            "wrote {}s {}-{} to parquet file in {}ms",
+            &cfg.name,
+            block_range.from,
+            block_range.to,
+            start_time.elapsed().as_millis()
+        );
+
+        delete_tx.send(block_range.to).unwrap();
+    }
+
+    async fn get_start_block<P: AsRef<Path>>(path: P, prefix: &str) -> Result<usize> {
+        let mut dir = tokio::fs::read_dir(&path)
+            .await
+            .map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
         let mut next_block_num = 0;
 
-        for entry in dir {
-            let entry = entry.unwrap();
-
+        while let Some(entry) = dir.next_entry().await.unwrap() {
             let file_name = entry
                 .file_name()
                 .into_string()
@@ -188,7 +201,11 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
             next_block_num = cmp::max(next_block_num, end);
         }
 
-        ranges.sort_by_key(|r| r.start);
+        let ranges = rayon_async::spawn(move || {
+            ranges.sort_by_key(|r| r.start);
+            ranges
+        })
+        .await;
 
         for ((_, r1), (i, r2)) in ranges.iter().enumerate().tuple_windows() {
             // check for a gap
@@ -198,7 +215,7 @@ impl<T: IntoRowGroups> ParquetWriter<T> {
                     let mut path = path.as_ref().to_path_buf();
                     path.push(format!("{}{}_{}.parquet", prefix, range.start, range.end));
 
-                    fs::remove_file(&path).unwrap();
+                    tokio::fs::remove_file(&path).await.unwrap();
                 }
                 return Ok(r1.end);
             }

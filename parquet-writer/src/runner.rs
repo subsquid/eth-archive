@@ -134,9 +134,9 @@ impl ParquetWriterRunner {
             }
         }
 
-        let block_writer = ParquetWriter::new(config.block, block_delete_tx);
-        let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx);
-        let log_writer = ParquetWriter::new(config.log, log_delete_tx);
+        let block_writer = ParquetWriter::new(config.block, block_delete_tx).await;
+        let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx).await;
+        let log_writer = ParquetWriter::new(config.log, log_delete_tx).await;
 
         Ok(Self {
             db,

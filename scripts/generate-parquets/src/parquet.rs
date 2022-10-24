@@ -33,7 +33,7 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
         items_per_row_group: blocks.len(),
         channel_size: 1,
     };
-    let block_writer = ParquetWriter::<Blocks>::new(block_config, tx.clone());
+    let block_writer = ParquetWriter::<Blocks>::new(block_config, tx.clone()).await;
 
     let transaction_config = ParquetConfig {
         name: "tx".to_string(),
@@ -42,7 +42,8 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
         items_per_row_group: transactions.len(),
         channel_size: 1,
     };
-    let transaction_writer = ParquetWriter::<Transactions>::new(transaction_config, tx.clone());
+    let transaction_writer =
+        ParquetWriter::<Transactions>::new(transaction_config, tx.clone()).await;
 
     let log_config = ParquetConfig {
         name: "log".to_string(),
@@ -51,13 +52,13 @@ pub async fn generate_parquets(data: Vec<BlockData>, target_dir: &str) {
         items_per_row_group: logs.len(),
         channel_size: 1,
     };
-    let log_writer = ParquetWriter::<Logs>::new(log_config, tx);
+    let log_writer = ParquetWriter::<Logs>::new(log_config, tx).await;
 
     block_writer.send((block_range, blocks)).await;
     transaction_writer.send((block_range, transactions)).await;
     log_writer.send((block_range, logs)).await;
 
-    block_writer._join();
-    transaction_writer._join();
-    log_writer._join();
+    block_writer.join().await;
+    transaction_writer.join().await;
+    log_writer.join().await;
 }
