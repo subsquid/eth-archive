@@ -246,7 +246,7 @@ impl DataCtx {
 
         let (tx, mut rx): (mpsc::Sender<(QueryResult, _)>, _) = mpsc::channel(1);
 
-        let serialize_thread = tokio::task::spawn_blocking(move || {
+        let serialize_thread = tokio::spawn(async move {
             let mut metrics = QueryMetrics::default();
 
             let mut bytes = br#"{"data":["#.to_vec();
@@ -255,7 +255,7 @@ impl DataCtx {
 
             let mut next_block = query.from_block;
 
-            while let Some((res, end)) = rx.blocking_recv() {
+            while let Some((res, end)) = rx.recv().await {
                 let mut data = Vec::new();
 
                 let mut block_idxs = HashMap::new();
