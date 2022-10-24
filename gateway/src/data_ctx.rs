@@ -178,19 +178,17 @@ impl DataCtx {
     }
 
     pub async fn query(&self, query: Query) -> Result<Vec<u8>> {
-        let default_block_range = 500_000;
-        let max_block_range = 1_000_000;
         let query_start = Instant::now();
 
         let to_block = query
             .to_block
-            .unwrap_or(query.from_block + default_block_range);
+            .unwrap_or(query.from_block + self.config.default_block_range);
 
         if to_block == 0 || query.from_block > to_block {
             return Err(Error::InvalidBlockRange);
         }
 
-        let to_block = cmp::min(to_block, query.from_block + max_block_range);
+        let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range);
 
         let status = self.status().await?;
 
@@ -359,8 +357,7 @@ impl DataCtx {
 
             tx.send((res, end)).await.ok().unwrap();
 
-            let response_log_limit = 100_000;
-            if num_logs > response_log_limit
+            if num_logs > self.config.response_log_limit
                 || start_time.elapsed().as_millis() > u128::from(self.config.query_time_limit_ms)
             {
                 break;

@@ -17,6 +17,9 @@ pub struct DataConfig {
     pub blocks_path: PathBuf,
     pub transactions_path: PathBuf,
     pub logs_path: PathBuf,
+    pub max_block_range: u32,
+    pub default_block_range: u32,
+    pub response_log_limit: usize,
     pub query_chunk_size: u32,
     pub query_time_limit_ms: u64,
 }
