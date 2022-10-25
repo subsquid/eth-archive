@@ -1,15 +1,30 @@
+use clap::Parser;
 use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
-use parquet_writer::ParquetConfig;
-use serde::Deserialize;
+use std::path::PathBuf;
 
-#[derive(Deserialize)]
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
 pub struct Config {
-    pub block: ParquetConfig,
-    pub transaction: ParquetConfig,
-    pub log: ParquetConfig,
+    /// A path to store indexed parquet files
+    #[clap(long)]
+    pub data_path: PathBuf,
+
+    #[command(flatten)]
     pub ingest: IngestConfig,
+
+    #[command(flatten)]
     pub retry: RetryConfig,
+
+    #[command(flatten)]
     pub db: DbConfig,
-    pub block_overlap_size: usize,
-    pub delete_blocks_chunk_size: usize,
+
+    /// Delete indexed parquet files
+    #[clap(short, long)]
+    pub reset_data: bool,
+}
+
+impl Config {
+    pub fn parse() -> Self {
+        <Self as Parser>::parse()
+    }
 }

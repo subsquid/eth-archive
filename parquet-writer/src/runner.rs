@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::options::Options;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
 use eth_archive_core::config::IngestConfig;
@@ -8,7 +7,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{Block, BlockRange};
-use parquet_writer::ParquetWriter;
+use parquet_writer::{ParquetConfig, ParquetWriter};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
@@ -27,18 +26,7 @@ pub struct ParquetWriterRunner {
 }
 
 impl ParquetWriterRunner {
-    pub async fn new(options: &Options) -> Result<Self> {
-        let config = tokio::fs::read_to_string(
-            options
-                .cfg_path
-                .as_deref()
-                .unwrap_or("EthParquetWriter.toml"),
-        )
-        .await
-        .map_err(Error::ReadConfigFile)?;
-
-        let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
-
+    pub async fn new(config: Config) -> Result<Self> {
         let db = DbHandle::new(false, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
@@ -79,7 +67,8 @@ impl ParquetWriterRunner {
                     let new_min = cmp::min(cmp::min(block_block_num, tx_block_num), log_block_num);
 
                     if new_min != prev_min {
-                        let block_num = new_min - config.block_overlap_size;
+                        let block_overlap_size = 5000;
+                        let block_num = new_min - block_overlap_size;
                         let delete_up_to = i64::try_from(block_num).unwrap();
 
                         let min = {
@@ -106,10 +95,8 @@ impl ParquetWriterRunner {
                             }
                         };
 
-                        for num in (min..block_num)
-                            .step_by(config.delete_blocks_chunk_size)
-                            .skip(1)
-                        {
+                        let delete_blocks_chunk_size = 5000;
+                        for num in (min..block_num).step_by(delete_blocks_chunk_size).skip(1) {
                             delete_blocks(db.clone(), i64::try_from(num).unwrap()).await;
                         }
                         delete_blocks(db.clone(), delete_up_to).await;
@@ -120,23 +107,45 @@ impl ParquetWriterRunner {
             });
         }
 
-        if options.reset_data {
+        let block_config = ParquetConfig {
+            name: "block".to_string(),
+            path: config.data_path.join("block"),
+            items_per_file: 32768,
+            items_per_row_group: 512,
+            channel_size: 1024,
+        };
+        let transaction_config = ParquetConfig {
+            name: "tx".to_string(),
+            path: config.data_path.join("tx"),
+            items_per_file: 65536,
+            items_per_row_group: 512,
+            channel_size: 3072,
+        };
+        let log_config = ParquetConfig {
+            name: "log".to_string(),
+            path: config.data_path.join("log"),
+            items_per_file: 65536,
+            items_per_row_group: 512,
+            channel_size: 2048,
+        };
+
+        if config.reset_data {
             log::info!("resetting parquet data");
 
-            if let Err(e) = fs::remove_dir_all(&config.block.path).await {
+            if let Err(e) = fs::remove_dir_all(&block_config.path).await {
                 log::warn!("failed to remove block parquet directory:\n{}", e);
             }
-            if let Err(e) = fs::remove_dir_all(&config.transaction.path).await {
+            if let Err(e) = fs::remove_dir_all(&transaction_config.path).await {
                 log::warn!("failed to remove transaction parquet directory:\n{}", e);
             }
-            if let Err(e) = fs::remove_dir_all(&config.log.path).await {
+            if let Err(e) = fs::remove_dir_all(&log_config.path).await {
                 log::warn!("failed to remove log parquet directory:\n{}", e);
             }
         }
 
-        let block_writer = ParquetWriter::new(config.block, block_delete_tx).await;
-        let transaction_writer = ParquetWriter::new(config.transaction, tx_delete_tx).await;
-        let log_writer = ParquetWriter::new(config.log, log_delete_tx).await;
+        let block_writer = ParquetWriter::new(block_config, block_delete_tx).await;
+        let transaction_writer = ParquetWriter::new(transaction_config, tx_delete_tx).await;
+        let log_writer = ParquetWriter::new(log_config, log_delete_tx).await;
 
         Ok(Self {
             db,

@@ -11,8 +11,9 @@ use eth_archive_core::types::{
 };
 use polars::prelude::*;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
@@ -42,9 +43,7 @@ impl DataCtx {
             let config = config.clone();
             let parquet_state = parquet_state.clone();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(
-                    config.parquet_state_refresh_interval_secs,
-                ));
+                let mut interval = tokio::time::interval(Duration::from_secs(60));
 
                 loop {
                     interval.tick().await;
@@ -82,11 +81,14 @@ impl DataCtx {
 
     async fn setup_parquet_state(config: &DataConfig) -> Result<ParquetState> {
         log::info!("collecting block range info for parquet (block header) files...");
-        let (block_ranges, blk_num) = Self::get_block_ranges("block", &config.blocks_path).await?;
+        let block_path = config.data_path.join("block");
+        let (block_ranges, blk_num) = Self::get_block_ranges("block", &block_path).await?;
         log::info!("collecting block range info for parquet (transaction) files...");
-        let (tx_ranges, tx_num) = Self::get_block_ranges("tx", &config.transactions_path).await?;
+        let tx_path = config.data_path.join("tx");
+        let (tx_ranges, tx_num) = Self::get_block_ranges("tx", &tx_path).await?;
         log::info!("collecting block range info for parquet (log) files...");
-        let (log_ranges, log_num) = Self::get_block_ranges("log", &config.logs_path).await?;
+        let log_path = config.data_path.join("log");
+        let (log_ranges, log_num) = Self::get_block_ranges("log", &log_path).await?;
 
         let parquet_block_number = cmp::min(blk_num, cmp::min(tx_num, log_num));
 
@@ -132,7 +134,7 @@ impl DataCtx {
         })
     }
 
-    async fn get_block_ranges(prefix: &str, path: &str) -> Result<(RangeMap, u32)> {
+    async fn get_block_ranges(prefix: &str, path: &PathBuf) -> Result<(RangeMap, u32)> {
         let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
 
         let mut ranges = Vec::new();
@@ -445,19 +447,19 @@ impl DataCtx {
             &parquet_state.block_ranges,
             range,
             "block",
-            &self.config.blocks_path,
+            &self.config.data_path.join("block"),
         )?;
         let transactions = self.get_lazy_frame_from_parquet(
             &parquet_state.tx_ranges,
             range,
             "tx",
-            &self.config.transactions_path,
+            &self.config.data_path.join("tx"),
         )?;
         let logs = self.get_lazy_frame_from_parquet(
             &parquet_state.log_ranges,
             range,
             "log",
-            &self.config.logs_path,
+            &self.config.data_path.join("log"),
         )?;
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());
@@ -497,13 +499,13 @@ impl DataCtx {
             &parquet_state.block_ranges,
             range,
             "block",
-            &self.config.blocks_path,
+            &self.config.data_path.join("block"),
         )?;
         let transactions = self.get_lazy_frame_from_parquet(
             &parquet_state.tx_ranges,
             range,
             "tx",
-            &self.config.transactions_path,
+            &self.config.data_path.join("tx"),
         )?;
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());
@@ -527,7 +529,7 @@ impl DataCtx {
         map: &RangeMap,
         range: (u32, u32),
         table_name: &'static str,
-        folder_path: &str,
+        folder_path: &Path,
     ) -> Result<LazyFrame> {
         let block_ranges = map.get(range.0..range.1).collect::<Vec<_>>();
         if block_ranges.is_empty() {
@@ -536,7 +538,10 @@ impl DataCtx {
         let file_range = block_ranges[0].clone();
         let file_path = format!(
             "{}/{}{}_{}.parquet",
-            folder_path, table_name, file_range.start, file_range.end
+            folder_path.display(),
+            table_name,
+            file_range.start,
+            file_range.end
         );
 
         let mut main_frame =
@@ -545,7 +550,10 @@ impl DataCtx {
         for file_range in block_ranges.iter().skip(1) {
             let file_path = format!(
                 "{}/{}{}_{}.parquet",
-                folder_path, table_name, file_range.start, file_range.end
+                folder_path.display(),
+                table_name,
+                file_range.start,
+                file_range.end
             );
             let data_frame = LazyFrame::scan_parquet(file_path, Default::default())
                 .map_err(Error::ScanParquet)?;

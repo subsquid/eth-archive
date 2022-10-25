@@ -1,6 +1,3 @@
-[retry]
-secs_between_tries = 3
-
 [db]
 user = "eth-archive-user"
 password = "password"
@@ -9,17 +6,11 @@ host = "localhost"
 port = 5432
 
 [data]
-target_partitions = 12
-batch_size = 512
 logs_path = "tests/data/log"
 blocks_path = "tests/data/block"
 transactions_path = "tests/data/tx"
-max_block_range = 1000000
-default_block_range = 500000
-response_log_limit = 100000
 query_chunk_size = 2
 query_time_limit_ms = 5000
-parquet_state_refresh_interval_secs = 10
 
 [http_server]
 ip = "127.0.0.1"

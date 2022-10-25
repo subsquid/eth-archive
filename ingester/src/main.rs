@@ -1,4 +1,4 @@
-use eth_archive_ingester::{Ingester, Options};
+use eth_archive_ingester::{Config, Ingester};
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -11,9 +11,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() {
     env_logger::init();
 
-    let options = Options::parse();
+    let config = Config::parse();
 
-    let ingester = match Ingester::new(&options).await {
+    let ingester = match Ingester::new(config).await {
         Ok(ingester) => ingester,
         Err(e) => {
             log::error!("failed to create ingester:\n{}", e);

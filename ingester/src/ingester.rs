@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::options::Options;
 use crate::{Error, Result};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
@@ -20,15 +19,8 @@ pub struct Ingester {
 }
 
 impl Ingester {
-    pub async fn new(options: &Options) -> Result<Self> {
-        let config =
-            tokio::fs::read_to_string(options.cfg_path.as_deref().unwrap_or("EthIngester.toml"))
-                .await
-                .map_err(Error::ReadConfigFile)?;
-
-        let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
-
-        let db = DbHandle::new(options.reset_data, &config.db)
+    pub async fn new(config: Config) -> Result<Self> {
+        let db = DbHandle::new(config.reset_data, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);
@@ -53,7 +45,7 @@ impl Ingester {
             .await
             .map_err(Error::GetBestBlock)?;
 
-        let offset = self.cfg.block_depth_offset;
+        let offset = 20;
 
         Ok(if num < offset { 0 } else { num - offset })
     }
@@ -123,8 +115,6 @@ impl Ingester {
         let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
 
         let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(2);
-
-        let _insert_batch_size = self.cfg.block_insert_batch_size;
 
         let write_task = tokio::spawn({
             let db = self.db.clone();

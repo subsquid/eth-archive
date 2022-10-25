@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::data_ctx::DataCtx;
 use crate::error::{Error, Result};
-use crate::options::Options;
 use crate::types::{Query, Status};
 use eth_archive_core::db::DbHandle;
 use std::sync::Arc;
@@ -11,14 +10,7 @@ use actix_web::{web, App, HttpResponse, HttpServer};
 pub struct Server {}
 
 impl Server {
-    pub async fn run(options: &Options) -> Result<()> {
-        let config =
-            tokio::fs::read_to_string(options.cfg_path.as_deref().unwrap_or("EthGateway.toml"))
-                .await
-                .map_err(Error::ReadConfigFile)?;
-
-        let config: Config = toml::de::from_str(&config).map_err(Error::ParseConfig)?;
-
+    pub async fn run(config: Config) -> Result<()> {
         let db = DbHandle::new(false, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
@@ -33,7 +25,7 @@ impl Server {
                 .service(web::resource("/query").route(web::post().to(query)))
                 .service(web::resource("/status").route(web::get().to(status)))
         })
-        .bind((config.http_server.ip, config.http_server.port))
+        .bind((config.http_server_ip, config.http_server_port))
         .map_err(Error::BindHttpServer)?
         .run()
         .await
