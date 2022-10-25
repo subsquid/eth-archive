@@ -753,6 +753,7 @@ name = "eth-archive-core"
 version = "0.1.0"
 dependencies = [
  "async-stream",
+ "clap",
  "deadpool-postgres",
  "derive_more",
  "futures",

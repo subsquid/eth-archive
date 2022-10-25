@@ -81,11 +81,14 @@ impl DataCtx {
 
     async fn setup_parquet_state(config: &DataConfig) -> Result<ParquetState> {
         log::info!("collecting block range info for parquet (block header) files...");
-        let (block_ranges, blk_num) = Self::get_block_ranges("block", &config.blocks_path).await?;
+        let block_path = config.data_path.join("block");
+        let (block_ranges, blk_num) = Self::get_block_ranges("block", &block_path).await?;
         log::info!("collecting block range info for parquet (transaction) files...");
-        let (tx_ranges, tx_num) = Self::get_block_ranges("tx", &config.transactions_path).await?;
+        let tx_path = config.data_path.join("tx");
+        let (tx_ranges, tx_num) = Self::get_block_ranges("tx", &tx_path).await?;
         log::info!("collecting block range info for parquet (log) files...");
-        let (log_ranges, log_num) = Self::get_block_ranges("log", &config.logs_path).await?;
+        let log_path = config.data_path.join("log");
+        let (log_ranges, log_num) = Self::get_block_ranges("log", &log_path).await?;
 
         let parquet_block_number = cmp::min(blk_num, cmp::min(tx_num, log_num));
 
@@ -444,19 +447,19 @@ impl DataCtx {
             &parquet_state.block_ranges,
             range,
             "block",
-            &self.config.blocks_path,
+            &self.config.data_path.join("block"),
         )?;
         let transactions = self.get_lazy_frame_from_parquet(
             &parquet_state.tx_ranges,
             range,
             "tx",
-            &self.config.transactions_path,
+            &self.config.data_path.join("tx"),
         )?;
         let logs = self.get_lazy_frame_from_parquet(
             &parquet_state.log_ranges,
             range,
             "log",
-            &self.config.logs_path,
+            &self.config.data_path.join("log"),
         )?;
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());
@@ -496,13 +499,13 @@ impl DataCtx {
             &parquet_state.block_ranges,
             range,
             "block",
-            &self.config.blocks_path,
+            &self.config.data_path.join("block"),
         )?;
         let transactions = self.get_lazy_frame_from_parquet(
             &parquet_state.tx_ranges,
             range,
             "tx",
-            &self.config.transactions_path,
+            &self.config.data_path.join("tx"),
         )?;
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());

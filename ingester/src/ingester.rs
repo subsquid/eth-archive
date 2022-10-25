@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::options::Options;
 use crate::{Error, Result};
 use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
@@ -20,10 +19,8 @@ pub struct Ingester {
 }
 
 impl Ingester {
-    pub async fn new(options: Options) -> Result<Self> {
-        let reset_data = options.reset_data;
-        let config = Config::from(options);
-        let db = DbHandle::new(reset_data, &config.db)
+    pub async fn new(config: Config) -> Result<Self> {
+        let db = DbHandle::new(config.reset_data, &config.db)
             .await
             .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
         let db = Arc::new(db);

@@ -1,6 +1,7 @@
 use actix_web::rt::time::sleep;
 use actix_web::rt::{spawn, Runtime};
-use eth_archive_gateway::{Options, Server};
+use eth_archive_core::config::{DbConfig, RetryConfig};
+use eth_archive_gateway::{Config, DataConfig, Server};
 use serde::Deserialize;
 use serde_json::Value;
 use std::net::Ipv4Addr;
@@ -16,17 +17,28 @@ pub fn launch_gateway() {
         let handle = thread::spawn(|| {
             Runtime::new().unwrap().block_on(async {
                 spawn(async {
-                    let options = Options {
-                        data_path: PathBuf::from("tests/data"),
-                        db_user: "eth-archive-user".to_string(),
-                        db_password: "password".to_string(),
-                        db_name: "eth-archive-db".to_string(),
-                        db_host: "localhost".to_string(),
-                        db_port: 5432,
-                        ip: Ipv4Addr::new(127, 0, 0, 1),
-                        port: 8080,
-                        query_chunk_size: 2,
-                        query_time_limit_ms: 5000,
+                    let options = Config {
+                        db: DbConfig {
+                            user: "eth-archive-user".to_string(),
+                            password: "password".to_string(),
+                            dbname: "eth-archive-db".to_string(),
+                            host: "localhost".to_string(),
+                            port: 5432,
+                        },
+                        retry: RetryConfig {
+                            num_tries: None,
+                            secs_between_tries: 3,
+                        },
+                        data: DataConfig {
+                            data_path: PathBuf::from("tests/data"),
+                            default_block_range: 500_000,
+                            max_block_range: 1_000_000,
+                            query_chunk_size: 2,
+                            query_time_limit_ms: 5000,
+                            response_log_limit: 1000,
+                        },
+                        http_server_ip: Ipv4Addr::new(127, 0, 0, 1),
+                        http_server_port: 8080,
                     };
                     Server::run(options).await.unwrap()
                 });

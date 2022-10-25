@@ -1,4 +1,4 @@
-use eth_archive_gateway::{Options, Server};
+use eth_archive_gateway::{Config, Server};
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -11,9 +11,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() {
     env_logger::init();
 
-    let options = Options::parse();
+    let config = Config::parse();
 
-    if let Err(e) = Server::run(options).await {
+    if let Err(e) = Server::run(config).await {
         log::error!("failed to run server:\n{}", e);
     }
 }

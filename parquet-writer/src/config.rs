@@ -1,58 +1,30 @@
-use crate::Options;
+use clap::Parser;
 use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
-use parquet_writer::ParquetConfig;
-use serde::Deserialize;
+use std::path::PathBuf;
 
-#[derive(Deserialize)]
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
 pub struct Config {
-    pub block: ParquetConfig,
-    pub transaction: ParquetConfig,
-    pub log: ParquetConfig,
+    /// A path to store indexed parquet files
+    #[clap(long)]
+    pub data_path: PathBuf,
+
+    #[command(flatten)]
     pub ingest: IngestConfig,
+
+    #[command(flatten)]
     pub retry: RetryConfig,
+
+    #[command(flatten)]
     pub db: DbConfig,
+
+    /// Delete indexed parquet files
+    #[clap(short, long)]
+    pub reset_data: bool,
 }
 
-impl From<Options> for Config {
-    fn from(options: Options) -> Self {
-        Config {
-            block: ParquetConfig {
-                name: "block".to_string(),
-                path: options.data_path.join("block"),
-                items_per_file: 32768,
-                items_per_row_group: 512,
-                channel_size: 1024,
-            },
-            transaction: ParquetConfig {
-                name: "tx".to_string(),
-                path: options.data_path.join("tx"),
-                items_per_file: 65536,
-                items_per_row_group: 512,
-                channel_size: 3072,
-            },
-            log: ParquetConfig {
-                name: "log".to_string(),
-                path: options.data_path.join("log"),
-                items_per_file: 65536,
-                items_per_row_group: 512,
-                channel_size: 2048,
-            },
-            ingest: IngestConfig {
-                eth_rpc_url: options.eth_rpc_url,
-                block_batch_size: options.block_batch_size,
-                http_req_concurrency: options.http_req_concurrency,
-            },
-            retry: RetryConfig {
-                num_tries: None,
-                secs_between_tries: 3,
-            },
-            db: DbConfig {
-                user: options.db_user,
-                password: options.db_password,
-                host: options.db_host,
-                port: options.db_port,
-                dbname: options.db_name,
-            },
-        }
+impl Config {
+    pub fn parse() -> Self {
+        <Self as Parser>::parse()
     }
 }

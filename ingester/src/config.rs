@@ -1,35 +1,29 @@
-use crate::Options;
+use clap::Parser;
 use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
-use serde::Deserialize;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
 pub struct Config {
+    #[command(flatten)]
     pub db: DbConfig,
+
+    #[command(flatten)]
     pub ingest: IngestConfig,
+
+    #[command(flatten)]
     pub retry: RetryConfig,
+
+    /// Block window size
+    #[clap(long)]
     pub block_window_size: usize,
+
+    /// Delete indexed data from a database
+    #[clap(short, long)]
+    pub reset_data: bool,
 }
 
-impl From<Options> for Config {
-    fn from(options: Options) -> Self {
-        Config {
-            db: DbConfig {
-                user: options.db_user,
-                password: options.db_password,
-                host: options.db_host,
-                port: options.db_port,
-                dbname: options.db_name,
-            },
-            ingest: IngestConfig {
-                eth_rpc_url: options.eth_rpc_url,
-                block_batch_size: options.block_batch_size,
-                http_req_concurrency: options.http_req_concurrency,
-            },
-            retry: RetryConfig {
-                num_tries: None,
-                secs_between_tries: 3,
-            },
-            block_window_size: options.block_window_size,
-        }
+impl Config {
+    pub fn parse() -> Self {
+        <Self as Parser>::parse()
     }
 }
