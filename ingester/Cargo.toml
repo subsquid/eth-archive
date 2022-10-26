@@ -16,7 +16,6 @@ env_logger = "0.9"
 clap = { version = "4", features = ["derive"] }
 
 eth-archive-core = { path = "../core" }
-eth-archive-parquet-writer = { path = "../parquet-writer" }
 
 [dependencies.arrow2]
 version = "0.14.1"
