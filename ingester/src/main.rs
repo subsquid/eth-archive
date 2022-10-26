@@ -1,11 +1,4 @@
-use eth_archive_ingester::{Config, ParquetWriterRunner};
-
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+use eth_archive_ingester::{Config, Ingester};
 
 #[tokio::main]
 async fn main() {
@@ -13,15 +6,15 @@ async fn main() {
 
     let config = Config::parse();
 
-    let runner = match ParquetWriterRunner::new(config).await {
-        Ok(runner) => runner,
+    let ingester = match Ingester::new(config).await {
+        Ok(ingester) => ingester,
         Err(e) => {
-            log::error!("failed to create parquet writer runner:\n{}", e);
+            log::error!("failed to create ingester:\n{}", e);
             return;
         }
     };
 
-    if let Err(e) = runner.run().await {
-        log::error!("failed to run parquet writer runner:\n{}", e);
+    if let Err(e) = ingester.run().await {
+        log::error!("failed to run ingester:\n{}", e);
     }
 }

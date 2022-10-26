@@ -1,7 +1,6 @@
-env_files = [".env"]
-
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+RUST_LOG = "info"
 
 [tasks.ingester]
 workspace = false
@@ -14,11 +13,6 @@ args = [
 	"--block-window-size", "300000",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
-	"--db-user", "${DB_USER}",
-	"--db-password", "${DB_PASS}",
-	"--db-name", "${DB_NAME}",
-	"--db-host", "${DB_HOST}",
-	"--db-port", "${DB_PORT}",
 ]
 
 [tasks.writer]
@@ -32,11 +26,6 @@ args = [
 	"--http-req-concurrency", "100",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
-	"--db-user", "${DB_USER}",
-	"--db-password", "${DB_PASS}",
-	"--db-name", "${DB_NAME}",
-	"--db-host", "${DB_HOST}",
-	"--db-port", "${DB_PORT}",
 ]
 
 [tasks.gateway]
@@ -50,9 +39,4 @@ args = [
 	"--response-log-limit", "10000",
 	"--query-chunk-size", "256",
 	"--query-time-limit-ms", "6000",
-	"--db-user", "${DB_USER}",
-	"--db-password", "${DB_PASS}",
-	"--db-name", "${DB_NAME}",
-	"--db-host", "${DB_HOST}",
-	"--db-port", "${DB_PORT}",
 ]
