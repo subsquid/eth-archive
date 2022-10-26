@@ -757,16 +757,11 @@ dependencies = [
  "clap",
  "env_logger",
  "eth-archive-core",
- "futures",
  "log",
- "rayon",
- "reqwest",
  "serde",
  "serde_json",
  "thiserror",
- "tikv-jemallocator",
  "tokio",
- "url",
 ]
 
 [[package]]

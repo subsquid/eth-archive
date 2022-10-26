@@ -5,7 +5,6 @@ use crate::types::{
     BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, Status,
 };
 use crate::{Error, Result};
-use eth_archive_core::db::DbHandle;
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
@@ -33,8 +32,8 @@ struct ParquetState {
 }
 
 impl DataCtx {
-    pub async fn new(db: Arc<DbHandle>, config: DataConfig) -> Result<Self> {
-        log::info!("setting up datafusion context...");
+    pub async fn new(config: DataConfig) -> Result<Self> {
+        log::info!("setting up data context...");
 
         let parquet_state = Self::setup_parquet_state(&config).await?;
         let parquet_state = Arc::new(RwLock::new(parquet_state));
@@ -73,7 +72,6 @@ impl DataCtx {
         }
 
         Ok(Self {
-            db,
             config,
             parquet_state,
         })
@@ -102,23 +100,6 @@ impl DataCtx {
 
     pub async fn status(&self) -> Result<Status> {
         let parquet_block_number = { self.parquet_state.read().await.parquet_block_number };
-
-        let db_max_block_number = self
-            .db
-            .get_max_block_number()
-            .await
-            .map_err(Error::GetMaxBlockNumber)?
-            .unwrap_or(0);
-
-        let db_min_block_number = self
-            .db
-            .get_min_block_number()
-            .await
-            .map_err(Error::GetMinBlockNumber)?
-            .unwrap_or(0);
-
-        let db_min_block_number = u32::try_from(db_min_block_number).unwrap();
-        let db_max_block_number = u32::try_from(db_max_block_number).unwrap();
 
         let archive_height = if parquet_block_number > db_min_block_number {
             db_max_block_number

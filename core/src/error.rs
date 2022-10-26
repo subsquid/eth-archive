@@ -18,26 +18,6 @@ pub enum Error {
     HttpRequest(reqwest::Error),
     #[error("failed to build http client:\n{0}")]
     BuildHttpClient(reqwest::Error),
-    #[error("failed to create database connection pool:\n{0}")]
-    CreatePool(deadpool_postgres::CreatePoolError),
-    #[error("failed to get a database connection from pool:\n{0}")]
-    GetDbConnection(deadpool_postgres::PoolError),
-    #[error("failed to execute database query:\n{0}")]
-    DbQuery(tokio_postgres::Error),
-    #[error("failed to reset database:\n{0}")]
-    ResetDb(tokio_postgres::Error),
-    #[error("failed to initialize database tables:\n{0}")]
-    InitDb(tokio_postgres::Error),
-    #[error("failed to create database transaction:\n{0}")]
-    CreateDbTransaction(tokio_postgres::Error),
-    #[error("failed to commit database transaction:\n{0}")]
-    CommitDbTx(tokio_postgres::Error),
-    #[error("failed to insert blocks to database:\n{0}")]
-    InsertBlocks(tokio_postgres::Error),
-    #[error("failed to insert transactions to database:\n{0}")]
-    InsertTransactions(tokio_postgres::Error),
-    #[error("failed to insert logs to database:\n{0}")]
-    InsertLogs(tokio_postgres::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
     Retry(Vec<Error>),
 }
