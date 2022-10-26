@@ -14,13 +14,6 @@ pub struct Config {
 
     #[command(flatten)]
     pub retry: RetryConfig,
-
-    #[command(flatten)]
-    pub db: DbConfig,
-
-    /// Delete indexed parquet files
-    #[clap(short, long)]
-    pub reset_data: bool,
 }
 
 impl Config {

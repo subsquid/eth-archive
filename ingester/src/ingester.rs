@@ -2,26 +2,21 @@ use crate::config::Config;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
 use eth_archive_core::config::IngestConfig;
-use eth_archive_core::db::DbHandle;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
+use eth_archive_core::ingest_stream::IngestClient;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{Block, BlockRange};
-use eth_archive_parquet_writer::{ParquetConfig, ParquetWriter};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
-use eth_archive_core::ingest_stream::IngestClient;
 
 pub struct Ingester {
     cfg: IngestConfig,
     eth_client: Arc<EthClient>,
-    block_writer: ParquetWriter<Blocks>,
-    transaction_writer: ParquetWriter<Transactions>,
-    log_writer: ParquetWriter<Logs>,
     retry: Retry,
 }
 
@@ -82,7 +77,5 @@ impl Ingester {
         })
     }
 
-    pub async fn run(&self) -> Result<()> {
-
-    }
+    pub async fn run(&self) -> Result<()> {}
 }

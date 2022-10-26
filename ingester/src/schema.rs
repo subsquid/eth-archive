@@ -7,7 +7,6 @@ use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, Sor
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
 use eth_archive_core::types::{Block, Log, Transaction};
-use eth_archive_parquet_writer::{Chunk, IntoRowGroups, Result};
 
 type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
 
@@ -65,16 +64,6 @@ fn transaction_schema() -> Schema {
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
     ])
-}
-
-fn extract_sighash(input: &[u8]) -> Option<[u8; 4]> {
-    if input.len() < 4 {
-        None
-    } else {
-        let mut sighash = [0; 4];
-        sighash.clone_from_slice(&input[0..4]);
-        Some(sighash)
-    }
 }
 
 fn log_schema() -> Schema {
@@ -273,7 +262,7 @@ impl IntoRowGroups for Transactions {
         self.gas.push(Some(elem.gas.0));
         self.gas_price.push(Some(elem.gas_price.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
-        self.sighash.push(extract_sighash(&elem.input));
+        self.sighash.push(elem.input.get(..4));
         self.input.push(Some(elem.input.0));
         self.nonce.push(Some(elem.nonce.0));
         match elem.dest {
