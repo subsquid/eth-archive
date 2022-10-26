@@ -7,17 +7,13 @@ use std::path::PathBuf;
 pub struct Config {
     #[clap(flatten)]
     pub db: DbConfig,
-
     #[clap(flatten)]
     pub retry: RetryConfig,
-
     #[clap(flatten)]
     pub data: DataConfig,
-
     /// Ip to be used for running server
     #[clap(long, default_value_t = Ipv4Addr::new(127, 0, 0, 1))]
     pub http_server_ip: Ipv4Addr,
-
     /// Port to be used for running server
     #[clap(long, default_value_t = 8080)]
     pub http_server_port: u16,

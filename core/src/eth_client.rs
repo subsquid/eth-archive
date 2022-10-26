@@ -14,10 +14,11 @@ pub struct EthClient {
     http_client: reqwest::Client,
     rpc_url: url::Url,
     cfg: IngestConfig,
+    retry: Retry,
 }
 
 impl EthClient {
-    pub fn new(cfg: IngestConfig) -> Result<EthClient> {
+    pub fn new(cfg: IngestConfig, retry: Retry) -> Result<EthClient> {
         let request_timeout = Duration::from_secs(cfg.request_timeout_secs.get());
         let connect_timeout = Duration::from_millis(cfg.connect_timeout_ms.get());
 
@@ -32,6 +33,7 @@ impl EthClient {
             http_client,
             rpc_url: cfg.eth_rpc_url.clone(),
             cfg,
+            retry,
         })
     }
 
@@ -133,11 +135,10 @@ impl EthClient {
     pub async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
         self: Arc<Self>,
         batches: &[B],
-        retry: Retry,
     ) -> Result<Vec<Vec<R::Resp>>> {
         let group = batches.iter().map(|batch| {
             let client = self.clone();
-            retry.retry(move || {
+            self.retry.retry(move || {
                 let client = client.clone();
                 async move { client.send_batch(batch.as_ref()).await }
             })
@@ -149,11 +150,10 @@ impl EthClient {
     pub async fn send_concurrent<R: EthRequest + Copy>(
         self: Arc<Self>,
         reqs: &[R],
-        retry: Retry,
     ) -> Result<Vec<R::Resp>> {
         let group = reqs.iter().map(|&req| {
             let client = self.clone();
-            retry.retry(move || {
+            self.retry.retry(move || {
                 let client = client.clone();
                 async move { client.send(req).await }
             })
@@ -172,7 +172,6 @@ impl EthClient {
         self: Arc<Self>,
         from_block: u32,
         to_block: u32,
-        retry: Retry,
     ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
         assert!(to_block > from_block);
         let from_block = usize::try_from(from_block).unwrap();
@@ -227,11 +226,11 @@ impl EthClient {
 
                 let block_batches = self
                     .clone()
-                    .send_batches(&block_batches, retry)
+                    .send_batches(&block_batches)
                     .await?;
                 let log_batches = self
                     .clone()
-                    .send_concurrent(&log_batches, retry)
+                    .send_concurrent(&log_batches)
                     .await?;
 
                 log::info!(
