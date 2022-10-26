@@ -1,9 +1,9 @@
 mod config;
 mod error;
-mod runner;
+mod parquet_writer;
 mod schema;
 
-pub use config::Config;
+pub use config::ParquetConfig;
 pub use error::{Error, Result};
-pub use runner::ParquetWriterRunner;
-pub use schema::{Blocks, Logs, Transactions};
+pub use parquet_writer::ParquetWriter;
+pub use schema::{Chunk, IntoRowGroups};

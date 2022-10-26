@@ -794,13 +794,16 @@ dependencies = [
 
 [[package]]
 name = "eth-archive-ingester"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
+ "arrow2",
  "clap",
  "env_logger",
  "eth-archive-core",
+ "eth-archive-parquet-writer",
  "futures",
  "log",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
@@ -812,23 +815,18 @@ dependencies = [
 
 [[package]]
 name = "eth-archive-parquet-writer"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "arrow2",
- "clap",
- "env_logger",
  "eth-archive-core",
  "futures",
+ "itertools",
  "log",
- "parquet-writer",
  "rayon",
- "reqwest",
  "serde",
- "serde_json",
  "thiserror",
- "tikv-jemallocator",
  "tokio",
- "url",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1004,8 +1002,8 @@ name = "generate-parquets"
 version = "0.1.0"
 dependencies = [
  "eth-archive-core",
+ "eth-archive-ingester",
  "eth-archive-parquet-writer",
- "parquet-writer",
  "prefix-hex",
  "serde",
  "serde_json",
@@ -1720,22 +1718,6 @@ checksum = "1131c54b167dd4e4799ce762e1ab01549ebb94d5bdd13e6ec1b467491c378e1f"
 dependencies = [
  "async-trait",
  "futures",
-]
-
-[[package]]
-name = "parquet-writer"
-version = "0.1.0"
-dependencies = [
- "arrow2",
- "eth-archive-core",
- "futures",
- "itertools",
- "log",
- "rayon",
- "serde",
- "thiserror",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]

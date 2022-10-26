@@ -7,7 +7,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{Block, BlockRange};
-use parquet_writer::{ParquetConfig, ParquetWriter};
+use eth_archive_parquet_writer::{ParquetConfig, ParquetWriter};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, mem};

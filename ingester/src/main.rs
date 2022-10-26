@@ -1,4 +1,4 @@
-use eth_archive_ingester::{Config, Ingester};
+use eth_archive_ingester::{Config, ParquetWriterRunner};
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -13,15 +13,15 @@ async fn main() {
 
     let config = Config::parse();
 
-    let ingester = match Ingester::new(config).await {
-        Ok(ingester) => ingester,
+    let runner = match ParquetWriterRunner::new(config).await {
+        Ok(runner) => runner,
         Err(e) => {
-            log::error!("failed to create ingester:\n{}", e);
+            log::error!("failed to create parquet writer runner:\n{}", e);
             return;
         }
     };
 
-    if let Err(e) = ingester.run().await {
-        log::error!("failed to run ingester:\n{}", e);
+    if let Err(e) = runner.run().await {
+        log::error!("failed to run parquet writer runner:\n{}", e);
     }
 }
