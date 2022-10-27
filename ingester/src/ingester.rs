@@ -214,7 +214,7 @@ impl Data {
             )
         };
 
-        futures::future::try_join_all(&[block_fut, tx_fut, log_fut]).await?;
+        futures::future::try_join3(block_fut, tx_fut, log_fut).await?;
 
         let mut final_path = cfg.data_path.to_owned();
         final_path.push(
@@ -246,9 +246,9 @@ fn encodings(schema: &Schema) -> Vec<Vec<Encoding>> {
         .collect::<Vec<_>>()
 }
 
-async fn write_file(
+async fn write_file<T: IntoChunks + Send + 'static>(
     temp_path: PathBuf,
-    chunks: Box<dyn IntoChunks + Send>,
+    chunks: Box<T>,
     schema: Schema,
     items_per_chunk: usize,
 ) -> Result<()> {
@@ -264,7 +264,7 @@ async fn write_file(
     writer
         .send_all(&mut chunk_stream)
         .await
-        .map_err(Error::WriteFileData);
+        .map_err(Error::WriteFileData)?;
     writer.close().await.map_err(Error::CloseFileSink)?;
 
     Ok(())
