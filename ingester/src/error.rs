@@ -29,6 +29,18 @@ pub enum Error {
     FolderRangeMismatch(u32, u32),
     #[error("failed to run writer thread:\n{0}")]
     RunWriterThread(tokio::task::JoinError),
+    #[error("failed to create directory:\n{0}")]
+    CreateDir(io::Error),
+    #[error("failed to rename directory:\n{0}")]
+    RenameDir(io::Error),
+    #[error("failed to create file:\n{0}")]
+    CreateFile(io::Error),
+    #[error("failed to write file data:\n{0}")]
+    WriteFileData(ArrowError),
+    #[error("failed to create file sink:\n{0}")]
+    CreateFileSink(ArrowError),
+    #[error("failed to close file sink:\n{0}")]
+    CloseFileSink(ArrowError),
 }
 
 pub type Result<T> = StdResult<T, Error>;

@@ -7,7 +7,10 @@ use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
+use arrow2::error::Result as ArrowResult;
+use arrow2::io::parquet::write::{CompressionOptions, Version, WriteOptions};
 use eth_archive_core::types::{Block, Log, Transaction};
+use std::cmp;
 
 type Chunk = ArrowChunk<Box<dyn Array>>;
 type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
@@ -34,7 +37,7 @@ pub fn block_schema() -> Schema {
     ])
 }
 
-pub fn transaction_schema() -> Schema {
+pub fn tx_schema() -> Schema {
     Schema::from(vec![
         Field::new("block_hash", DataType::Binary, false),
         Field::new("block_number", DataType::UInt32, false),
@@ -95,8 +98,8 @@ pub struct Blocks {
     pub len: usize,
 }
 
-impl Blocks {
-    fn into_chunk(mut self) -> Chunk {
+impl IntoChunks for Blocks {
+    fn into_chunks(mut self, items_per_chunk: usize) -> Vec<ArrowResult<Chunk>> {
         let number = self.number.as_box();
 
         let indices = sort_to_indices::<i64>(
@@ -110,27 +113,37 @@ impl Blocks {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        Chunk::new(vec![
-            arrow_take(number.as_ref(), &indices).unwrap(),
-            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.miner.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.difficulty.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
-        ])
+        (0..self.len)
+            .step_by(items_per_chunk)
+            .map(|start| {
+                let end = cmp::min(self.len, start + items_per_chunk);
+                let length = end - start;
+                let indices = indices.slice(start, length);
+                Ok(Chunk::new(vec![
+                    arrow_take(number.as_ref(), &indices).unwrap(),
+                    arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.miner.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.difficulty.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
+                ]))
+            })
+            .collect()
     }
+}
 
+impl Blocks {
     pub fn push(&mut self, elem: Block) {
         self.number.push(Some(elem.number.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
@@ -178,8 +191,8 @@ pub struct Transactions {
     pub len: usize,
 }
 
-impl Transactions {
-    fn into_chunk(mut self) -> Chunk {
+impl IntoChunks for Transactions {
+    fn into_chunks(mut self, items_per_chunk: usize) -> Vec<ArrowResult<Chunk>> {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
         let source = self.source.as_box();
@@ -206,27 +219,37 @@ impl Transactions {
         .map_err(Error::SortRowGroup)
         .unwrap();
 
-        Chunk::new(vec![
-            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(block_number.as_ref(), &indices).unwrap(),
-            arrow_take(source.as_ref(), &indices).unwrap(),
-            arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.sighash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.dest.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
-            arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.kind.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.chain_id.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
-        ])
+        (0..self.len)
+            .step_by(items_per_chunk)
+            .map(|start| {
+                let end = cmp::min(self.len, start + items_per_chunk);
+                let length = end - start;
+                let indices = indices.slice(start, length);
+                Ok(Chunk::new(vec![
+                    arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(block_number.as_ref(), &indices).unwrap(),
+                    arrow_take(source.as_ref(), &indices).unwrap(),
+                    arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.sighash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.dest.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+                    arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.kind.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.chain_id.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
+                ]))
+            })
+            .collect()
     }
+}
 
+impl Transactions {
     pub fn push(&mut self, elem: Transaction) {
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
@@ -270,8 +293,8 @@ pub struct Logs {
     pub len: usize,
 }
 
-impl Logs {
-    fn into_chunk(mut self) -> Chunk {
+impl IntoChunks for Logs {
+    fn into_chunks(mut self, items_per_chunk: usize) -> Vec<ArrowResult<Chunk>> {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
         let address = self.address.as_box();
@@ -297,23 +320,32 @@ impl Logs {
         )
         .map_err(Error::SortRowGroup)
         .unwrap();
-
-        Chunk::new(vec![
-            arrow_take(address.as_ref(), &indices).unwrap(),
-            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(block_number.as_ref(), &indices).unwrap(),
-            arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.topic0.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.topic1.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.topic2.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
-        ])
+        (0..self.len)
+            .step_by(items_per_chunk)
+            .map(|start| {
+                let end = cmp::min(self.len, start + items_per_chunk);
+                let length = end - start;
+                let indices = indices.slice(start, length);
+                Ok(Chunk::new(vec![
+                    arrow_take(address.as_ref(), &indices).unwrap(),
+                    arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(block_number.as_ref(), &indices).unwrap(),
+                    arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.topic0.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.topic1.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.topic2.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
+                    arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+                ]))
+            })
+            .collect()
     }
+}
 
+impl Logs {
     pub fn push(&mut self, elem: Log) {
         self.address.push(Some(elem.address.0.as_slice()));
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
@@ -331,4 +363,16 @@ impl Logs {
 
         self.len += 1;
     }
+}
+
+pub fn parquet_write_options() -> WriteOptions {
+    WriteOptions {
+        write_statistics: true,
+        compression: CompressionOptions::Lz4Raw,
+        version: Version::V2,
+    }
+}
+
+pub trait IntoChunks {
+    fn into_chunks(self, items_per_chunk: usize) -> Vec<ArrowResult<Chunk>>;
 }

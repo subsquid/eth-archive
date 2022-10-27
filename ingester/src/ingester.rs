@@ -1,18 +1,28 @@
 use crate::config::Config;
-use crate::consts::MAX_PENDING_FILE_WRITES;
-use crate::schema::{Blocks, Logs, Transactions};
+use crate::consts::MAX_ROW_GROUPS_PER_FILE;
+use crate::schema::{
+    block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
+    Transactions,
+};
 use crate::{Error, Result};
+use arrow2::datatypes::{DataType, Schema};
+use arrow2::io::parquet::write::transverse;
+use arrow2::io::parquet::write::Encoding;
+use arrow2::io::parquet::write::FileSink;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
+use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::BlockRange;
 use futures::pin_mut;
 use futures::stream::StreamExt;
+use futures::SinkExt;
 use itertools::Itertools;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::{cmp, mem};
 use tokio::sync::mpsc;
+use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
     eth_client: Arc<EthClient>,
@@ -53,13 +63,13 @@ impl Ingester {
         let mut data = Data::default();
 
         let (sender, mut receiver): (mpsc::Sender<Data>, _) =
-            mpsc::channel(MAX_PENDING_FILE_WRITES);
+            mpsc::channel(self.cfg.max_pending_folder_writes);
 
-        let data_path = self.cfg.data_path.to_owned();
+        let config = self.cfg.clone();
         let writer_thread = tokio::spawn(async move {
-            let data_path = data_path;
+            let config = config;
             while let Some(data) = receiver.recv().await {
-                if let Err(e) = data.write_parquet_folder(&data_path).await {
+                if let Err(e) = data.write_parquet_folder(&config).await {
                     log::error!(
                         "failed to write parquet folder:\n{}\n quitting writer thread.",
                         e
@@ -106,7 +116,7 @@ impl Ingester {
         }
         writer_thread.await.map_err(Error::RunWriterThread)?;
 
-        todo!()
+        Ok(())
     }
 
     async fn delete_temp_dirs(dir_names: &[DirName]) -> Result<()> {
@@ -155,7 +165,107 @@ pub struct Data {
 }
 
 impl Data {
-    async fn write_parquet_folder<P: AsRef<Path>>(self, path: P) -> Result<()> {
-        todo!();
+    async fn write_parquet_folder(self, cfg: &Config) -> Result<()> {
+        let mut temp_path = cfg.data_path.to_owned();
+        temp_path.push(
+            &DirName {
+                range: self.range,
+                is_temp: true,
+            }
+            .to_string(),
+        );
+        tokio::fs::create_dir(&temp_path)
+            .await
+            .map_err(Error::CreateDir)?;
+
+        let block_fut = {
+            let mut temp_path = temp_path.clone();
+            temp_path.push("block.parquet");
+
+            write_file(
+                temp_path,
+                Box::new(self.blocks),
+                block_schema(),
+                cfg.max_blocks_per_file / MAX_ROW_GROUPS_PER_FILE,
+            )
+        };
+
+        let tx_fut = {
+            let mut temp_path = temp_path.clone();
+            temp_path.push("tx.parquet");
+
+            write_file(
+                temp_path,
+                Box::new(self.txs),
+                tx_schema(),
+                cfg.max_txs_per_file / MAX_ROW_GROUPS_PER_FILE,
+            )
+        };
+
+        let log_fut = {
+            let mut temp_path = temp_path.clone();
+            temp_path.push("log.parquet");
+
+            write_file(
+                temp_path,
+                Box::new(self.logs),
+                log_schema(),
+                cfg.max_logs_per_file / MAX_ROW_GROUPS_PER_FILE,
+            )
+        };
+
+        futures::future::try_join_all(&[block_fut, tx_fut, log_fut]).await?;
+
+        let mut final_path = cfg.data_path.to_owned();
+        final_path.push(
+            &DirName {
+                range: self.range,
+                is_temp: false,
+            }
+            .to_string(),
+        );
+
+        tokio::fs::rename(&temp_path, &final_path)
+            .await
+            .map_err(Error::RenameDir)?;
+
+        Ok(())
     }
+}
+
+fn encodings(schema: &Schema) -> Vec<Vec<Encoding>> {
+    let encoding_map = |data_type: &DataType| match data_type {
+        DataType::Binary | DataType::LargeBinary => Encoding::DeltaLengthByteArray,
+        _ => Encoding::Plain,
+    };
+
+    schema
+        .fields
+        .iter()
+        .map(|f| transverse(&f.data_type, encoding_map))
+        .collect::<Vec<_>>()
+}
+
+async fn write_file(
+    temp_path: PathBuf,
+    chunks: Box<dyn IntoChunks + Send>,
+    schema: Schema,
+    items_per_chunk: usize,
+) -> Result<()> {
+    let chunks = rayon_async::spawn(move || chunks.into_chunks(items_per_chunk)).await;
+    let file = tokio::fs::File::create(&temp_path)
+        .await
+        .map_err(Error::CreateFile)?
+        .compat();
+    let encodings = encodings(&schema);
+    let mut writer = FileSink::try_new(file, schema, encodings, parquet_write_options())
+        .map_err(Error::CreateFileSink)?;
+    let mut chunk_stream = futures::stream::iter(chunks);
+    writer
+        .send_all(&mut chunk_stream)
+        .await
+        .map_err(Error::WriteFileData);
+    writer.close().await.map_err(Error::CloseFileSink)?;
+
+    Ok(())
 }

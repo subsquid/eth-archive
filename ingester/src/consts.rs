@@ -1,1 +1,1 @@
-pub const MAX_PENDING_FILE_WRITES: usize = 8;
+pub const MAX_ROW_GROUPS_PER_FILE: usize = 10;

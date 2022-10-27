@@ -2,7 +2,7 @@ use clap::Parser;
 use eth_archive_core::config::{IngestConfig, RetryConfig};
 use std::path::PathBuf;
 
-#[derive(Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
     /// A path to store indexed parquet files
@@ -21,6 +21,10 @@ pub struct Config {
     /// Maximum number of logs per parquet file
     #[clap(long)]
     pub max_logs_per_file: usize,
+    /// Maximum number of pending folder writes.
+    /// This effects maximum memory consumption.
+    #[clap(long, default_value_t = 8)]
+    pub max_pending_folder_writes: usize,
 }
 
 impl Config {
