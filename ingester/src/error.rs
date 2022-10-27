@@ -27,6 +27,8 @@ pub enum Error {
     RemoveTempDir(io::Error),
     #[error("folder range mismatch {0} => {1}")]
     FolderRangeMismatch(u32, u32),
+    #[error("failed to run writer thread:\n{0}")]
+    RunWriterThread(tokio::task::JoinError),
 }
 
 pub type Result<T> = StdResult<T, Error>;

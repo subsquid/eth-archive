@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Error;
 use arrow2::array::{
     Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
     MutableBooleanArray, UInt32Vec, UInt64Vec,
@@ -131,7 +131,7 @@ impl Blocks {
         ])
     }
 
-    fn push(&mut self, elem: Block) -> Result<()> {
+    pub fn push(&mut self, elem: Block) {
         self.number.push(Some(elem.number.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
         self.parent_hash.push(Some(elem.parent_hash.0.as_slice()));
@@ -153,8 +153,6 @@ impl Blocks {
         self.timestamp.push(Some(elem.timestamp.0));
 
         self.len += 1;
-
-        Ok(())
     }
 }
 
@@ -229,7 +227,7 @@ impl Transactions {
         ])
     }
 
-    fn push(&mut self, elem: Transaction) -> Result<()> {
+    pub fn push(&mut self, elem: Transaction) {
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
         self.source.push(Some(elem.source.0.as_slice()));
@@ -252,8 +250,6 @@ impl Transactions {
         self.s.push(Some(elem.s.0));
 
         self.len += 1;
-
-        Ok(())
     }
 }
 
@@ -318,7 +314,7 @@ impl Logs {
         ])
     }
 
-    fn push(&mut self, elem: Log) -> Result<()> {
+    pub fn push(&mut self, elem: Log) {
         self.address.push(Some(elem.address.0.as_slice()));
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
@@ -334,7 +330,5 @@ impl Logs {
         self.transaction_index.push(Some(elem.transaction_index.0));
 
         self.len += 1;
-
-        Ok(())
     }
 }

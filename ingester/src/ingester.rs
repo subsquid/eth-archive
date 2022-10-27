@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::consts::MAX_PENDING_FILE_WRITES;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
@@ -8,8 +9,10 @@ use eth_archive_core::types::BlockRange;
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use itertools::Itertools;
-use std::cmp;
+use std::path::Path;
 use std::sync::Arc;
+use std::{cmp, mem};
+use tokio::sync::mpsc;
 
 pub struct Ingester {
     eth_client: Arc<EthClient>,
@@ -47,12 +50,61 @@ impl Ingester {
             .stream_batches(Some(block_num), None);
         pin_mut!(batches);
 
-        let mut data = ArrowData::default();
-        let mut block_range = BlockRange::default();
+        let mut data = Data::default();
 
-        while let Some(batches) = batches.next().await {
+        let (sender, mut receiver): (mpsc::Sender<Data>, _) =
+            mpsc::channel(MAX_PENDING_FILE_WRITES);
+
+        let data_path = self.cfg.data_path.to_owned();
+        let writer_thread = tokio::spawn(async move {
+            let data_path = data_path;
+            while let Some(data) = receiver.recv().await {
+                if let Err(e) = data.write_parquet_folder(&data_path).await {
+                    log::error!(
+                        "failed to write parquet folder:\n{}\n quitting writer thread.",
+                        e
+                    );
+                    break;
+                }
+            }
+        });
+
+        'ingest: while let Some(batches) = batches.next().await {
             let (block_ranges, block_batches, log_batches) = batches.map_err(Error::GetBatch)?;
+
+            for ((block_range, block_batch), log_batch) in block_ranges
+                .into_iter()
+                .zip(block_batches.into_iter())
+                .zip(log_batches.into_iter())
+            {
+                data.range += block_range;
+                for mut block in block_batch.into_iter() {
+                    for tx in mem::take(&mut block.transactions).into_iter() {
+                        data.txs.push(tx);
+                    }
+                    data.blocks.push(block);
+                }
+                for log in log_batch.into_iter() {
+                    data.logs.push(log);
+                }
+
+                #[allow(clippy::collapsible_if)]
+                if data.blocks.len > self.cfg.max_blocks_per_file
+                    || data.txs.len > self.cfg.max_txs_per_file
+                    || data.logs.len > self.cfg.max_logs_per_file
+                {
+                    if sender.send(mem::take(&mut data)).await.is_err() {
+                        log::info!("writer thread crashed. exiting ingest loop...");
+                        break 'ingest;
+                    }
+                }
+            }
         }
+
+        if !writer_thread.is_finished() {
+            log::info!("waiting for writer thread to finish...");
+        }
+        writer_thread.await.map_err(Error::RunWriterThread)?;
 
         todo!()
     }
@@ -95,8 +147,15 @@ impl Ingester {
 }
 
 #[derive(Default)]
-pub struct ArrowData {
+pub struct Data {
     blocks: Blocks,
     txs: Transactions,
     logs: Logs,
+    range: BlockRange,
+}
+
+impl Data {
+    async fn write_parquet_folder<P: AsRef<Path>>(self, path: P) -> Result<()> {
+        todo!();
+    }
 }
