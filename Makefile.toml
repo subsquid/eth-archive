@@ -7,25 +7,16 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release", "--bin", "eth-archive-ingester", "--",
-	"-e", "http://195.201.56.33:8545",
-	"--block-batch-size", "50",
-	"--http-req-concurrency", "100",
-	"--block-window-size", "300000",
-	"--request-timeout-secs", "300",
-	"--connect-timeout-ms", "1000",
-]
-
-[tasks.writer]
-workspace = false
-command = "cargo"
-args = [
-	"run", "--release", "--bin", "eth-archive-parquet-writer", "--",
 	"--data-path", "./data",
-	"-e", "http://195.201.56.33:8545",
-	"--block-batch-size", "50",
-	"--http-req-concurrency", "100",
+	"--eth-rpc-url", "http://195.201.56.33:8545",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
+	"--block-batch-size", "50",
+	"--http-req-concurrency", "100",
+	"--best-block-offset", "10",
+	"--max-blocks-per-file", "40000",
+	"--max-txs-per-file", "40000",
+	"--max-logs-per-file", "40000",
 ]
 
 [tasks.gateway]

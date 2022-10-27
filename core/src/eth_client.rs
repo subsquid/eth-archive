@@ -172,11 +172,7 @@ impl EthClient {
                     let num = client.send(GetBestBlock {}).await?;
                     let num = get_u32_from_hex(&num);
 
-                    let num = if num > offset {
-                        num - offset
-                    } else {
-                        0
-                    };
+                    let num = if num > offset { num - offset } else { 0 };
 
                     Ok(num)
                 }
@@ -191,7 +187,7 @@ impl EthClient {
         to_block: Option<u32>,
     ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
         let from_block = from_block.unwrap_or(0);
-        
+
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
         async_stream::try_stream! {
             let mut block_num = from_block;

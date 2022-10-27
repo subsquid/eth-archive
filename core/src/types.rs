@@ -209,7 +209,7 @@ impl std::ops::AddAssign for BlockRange {
     fn add_assign(&mut self, other: Self) {
         use std::cmp;
 
-        self.from  = cmp::min(self.from, other.from);
+        self.from = cmp::min(self.from, other.from);
         self.to = cmp::max(self.to, other.to);
     }
 }
