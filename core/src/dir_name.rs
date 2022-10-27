@@ -24,7 +24,7 @@ impl FromStr for DirName {
         let input = input.strip_prefix(FOLDER_PREFIX).ok_or_else(err)?;
 
         let (input, is_temp) = match input.strip_suffix(TEMP_SUFFIX) {
-            None => (input, true),
+            None => (input, false),
             Some(input) => (input, true),
         };
 
