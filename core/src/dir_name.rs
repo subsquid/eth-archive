@@ -69,10 +69,19 @@ impl DirName {
         while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
             let folder_name = entry.file_name();
             let folder_name = folder_name.to_str().ok_or(Error::InvalidFolderName)?;
-            names.push(DirName::from_str(folder_name)?);
+            let dir_name = DirName::from_str(folder_name)?;
+            if dir_name.is_temp {
+                log::info!("deleting temp dir {}...", dir_name);
+
+                tokio::fs::remove_dir_all(&entry.path())
+                    .await
+                    .map_err(Error::RemoveTempDir)?;
+            } else {
+                names.push(dir_name);
+            }
         }
 
-        log::info!("soring folder names...");
+        log::info!("sorting folder names...");
 
         let sorted_names = rayon_async::spawn(move || {
             let mut names = names;

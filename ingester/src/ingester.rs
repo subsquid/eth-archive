@@ -20,6 +20,7 @@ use futures::SinkExt;
 use itertools::Itertools;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use std::{cmp, mem};
 use tokio::sync::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -50,7 +51,6 @@ impl Ingester {
         let dir_names = DirName::list_sorted_folder_names(data_path)
             .await
             .map_err(Error::ListFolderNames)?;
-        Self::delete_temp_dirs(&dir_names).await?;
 
         let block_num = Self::get_start_block(&dir_names)?;
 
@@ -87,7 +87,14 @@ impl Ingester {
                 .zip(block_batches.into_iter())
                 .zip(log_batches.into_iter())
             {
-                data.range += block_range;
+                data.range = match data.range {
+                    Some(mut range) => {
+                        range += block_range;
+                        Some(range)
+                    }
+                    None => Some(block_range),
+                };
+
                 for mut block in block_batch.into_iter() {
                     for tx in mem::take(&mut block.transactions).into_iter() {
                         data.txs.push(tx);
@@ -99,9 +106,9 @@ impl Ingester {
                 }
 
                 #[allow(clippy::collapsible_if)]
-                if data.blocks.len > self.cfg.max_blocks_per_file
-                    || data.txs.len > self.cfg.max_txs_per_file
-                    || data.logs.len > self.cfg.max_logs_per_file
+                if data.blocks.len >= self.cfg.max_blocks_per_file
+                    || data.txs.len >= self.cfg.max_txs_per_file
+                    || data.logs.len >= self.cfg.max_logs_per_file
                 {
                     if sender.send(mem::take(&mut data)).await.is_err() {
                         log::info!("writer thread crashed. exiting ingest loop...");
@@ -115,20 +122,6 @@ impl Ingester {
             log::info!("waiting for writer thread to finish...");
         }
         writer_thread.await.map_err(Error::RunWriterThread)?;
-
-        Ok(())
-    }
-
-    async fn delete_temp_dirs(dir_names: &[DirName]) -> Result<()> {
-        log::info!("deleting temporary directories...");
-
-        for name in dir_names.iter() {
-            if name.is_temp {
-                tokio::fs::remove_dir_all(&name.to_string())
-                    .await
-                    .map_err(Error::RemoveTempDir)?;
-            }
-        }
 
         Ok(())
     }
@@ -161,15 +154,27 @@ pub struct Data {
     blocks: Blocks,
     txs: Transactions,
     logs: Logs,
-    range: BlockRange,
+    range: Option<BlockRange>,
 }
 
 impl Data {
     async fn write_parquet_folder(self, cfg: &Config) -> Result<()> {
+        let range = self.range.unwrap();
+
+        log::info!(
+            "writing {}...",
+            &DirName {
+                range,
+                is_temp: false,
+            }
+        );
+
+        let start_time = Instant::now();
+
         let mut temp_path = cfg.data_path.to_owned();
         temp_path.push(
             &DirName {
-                range: self.range,
+                range,
                 is_temp: true,
             }
             .to_string(),
@@ -219,7 +224,7 @@ impl Data {
         let mut final_path = cfg.data_path.to_owned();
         final_path.push(
             &DirName {
-                range: self.range,
+                range,
                 is_temp: false,
             }
             .to_string(),
@@ -228,6 +233,15 @@ impl Data {
         tokio::fs::rename(&temp_path, &final_path)
             .await
             .map_err(Error::RenameDir)?;
+
+        log::info!(
+            "wrote {} in {}ms",
+            &DirName {
+                range,
+                is_temp: false,
+            },
+            start_time.elapsed().as_millis()
+        );
 
         Ok(())
     }

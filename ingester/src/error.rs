@@ -23,8 +23,6 @@ pub enum Error {
     ListFolderNames(eth_archive_core::Error),
     #[error("failed to create missing directories:\n{0}")]
     CreateMissingDirectories(io::Error),
-    #[error("failed to delete temporary directory:\n{0}")]
-    RemoveTempDir(io::Error),
     #[error("folder range mismatch {0} => {1}")]
     FolderRangeMismatch(u32, u32),
     #[error("failed to run writer thread:\n{0}")]

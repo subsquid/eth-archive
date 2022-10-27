@@ -6,7 +6,7 @@ RUST_LOG = "info"
 workspace = false
 command = "cargo"
 args = [
-	"run", "--release", "--bin", "eth-archive-ingester", "--",
+	"run", "--release","--bin", "eth-archive-ingester", "--",
 	"--data-path", "./data",
 	"--eth-rpc-url", "http://195.201.56.33:8545",
 	"--request-timeout-secs", "300",
@@ -14,9 +14,9 @@ args = [
 	"--block-batch-size", "50",
 	"--http-req-concurrency", "100",
 	"--best-block-offset", "10",
-	"--max-blocks-per-file", "40000",
-	"--max-txs-per-file", "40000",
-	"--max-logs-per-file", "40000",
+	"--max-blocks-per-file", "100000",
+	"--max-txs-per-file", "110000",
+	"--max-logs-per-file", "100000",
 ]
 
 [tasks.gateway]

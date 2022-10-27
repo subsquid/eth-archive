@@ -29,6 +29,8 @@ pub enum Error {
     InvalidFolderName,
     #[error("failed to get best block from ethereum node:\n{0:?}")]
     GetBestBlock(Vec<Error>),
+    #[error("failed to delete temporary directory:\n{0}")]
+    RemoveTempDir(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
