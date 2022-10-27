@@ -1,15 +1,15 @@
-use crate::{Result, Error};
+use crate::{Error, Result};
 use arrow2::array::{
-    Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
-    UInt32Vec, UInt64Vec, Array
+    Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
+    MutableBooleanArray, UInt32Vec, UInt64Vec,
 };
+use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
 use eth_archive_core::types::{Block, Log, Transaction};
-use arrow2::chunk::Chunk as ArrowChunk;
 
-pub type Chunk = ArrowChunk<Box<dyn Array>>;
+type Chunk = ArrowChunk<Box<dyn Array>>;
 type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
 
 pub fn block_schema() -> Schema {

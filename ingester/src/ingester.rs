@@ -1,46 +1,50 @@
 use crate::config::Config;
 use crate::schema::{Blocks, Logs, Transactions};
 use crate::{Error, Result};
-use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::dir_name::DirName;
+use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::BlockRange;
+use futures::pin_mut;
 use futures::stream::StreamExt;
 use itertools::Itertools;
-use std::sync::Arc;
 use std::cmp;
-use std::path::PathBuf;
-use futures::pin_mut;
+use std::sync::Arc;
 
 pub struct Ingester {
     eth_client: Arc<EthClient>,
-    data_path: PathBuf,
+    cfg: Config,
 }
 
 impl Ingester {
     pub async fn new(cfg: Config) -> Result<Self> {
         let retry = Retry::new(cfg.retry);
-        let eth_client = EthClient::new(cfg.ingest, retry).map_err(Error::CreateEthClient)?;
+        let eth_client =
+            EthClient::new(cfg.ingest.clone(), retry).map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
-        let data_path = cfg.data_path;
 
-        Ok(Self { eth_client, data_path })
+        Ok(Self { eth_client, cfg })
     }
 
     pub async fn run(&self) -> Result<()> {
         log::info!("creating missing directories...");
-        tokio::fs::create_dir_all(&self.data_path).await.map_err(Error::CreateMissingDirectories)?;
+        let data_path = &self.cfg.data_path;
 
-        let dir_names = DirName::list_sorted_folder_names(&self.data_path).await.map_err(Error::ListFolderNames)?;
+        tokio::fs::create_dir_all(data_path)
+            .await
+            .map_err(Error::CreateMissingDirectories)?;
+
+        let dir_names = DirName::list_sorted_folder_names(data_path)
+            .await
+            .map_err(Error::ListFolderNames)?;
         Self::delete_temp_dirs(&dir_names).await?;
-        let block_num = Self::get_start_block(&dir_names);
-        let best_block = self
+
+        let block_num = Self::get_start_block(&dir_names)?;
+
+        let batches = self
             .eth_client
             .clone()
-            .get_best_block()
-            .await
-            .map_err(Error::GetBestBlock)?;
-        let batches = self.eth_client.clone().stream_batches(block_num, best_block);
+            .stream_batches(Some(block_num), None);
         pin_mut!(batches);
 
         let mut data = ArrowData::default();
@@ -58,23 +62,35 @@ impl Ingester {
 
         for name in dir_names.iter() {
             if name.is_temp {
-                tokio::fs::remove_dir_all(&name.to_string()).await.map_err(Error::RemoveTempDir)?;
+                tokio::fs::remove_dir_all(&name.to_string())
+                    .await
+                    .map_err(Error::RemoveTempDir)?;
             }
         }
 
         Ok(())
     }
 
-    fn get_start_block(dir_names: &[DirName]) -> u32 {
+    fn get_start_block(dir_names: &[DirName]) -> Result<u32> {
         if dir_names.is_empty() {
-            return 0;
+            return Ok(0);
         }
-        let mut max = dir_names[0].range.to;
-        for (a, b) in dir_names.iter().tuple_windows() {
-            max = cmp::max(max, b.range.to);
+        let first_range = dir_names[0].range;
+
+        if first_range.from != 0 {
+            return Err(Error::FolderRangeMismatch(0, 0));
         }
 
-        max
+        let mut max = first_range.to;
+        for (a, b) in dir_names.iter().tuple_windows() {
+            max = cmp::max(max, b.range.to);
+
+            if a.range.to != b.range.from {
+                return Err(Error::FolderRangeMismatch(a.range.to, b.range.from));
+            }
+        }
+
+        Ok(max)
     }
 }
 

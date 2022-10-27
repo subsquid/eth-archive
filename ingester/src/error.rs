@@ -1,7 +1,7 @@
 use arrow2::error::Error as ArrowError;
+use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
-use std::io;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -25,6 +25,8 @@ pub enum Error {
     CreateMissingDirectories(io::Error),
     #[error("failed to delete temporary directory:\n{0}")]
     RemoveTempDir(io::Error),
+    #[error("folder range mismatch {0} => {1}")]
+    FolderRangeMismatch(u32, u32),
 }
 
 pub type Result<T> = StdResult<T, Error>;
