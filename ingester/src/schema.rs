@@ -1,39 +1,29 @@
-use crate::Error;
+use crate::{Result, Error};
 use arrow2::array::{
     Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
-    UInt32Vec, UInt64Vec,
+    UInt32Vec, UInt64Vec, Array
 };
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
 use eth_archive_core::types::{Block, Log, Transaction};
+use arrow2::chunk::Chunk as ArrowChunk;
 
+pub type Chunk = ArrowChunk<Box<dyn Array>>;
 type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
 
-fn bytes32() -> DataType {
-    DataType::Binary
-}
-
-fn bloom_filter_bytes() -> DataType {
-    DataType::Binary
-}
-
-fn address() -> DataType {
-    DataType::Binary
-}
-
-fn block_schema() -> Schema {
+pub fn block_schema() -> Schema {
     Schema::from(vec![
         Field::new("number", DataType::UInt32, false),
-        Field::new("hash", bytes32(), false),
-        Field::new("parent_hash", bytes32(), false),
+        Field::new("hash", DataType::Binary, false),
+        Field::new("parent_hash", DataType::Binary, false),
         Field::new("nonce", DataType::UInt64, false),
-        Field::new("sha3_uncles", bytes32(), false),
-        Field::new("logs_bloom", bloom_filter_bytes(), false),
-        Field::new("transactions_root", bytes32(), false),
-        Field::new("state_root", bytes32(), false),
-        Field::new("receipts_root", bytes32(), false),
-        Field::new("miner", address(), false),
+        Field::new("sha3_uncles", DataType::Binary, false),
+        Field::new("logs_bloom", DataType::Binary, false),
+        Field::new("transactions_root", DataType::Binary, false),
+        Field::new("state_root", DataType::Binary, false),
+        Field::new("receipts_root", DataType::Binary, false),
+        Field::new("miner", DataType::Binary, false),
         Field::new("difficulty", DataType::Binary, false),
         Field::new("total_difficulty", DataType::Binary, false),
         Field::new("extra_data", DataType::Binary, false),
@@ -44,18 +34,18 @@ fn block_schema() -> Schema {
     ])
 }
 
-fn transaction_schema() -> Schema {
+pub fn transaction_schema() -> Schema {
     Schema::from(vec![
-        Field::new("block_hash", bytes32(), false),
+        Field::new("block_hash", DataType::Binary, false),
         Field::new("block_number", DataType::UInt32, false),
-        Field::new("source", address(), false),
+        Field::new("source", DataType::Binary, false),
         Field::new("gas", DataType::Int64, false),
         Field::new("gas_price", DataType::Int64, false),
-        Field::new("hash", bytes32(), false),
+        Field::new("hash", DataType::Binary, false),
         Field::new("input", DataType::Binary, false),
         Field::new("sighash", DataType::Binary, true),
         Field::new("nonce", DataType::UInt64, false),
-        Field::new("dest", address(), true),
+        Field::new("dest", DataType::Binary, true),
         Field::new("transaction_index", DataType::UInt32, false),
         Field::new("value", DataType::Binary, false),
         Field::new("kind", DataType::UInt32, false),
@@ -66,19 +56,19 @@ fn transaction_schema() -> Schema {
     ])
 }
 
-fn log_schema() -> Schema {
+pub fn log_schema() -> Schema {
     Schema::from(vec![
-        Field::new("address", address(), false),
-        Field::new("block_hash", bytes32(), false),
+        Field::new("address", DataType::Binary, false),
+        Field::new("block_hash", DataType::Binary, false),
         Field::new("block_number", DataType::UInt32, false),
         Field::new("data", DataType::Binary, false),
         Field::new("log_index", DataType::UInt32, false),
         Field::new("removed", DataType::Boolean, false),
-        Field::new("topic0", bytes32(), true),
-        Field::new("topic1", bytes32(), true),
-        Field::new("topic2", bytes32(), true),
-        Field::new("topic3", bytes32(), true),
-        Field::new("transaction_hash", bytes32(), false),
+        Field::new("topic0", DataType::Binary, true),
+        Field::new("topic1", DataType::Binary, true),
+        Field::new("topic2", DataType::Binary, true),
+        Field::new("topic3", DataType::Binary, true),
+        Field::new("transaction_hash", DataType::Binary, false),
         Field::new("transaction_index", DataType::UInt32, false),
     ])
 }
@@ -105,9 +95,7 @@ pub struct Blocks {
     pub len: usize,
 }
 
-impl IntoRowGroups for Blocks {
-    type Elem = Block;
-
+impl Blocks {
     fn into_chunk(mut self) -> Chunk {
         let number = self.number.as_box();
 
@@ -143,7 +131,7 @@ impl IntoRowGroups for Blocks {
         ])
     }
 
-    fn push(&mut self, elem: Self::Elem) -> Result<()> {
+    fn push(&mut self, elem: Block) -> Result<()> {
         self.number.push(Some(elem.number.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
         self.parent_hash.push(Some(elem.parent_hash.0.as_slice()));
@@ -167,18 +155,6 @@ impl IntoRowGroups for Blocks {
         self.len += 1;
 
         Ok(())
-    }
-
-    fn block_num(&self, elem: &Self::Elem) -> u32 {
-        elem.number.0
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    fn schema() -> Schema {
-        block_schema()
     }
 }
 
@@ -204,9 +180,7 @@ pub struct Transactions {
     pub len: usize,
 }
 
-impl IntoRowGroups for Transactions {
-    type Elem = Transaction;
-
+impl Transactions {
     fn into_chunk(mut self) -> Chunk {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
@@ -255,7 +229,7 @@ impl IntoRowGroups for Transactions {
         ])
     }
 
-    fn push(&mut self, elem: Self::Elem) -> Result<()> {
+    fn push(&mut self, elem: Transaction) -> Result<()> {
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
         self.source.push(Some(elem.source.0.as_slice()));
@@ -281,18 +255,6 @@ impl IntoRowGroups for Transactions {
 
         Ok(())
     }
-
-    fn block_num(&self, elem: &Self::Elem) -> u32 {
-        elem.block_number.0
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    fn schema() -> Schema {
-        transaction_schema()
-    }
 }
 
 #[derive(Debug, Default)]
@@ -312,9 +274,7 @@ pub struct Logs {
     pub len: usize,
 }
 
-impl IntoRowGroups for Logs {
-    type Elem = Log;
-
+impl Logs {
     fn into_chunk(mut self) -> Chunk {
         let block_number = self.block_number.as_box();
         let transaction_index = self.transaction_index.as_box();
@@ -358,7 +318,7 @@ impl IntoRowGroups for Logs {
         ])
     }
 
-    fn push(&mut self, elem: Self::Elem) -> Result<()> {
+    fn push(&mut self, elem: Log) -> Result<()> {
         self.address.push(Some(elem.address.0.as_slice()));
         self.block_hash.push(Some(elem.block_hash.0.as_slice()));
         self.block_number.push(Some(elem.block_number.0));
@@ -376,17 +336,5 @@ impl IntoRowGroups for Logs {
         self.len += 1;
 
         Ok(())
-    }
-
-    fn block_num(&self, elem: &Self::Elem) -> u32 {
-        elem.block_number.0
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    fn schema() -> Schema {
-        log_schema()
     }
 }
