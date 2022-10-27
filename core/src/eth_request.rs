@@ -10,7 +10,7 @@ pub trait EthRequest {
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetBlockByNumber {
-    pub block_number: usize,
+    pub block_number: u32,
 }
 
 impl EthRequest for GetBlockByNumber {
@@ -31,8 +31,8 @@ impl EthRequest for GetBlockByNumber {
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetLogs {
-    pub from_block: usize,
-    pub to_block: usize,
+    pub from_block: u32,
+    pub to_block: u32,
 }
 
 impl EthRequest for GetLogs {
@@ -68,6 +68,6 @@ impl EthRequest for GetBestBlock {
     }
 }
 
-fn block_number_to_hex(block_number: usize) -> String {
+fn block_number_to_hex(block_number: u32) -> String {
     format!("0x{:x}", block_number)
 }

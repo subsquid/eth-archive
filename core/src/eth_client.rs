@@ -2,12 +2,12 @@ use crate::config::IngestConfig;
 use crate::error::{Error, Result};
 use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetLogs};
 use crate::retry::Retry;
+use crate::types::{Block, BlockRange, Log};
+use futures::stream::Stream;
 use serde_json::Value as JsonValue;
+use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
-use crate::types::{Block, Log, BlockRange};
-use futures::stream::Stream;
-use std::cmp;
 use std::time::Instant;
 
 pub struct EthClient {
@@ -162,29 +162,32 @@ impl EthClient {
         group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
-    pub async fn get_best_block(&self) -> Result<usize> {
-        let num = self.send(GetBestBlock {}).await?;
-        let best_block = get_usize_from_hex(&num);
-        Ok(best_block)
+    pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
+        let client = self.clone();
+        self.retry.retry(move || {
+            let client = client.clone();
+            async move {
+                let num = client.send(GetBestBlock {}).await?;
+                Ok(get_u32_from_hex(&num))
+            }
+        }).await.map_err(Error::GetBestBlock)
     }
 
-    pub fn ingest_batches(
+    pub fn stream_batches(
         self: Arc<Self>,
         from_block: u32,
         to_block: u32,
     ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
         assert!(to_block > from_block);
-        let from_block = usize::try_from(from_block).unwrap();
-        let to_block = usize::try_from(to_block).unwrap();
-
+        let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
+        let step_by = usize::try_from(step).unwrap();
         async_stream::try_stream! {
-            let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
-            for block_num in (from_block..to_block).step_by(step) {
+            for block_num in (from_block..to_block).step_by(step_by) {
                 let concurrency = self.cfg.http_req_concurrency;
                 let batch_size = self.cfg.block_batch_size;
 
                 let block_batches = (0..concurrency)
-                    .filter_map(|step_no| {
+                    .filter_map(|step_no: u32| {
                         let start = block_num + step_no * batch_size;
                         let end = cmp::min(start + batch_size, to_block);
 
@@ -240,7 +243,9 @@ impl EthClient {
                     start_time.elapsed().as_millis()
                 );
 
-                let block_ranges = (0..block_batches.len()).map(|i| {
+                let num_batches = u32::try_from(block_batches.len()).unwrap();
+
+                let block_ranges = (0..num_batches).map(|i| {
                     let start = block_num + i * batch_size;
                     let end = cmp::min(start + batch_size, to_block);
                     let block_range = BlockRange {
@@ -260,7 +265,7 @@ impl EthClient {
     }
 }
 
-fn get_usize_from_hex(hex: &str) -> usize {
+fn get_u32_from_hex(hex: &str) -> u32 {
     let without_prefix = hex.trim_start_matches("0x");
-    usize::from_str_radix(without_prefix, 16).unwrap()
+    u32::from_str_radix(without_prefix, 16).unwrap()
 }

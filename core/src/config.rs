@@ -22,8 +22,8 @@ pub struct IngestConfig {
     pub connect_timeout_ms: NonZeroU64,
     /// Number of blocks a single batch request will cover
     #[clap(long)]
-    pub block_batch_size: usize,
+    pub block_batch_size: u32,
     /// Number of concurrent requests to make
     #[clap(long)]
-    pub http_req_concurrency: usize,
+    pub http_req_concurrency: u32,
 }

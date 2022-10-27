@@ -728,7 +728,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "eth-archive-gateway"
+name = "eth-archive-ingester"
+version = "0.0.1"
+dependencies = [
+ "arrow2",
+ "clap",
+ "env_logger",
+ "eth-archive-core",
+ "futures",
+ "itertools",
+ "log",
+ "rayon",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "eth-archive-worker"
 version = "0.1.0"
 dependencies = [
  "actix-web",
@@ -746,21 +764,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tikv-jemallocator",
- "tokio",
-]
-
-[[package]]
-name = "eth-archive-ingester"
-version = "0.0.1"
-dependencies = [
- "arrow2",
- "clap",
- "env_logger",
- "eth-archive-core",
- "log",
- "serde",
- "serde_json",
- "thiserror",
  "tokio",
 ]
 

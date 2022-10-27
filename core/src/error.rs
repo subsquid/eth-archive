@@ -1,3 +1,4 @@
+use std::io;
 use std::result::Result as StdResult;
 
 use thiserror::Error as ThisError;
@@ -20,6 +21,14 @@ pub enum Error {
     BuildHttpClient(reqwest::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
     Retry(Vec<Error>),
+    #[error("invalid block range \"{0}\".")]
+    InvalidBlockRange(String),
+    #[error("failed to read parquet directory:\n{0}")]
+    ReadParquetDir(io::Error),
+    #[error("invalid folder name.")]
+    InvalidFolderName,
+    #[error("failed to get best block from ethereum node:\n{0:?}")]
+    GetBestBlock(Vec<Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;

@@ -201,8 +201,8 @@ pub struct QueryResult {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BlockRange {
-    pub from: usize,
-    pub to: usize,
+    pub from: u32,
+    pub to: u32,
 }
 
 impl BlockRange {
