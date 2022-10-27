@@ -164,27 +164,73 @@ impl EthClient {
 
     pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
         let client = self.clone();
-        self.retry.retry(move || {
-            let client = client.clone();
-            async move {
-                let num = client.send(GetBestBlock {}).await?;
-                Ok(get_u32_from_hex(&num))
-            }
-        }).await.map_err(Error::GetBestBlock)
+        let offset = self.cfg.best_block_offset;
+        self.retry
+            .retry(move || {
+                let client = client.clone();
+                async move {
+                    let num = client.send(GetBestBlock {}).await?;
+                    let num = get_u32_from_hex(&num);
+
+                    let num = if num > offset {
+                        num - offset
+                    } else {
+                        0
+                    };
+
+                    Ok(num)
+                }
+            })
+            .await
+            .map_err(Error::GetBestBlock)
     }
 
     pub fn stream_batches(
         self: Arc<Self>,
-        from_block: u32,
-        to_block: u32,
+        from_block: Option<u32>,
+        to_block: Option<u32>,
     ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
-        assert!(to_block > from_block);
+        let from_block = from_block.unwrap_or(0);
+        
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
-        let step_by = usize::try_from(step).unwrap();
         async_stream::try_stream! {
-            for block_num in (from_block..to_block).step_by(step_by) {
+            let mut block_num = from_block;
+            loop {
+                match to_block {
+                    Some(to_block) if block_num >= to_block => break,
+                    _ => (),
+                }
+
+                let best_block = self.clone().get_best_block().await?;
+                let to_block = match to_block {
+                    Some(to_block) => cmp::min(to_block, best_block),
+                    None => best_block,
+                };
+
                 let concurrency = self.cfg.http_req_concurrency;
                 let batch_size = self.cfg.block_batch_size;
+
+                while block_num > best_block {
+                    let offset = self.cfg.best_block_offset;
+                    log::info!("waiting for chain tip to reach {}, current value is {}", block_num + offset, best_block + offset);
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                }
+
+                if block_num + batch_size > best_block {
+                    let block = self.send(GetBlockByNumber { block_number: block_num }).await?;
+                    let logs = self.send(GetLogs {
+                        from_block: block_num,
+                        to_block: block_num,
+                    }).await?;
+
+                    block_num += 1;
+
+                    yield (
+                        vec![BlockRange{from: block_num, to: block_num}],
+                        vec![vec![block]],
+                        vec![logs],
+                    );
+                }
 
                 let block_batches = (0..concurrency)
                     .filter_map(|step_no: u32| {
@@ -221,10 +267,12 @@ impl EthClient {
 
                 let start_time = Instant::now();
 
+                let ended_block = cmp::min(block_num + step, to_block);
+
                 log::info!(
                     "starting to download blocks {}-{}",
                     block_num,
-                    cmp::min(block_num + step, to_block),
+                    ended_block,
                 );
 
                 let block_batches = self
@@ -239,7 +287,7 @@ impl EthClient {
                 log::info!(
                     "downloaded blocks {}-{} in {}ms",
                     block_num,
-                    cmp::min(block_num + step, to_block),
+                    ended_block,
                     start_time.elapsed().as_millis()
                 );
 
@@ -254,6 +302,8 @@ impl EthClient {
                     };
                     block_range
                 }).collect();
+
+                block_num = ended_block;
 
                 yield (
                     block_ranges,

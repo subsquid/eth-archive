@@ -205,13 +205,11 @@ pub struct BlockRange {
     pub to: u32,
 }
 
-impl BlockRange {
-    pub fn merge(&self, other: Self) -> Self {
+impl std::ops::AddAssign for BlockRange {
+    fn add_assign(&mut self, other: Self) {
         use std::cmp;
 
-        Self {
-            from: cmp::min(self.from, other.from),
-            to: cmp::max(self.to, other.to),
-        }
+        self.from  = cmp::min(self.from, other.from);
+        self.to = cmp::max(self.to, other.to);
     }
 }

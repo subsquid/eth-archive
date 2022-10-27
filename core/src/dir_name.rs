@@ -1,10 +1,10 @@
-use crate::{Error, Result};
-use std::fmt;
-use std::str::FromStr;
-use rayon::prelude::*;
-use std::path::Path;
-use crate::types::BlockRange;
 use crate::rayon_async;
+use crate::types::BlockRange;
+use crate::{Error, Result};
+use rayon::prelude::*;
+use std::fmt;
+use std::path::Path;
+use std::str::FromStr;
 
 const FOLDER_PREFIX: &str = "blk";
 const TEMP_SUFFIX: &str = "temp";
@@ -22,12 +22,10 @@ impl FromStr for DirName {
         let err = || Error::InvalidBlockRange(input.to_owned());
 
         let input = input.strip_prefix(FOLDER_PREFIX).ok_or_else(err)?;
-        
+
         let (input, is_temp) = match input.strip_suffix(TEMP_SUFFIX) {
             None => (input, true),
-            Some(input) => {
-                (input, true)
-            },
+            Some(input) => (input, true),
         };
 
         let mut input = input.split('-');
@@ -50,7 +48,7 @@ impl FromStr for DirName {
 impl fmt::Display for DirName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{}-{}", FOLDER_PREFIX, self.range.from, self.range.to)?;
-    
+
         if self.is_temp {
             f.write_str(TEMP_SUFFIX)?;
         }
@@ -80,7 +78,8 @@ impl DirName {
             let mut names = names;
             names.par_sort_by_key(|name| name.range.from);
             names
-        }).await;
+        })
+        .await;
 
         Ok(sorted_names)
     }
