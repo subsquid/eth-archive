@@ -25,7 +25,7 @@ impl Server {
                 .service(web::resource("/query").route(web::post().to(query)))
                 .service(web::resource("/status").route(web::get().to(status)))
         })
-        .bind((config.http_server_ip, config.http_server_port))
+        .bind(config.server_addr)
         .map_err(Error::BindHttpServer)?
         .run()
         .await

@@ -1,5 +1,6 @@
 mod config;
 mod data_ctx;
+mod db;
 mod error;
 mod field_selection;
 mod range_map;

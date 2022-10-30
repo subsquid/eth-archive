@@ -29,70 +29,6 @@ pub struct MiniTransactionSelection {
     pub sighash: Option<Sighash>,
 }
 
-impl MiniQuery {
-    pub fn to_log_sql(&self) -> Result<String> {
-        let mut query = format!(
-            "
-            SELECT {} FROM eth_log
-            JOIN eth_block ON eth_block.number = eth_log.block_number
-            JOIN eth_tx ON
-                eth_tx.block_number = eth_log.block_number AND
-                    eth_tx.transaction_index = eth_log.transaction_index
-            WHERE eth_log.block_number < {} AND eth_log.block_number >= {}
-        ",
-            self.field_selection.to_cols_sql(),
-            self.to_block,
-            self.from_block,
-        );
-
-        if !self.logs.is_empty() {
-            query += "AND (";
-
-            query += &self.logs.get(0).unwrap().to_sql()?;
-
-            for log in self.logs.iter().skip(1) {
-                query += " OR ";
-                query += &log.to_sql()?;
-            }
-
-            query.push(')');
-        }
-
-        Ok(query)
-    }
-
-    pub fn to_tx_sql(&self) -> Result<String> {
-        let mut selection = self.field_selection;
-        selection.log = None;
-
-        let mut query = format!(
-            "
-            SELECT {} FROM eth_tx
-            JOIN eth_block ON eth_block.number = eth_tx.block_number
-            WHERE eth_tx.block_number < {} AND eth_tx.block_number >= {}
-        ",
-            selection.to_cols_sql(),
-            self.to_block,
-            self.from_block,
-        );
-
-        if !self.transactions.is_empty() {
-            query += "AND (";
-
-            query += &self.transactions.get(0).unwrap().to_sql()?;
-
-            for tx in self.transactions.iter().skip(1) {
-                query += " OR ";
-                query += &tx.to_sql()?;
-            }
-
-            query.push(')');
-        }
-
-        Ok(query)
-    }
-}
-
 impl MiniLogSelection {
     pub fn to_expr(&self) -> Result<Option<Expr>> {
         let mut expr = match &self.address {
@@ -128,53 +64,6 @@ impl MiniLogSelection {
 
         Ok(expr)
     }
-
-    pub fn to_sql(&self) -> Result<String> {
-        let mut sql = match &self.address {
-            Some(addr) if !addr.is_empty() => {
-                let address = addr
-                    .iter()
-                    .map(|addr| {
-                        let addr = prefix_hex::encode(addr);
-                        let addr = addr.strip_prefix("0x").unwrap();
-                        format!("decode('{}', 'hex')", addr)
-                    })
-                    .collect::<Vec<_>>();
-
-                format!(
-                    "(
-                eth_log.address IN ({})",
-                    address.join(", ")
-                )
-            }
-            _ => "(
-                TRUE"
-                .to_owned(),
-        };
-
-        if self.topics.len() > 4 {
-            return Err(Error::TooManyTopics(self.topics.len()));
-        }
-
-        for (i, topic) in self.topics.iter().enumerate() {
-            if !topic.is_empty() {
-                let topics = topic
-                    .iter()
-                    .map(|topic| {
-                        let topic = prefix_hex::encode(topic);
-                        let topic = topic.strip_prefix("0x").unwrap();
-                        format!("decode('{}', 'hex')", topic)
-                    })
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                write!(&mut sql, " AND eth_log.topic{} IN ({})", i, topics).unwrap();
-            }
-        }
-
-        sql.push(')');
-
-        Ok(sql)
-    }
 }
 
 impl MiniTransactionSelection {
@@ -198,37 +87,6 @@ impl MiniTransactionSelection {
         }
 
         Ok(expr)
-    }
-
-    pub fn to_sql(&self) -> Result<String> {
-        let mut sql = match &self.address {
-            Some(addr) if !addr.is_empty() => {
-                let address = addr
-                    .iter()
-                    .map(|addr| {
-                        let addr = prefix_hex::encode(addr);
-                        let addr = addr.strip_prefix("0x").unwrap();
-                        format!("decode('{}', 'hex')", addr)
-                    })
-                    .collect::<Vec<_>>();
-
-                format!("eth_tx.dest IN ({})", address.join(", "))
-            }
-            _ => "TRUE".to_owned(),
-        };
-
-        if let Some(sighash) = &self.sighash {
-            let sighash = prefix_hex::encode(sighash);
-            let sighash = sighash.strip_prefix("0x").unwrap();
-            write!(
-                &mut sql,
-                " AND position('\\x{}' in eth_tx.input) = 1",
-                sighash
-            )
-            .unwrap();
-        }
-
-        Ok(format!("({})", sql))
     }
 }
 

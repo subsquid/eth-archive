@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[derive(Clone, Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
-    /// A path to store indexed parquet files
+    /// Path to store parquet files
     #[clap(long)]
     pub data_path: PathBuf,
     #[command(flatten)]

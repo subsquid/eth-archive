@@ -18,7 +18,6 @@ use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
 
 pub struct DataCtx {
-    db: Arc<DbHandle>,
     config: DataConfig,
     parquet_state: Arc<RwLock<ParquetState>>,
 }

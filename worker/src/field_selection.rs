@@ -12,18 +12,6 @@ macro_rules! append_col {
     };
 }
 
-macro_rules! append_col_sql {
-    ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
-        if let Some(true) = $self.$field {
-            let field_name = stringify!($field);
-            let col = format!("{}.{}", $table_name, field_name);
-            let alias = format!("{}_{}", $table_name, field_name);
-            let col = format!("{} as {}", col, alias);
-            $cols.push(col);
-        }
-    };
-}
-
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSelection {
@@ -33,24 +21,6 @@ pub struct FieldSelection {
 }
 
 impl FieldSelection {
-    pub fn to_cols_sql(self) -> String {
-        let mut cols = Vec::new();
-
-        if let Some(block) = self.block {
-            block.to_cols_sql(&mut cols);
-        }
-
-        if let Some(tx) = self.transaction {
-            tx.to_cols_sql(&mut cols);
-        }
-
-        if let Some(log) = self.log {
-            log.to_cols_sql(&mut cols);
-        }
-
-        cols.join(",\n")
-    }
-
     pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
         let left = match left {
             Some(left) => left,
@@ -93,27 +63,6 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
-    pub fn to_cols_sql(self, cols: &mut Vec<String>) {
-        let table_name = "eth_block";
-        append_col_sql!(table_name, cols, self, number);
-        append_col_sql!(table_name, cols, self, hash);
-        append_col_sql!(table_name, cols, self, parent_hash);
-        append_col_sql!(table_name, cols, self, nonce);
-        append_col_sql!(table_name, cols, self, sha3_uncles);
-        append_col_sql!(table_name, cols, self, logs_bloom);
-        append_col_sql!(table_name, cols, self, transactions_root);
-        append_col_sql!(table_name, cols, self, state_root);
-        append_col_sql!(table_name, cols, self, receipts_root);
-        append_col_sql!(table_name, cols, self, miner);
-        append_col_sql!(table_name, cols, self, difficulty);
-        append_col_sql!(table_name, cols, self, total_difficulty);
-        append_col_sql!(table_name, cols, self, extra_data);
-        append_col_sql!(table_name, cols, self, size);
-        append_col_sql!(table_name, cols, self, gas_limit);
-        append_col_sql!(table_name, cols, self, gas_used);
-        append_col_sql!(table_name, cols, self, timestamp);
-    }
-
     pub fn to_cols(self) -> Vec<Expr> {
         let mut cols = Vec::new();
 
@@ -197,26 +146,6 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
-    pub fn to_cols_sql(self, cols: &mut Vec<String>) {
-        let table_name = "eth_tx";
-        append_col_sql!(table_name, cols, self, block_hash);
-        append_col_sql!(table_name, cols, self, block_number);
-        append_col_sql!(table_name, cols, self, source);
-        append_col_sql!(table_name, cols, self, gas);
-        append_col_sql!(table_name, cols, self, gas_price);
-        append_col_sql!(table_name, cols, self, hash);
-        append_col_sql!(table_name, cols, self, input);
-        append_col_sql!(table_name, cols, self, nonce);
-        append_col_sql!(table_name, cols, self, dest);
-        append_col_sql!(table_name, cols, self, transaction_index);
-        append_col_sql!(table_name, cols, self, value);
-        append_col_sql!(table_name, cols, self, kind);
-        append_col_sql!(table_name, cols, self, chain_id);
-        append_col_sql!(table_name, cols, self, v);
-        append_col_sql!(table_name, cols, self, r);
-        append_col_sql!(table_name, cols, self, s);
-    }
-
     pub fn to_cols(self) -> Vec<Expr> {
         let mut cols = Vec::new();
 
@@ -289,23 +218,6 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
-    pub fn to_cols_sql(self, cols: &mut Vec<String>) {
-        let table_name = "eth_log";
-        append_col_sql!(table_name, cols, self, address);
-        append_col_sql!(table_name, cols, self, block_hash);
-        append_col_sql!(table_name, cols, self, block_number);
-        append_col_sql!(table_name, cols, self, data);
-        append_col_sql!(table_name, cols, self, log_index);
-        append_col_sql!(table_name, cols, self, removed);
-        if let Some(true) = self.topics {
-            for i in 0..4 {
-                cols.push(format!("eth_log.topic{0} as eth_log_topic{0}", i));
-            }
-        }
-        append_col_sql!(table_name, cols, self, transaction_hash);
-        append_col_sql!(table_name, cols, self, transaction_index);
-    }
-
     pub fn to_cols(self) -> Vec<Expr> {
         let mut cols = Vec::new();
 
