@@ -4,24 +4,24 @@ use std::path::Path;
 
 pub struct DbHandle {
     inner: rocksdb::OptimisticTransactionDB,
-    max_block: Option<u32>,
+    consistent_range: Option<(u32, u32)>,
 }
 
 impl DbHandle {
     pub async fn new<P: AsRef<Path>>(path: P) -> Result<DbHandle> {
         let mut opts = rocksdb::Options::default();
 
-        let (inner, max_block) = tokio::spawn_blocking(move || {
+        let (inner, consistent_range) = tokio::spawn_blocking(move || {
             let inner =
                 rocksdb::OptimisticTransactionDB::open_cf(&opts, path, cf_name::ALL_CF_NAMES)
                     .map_err(Error::OpenDb)?;
 
-            let max_block = Self::get_max_block(&inner).map_err(Error::GetMaxBlock)?;
+            let consistent_range = Self::get_consistent_range(&inner).map_err(Error::GetMaxBlock)?;
 
-            Ok((inner, max_block))
+            Ok((inner, consistent_range))
         });
 
-        Ok(Self { inner, max_block })
+        Ok(Self { inner, consistent_range })
     }
 
     pub async fn get_next_parquet_folder(
@@ -50,14 +50,17 @@ impl DbHandle {
         todo!()
     }
 
-    pub fn max_block(&self) -> Option<u32> {
-        self.max_block
+    pub fn consistent_range(&self) -> Option<(u32, u32)> {
+        self.consistent_range
     }
 
-    fn get_max_block(inner: &rocksdb::OptimisticTransactionDB) -> Result<Option<u32>> {
+    fn get_consistent_range(inner: &rocksdb::OptimisticTransactionDB) -> Result<Option<(u32, u32)>> {
         todo!()
     }
 }
+
+pub const LOG_ADDR_FILTER: &str = "LOG_ADDR_FILTER";
+pub const TX_ADDR_FILTER: &str = "TX_ADDR_FILTER";
 
 /// Column Family Names
 mod cf_name {
@@ -66,18 +69,14 @@ mod cf_name {
     pub const LOG: &str = "LOG";
     pub const ADDR_LOG: &str = "ADDR_LOG";
     pub const ADDR_TX: &str = "ADDR_TX";
-    pub const LOG_ADDR_FILTER: &str = "LOG_ADDR_FILTER";
-    pub const TX_ADDR_FILTER: &str = "TX_ADDR_FILTER";
     pub const PARQUET_IDX: &str = "PARQUET_FOLDERS";
 
-    pub const ALL_CF_NAMES: [&str; 8] = [
+    pub const ALL_CF_NAMES: [&str; 6] = [
         BLOCK,
         TX,
         LOG,
         ADDR_LOG,
         ADDR_TX,
-        LOG_ADDR_FILTER,
-        TX_ADDR_FILTER,
         PARQUET_IDX,
     ];
 }
