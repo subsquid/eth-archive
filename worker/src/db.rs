@@ -45,7 +45,7 @@ impl DbHandle {
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
         let key = key_from_dir_name(dir_name);
-        let val = rmp_serde::encode::to_vec(idx).map_err(Error::SerializeParquetIdx)?;
+        let val = rmp_serde::encode::to_vec(idx).map_err(Error::MsgPack)?;
 
         self.inner.put_cf(parquet_idx_cf, &key, &val).map_err(Error::Db)?;
 
@@ -54,8 +54,45 @@ impl DbHandle {
         Ok(())
     }
 
-    pub fn insert_batches(&self, batches: &[(Vec<Vec<Block>>, Vec<Vec<Log>>)]) -> Result<()> {
-        todo!()
+    pub fn insert_batches(&self, (block_batches, log_batches): (Vec<Vec<Block>>, Vec<Vec<Log>>)) -> Result<()> {
+        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
+        let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
+        let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
+        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
+        let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
+
+        for (blocks, logs) in block_batches.into_iter().zip(log_batches.into_iter()) {
+            let db_tx = self.inner.transaction();
+
+            let mut db_height = self.status.db_height.load(Ordering::Relaxed);
+
+            for mut block in blocks {
+                let txs = mem::take(&mut block.transactions);
+
+                for tx in txs {
+                    let val = rmp_serde::encode::to_vec(&tx).map_err(Error::MsgPack)?;
+                    let tx_key = tx_key(&tx);
+                    db_tx.put_cf(tx_cf, &tx_key, &val).map_err(Error::Db)?;
+                    db_tx.put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key).map_err(Error::Db)?;
+                }
+
+                let val = rmp_serde::encode::to_vec(&block).map_err(Error::MsgPack)?;
+                db_tx.put_cf(block_cf, &block.number.as_be_bytes(), &val).map_err(Error::Db)?;
+
+                db_height = block.number;
+            }
+
+            for log in logs {
+                let val = rmp_serde::encode::to_vec(&log).map_err(Error::MsgPack)?;
+                let log_key = log_key(&log);
+                db_tx.put_cf(log_cf, &log_key, &val).map_err(Error::Db)?;
+                db_tx.put_cf(addr_log_cf, &addr_log_key(&log), &log_key).map_err(Error::Db)?;
+            }
+
+            db_tx.commit().map_err(Error::Db)?;
+
+            self.status.db_height.store(db_height, Ordering::Relaxed);
+        }
     }
 
     pub fn delete_tail(&self) -> Result<()> {
@@ -162,6 +199,44 @@ impl From<ExportedCuckoo> for CuckooFilter {
             length: filter.length,
         })
     }
+}
+
+fn tx_key(tx: &Transaction) -> [u8; 8] {
+    let mut key = [0; 8];
+
+    (&mut key[..4]).copy_from_slice(&tx.block_number.to_be_bytes());
+    (&mut key[4..]).copy_from_slice(&tx.transaction_index.to_be_bytes());
+
+    key
+}
+
+fn log_key(log: &Log) -> [u8; 8] {
+    let mut key = [0; 8];
+
+    (&mut key[..4]).copy_from_slice(&log.block_number.to_be_bytes());
+    (&mut key[4..]).copy_from_slice(&log.log_index.to_be_bytes());
+
+    key
+}
+
+fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
+    let mut key = [0; 28];
+
+    (&mut key[0..20]).copy_from_slice(tx.dest.as_slice());
+    (&mut key[20..24]).copy_from_slice(&tx.block_number.to_be_bytes());
+    (&mut key[24..]).copy_from_slice(&tx.transaction_index.to_be_bytes());
+
+    key
+}
+
+fn addr_log_key(tx: &Log) -> [u8; 28] {
+    let mut key = [0; 28];
+
+    (&mut key[0..20]).copy_from_slice(log.address.as_slice());
+    (&mut key[20..24]).copy_from_slice(&log.block_number.to_be_bytes());
+    (&mut key[24..]).copy_from_slice(&log.log_index.to_be_bytes());
+
+    key
 }
 
 fn dir_name_from_key(key: &[u8]) -> DirName {
