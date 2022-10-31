@@ -9,7 +9,7 @@ use std::str::FromStr;
 const FOLDER_PREFIX: &str = "blk";
 const TEMP_SUFFIX: &str = "temp";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DirName {
     pub range: BlockRange,
     pub is_temp: bool,

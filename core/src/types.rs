@@ -199,7 +199,7 @@ pub struct QueryResult {
     pub metrics: QueryMetrics,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct BlockRange {
     pub from: u32,
     pub to: u32,
