@@ -45,8 +45,6 @@ pub enum Error {
     RangeNotFoundInParquetFiles((u32, u32), &'static str),
     #[error("too many toics in query. maximum is 4 but got {0}")]
     TooManyTopics(usize),
-    #[error("failed to create range map from filenames:\n{0}")]
-    CreateRangeMap(Box<Error>),
     #[error("invalid parquet file name \"{0}\"")]
     InvalidParquetFilename(String),
     #[error("failed to read parquet file name")]
