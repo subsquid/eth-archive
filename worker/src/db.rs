@@ -32,7 +32,39 @@ impl DbHandle {
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
-        todo!()
+        let mut iter = self.inner.iterator_cf(
+            parquet_idx_cf,
+            rocksdb::IteratorMode::From(&query.from.to_be_bytes(), rocksdb::Direction::Backward),
+        );
+
+        let start_key = match iter.next() {
+            Some(Ok((start_key, _))) => start_key,
+            Some(Err(e)) => return Err(Error::Db(e)),
+            None => return Err(Error::ParquetIdxNotFound),
+        };
+
+        let mut iter = self.inner.iterator_cf(
+            parquet_idx_cf,
+            rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
+        );
+
+        for idx in iter {
+            let (dir_name, idx) = idx.map_err(Error::Db)?;
+            let dir_name = dir_name_from_key(&dir_name);
+            let idx = rmp_serde::decode::from_read_ref(&idx).map_err(Error::MsgPack)?;
+
+            let parquet_frame = load_parquet_frame(dir_name)?;
+
+            let query = query.prune(&idx);
+
+            if !query.logs.is_empty() {
+                parquet_frame.query_logs(&query.logs);
+            }
+
+            if !query.transactions.is_empty() {
+                parquet_frame.query_txs(&query.transactions);
+            }
+        }
     }
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
@@ -305,7 +337,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dir_name_key_smoke() {
+    fn test_dir_name_key_roundtrip() {
         let dir_name = DirName {
             range: BlockRange {
                 from: 12345,

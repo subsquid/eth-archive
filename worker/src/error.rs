@@ -7,8 +7,6 @@ use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
-    #[error("failed to create database handle:\n{0}")]
-    CreateDbHandle(Box<eth_archive_core::Error>),
     #[error("failed to execute query:\n{0}")]
     ExecuteQuery(PolarsError),
     #[error("failed to build query:\n{0}")]
@@ -29,10 +27,6 @@ pub enum Error {
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]
     BindHttpServer(io::Error),
-    #[error("failed get minimum block number from database:\n{0}")]
-    GetMinBlockNumber(eth_archive_core::Error),
-    #[error("failed get maximum block number from database:\n{0}")]
-    GetMaxBlockNumber(eth_archive_core::Error),
     #[error("failed to run sql query:\n{0}")]
     SqlQuery(eth_archive_core::Error),
     #[error("invalid hex in an address:\n{0}")]
@@ -51,8 +45,6 @@ pub enum Error {
     RangeNotFoundInParquetFiles((u32, u32), &'static str),
     #[error("too many toics in query. maximum is 4 but got {0}")]
     TooManyTopics(usize),
-    #[error("missing {0} in sorted ranges")]
-    MissingEntryInSortedRanges(u32),
     #[error("failed to create range map from filenames:\n{0}")]
     CreateRangeMap(Box<Error>),
     #[error("invalid parquet file name \"{0}\"")]
