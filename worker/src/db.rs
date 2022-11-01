@@ -1,7 +1,7 @@
 use solana_bloom::bloom::Bloom;
-use std::path::Path;
 use std::convert::TryInto;
-use std::sync::atomic::{Ordering, AtomicU32};
+use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 pub struct DbHandle {
     inner: rocksdb::OptimisticTransactionDB,
@@ -39,14 +39,21 @@ impl DbHandle {
         let key = key_from_dir_name(dir_name);
         let val = rmp_serde::encode::to_vec(idx).map_err(Error::MsgPack)?;
 
-        self.inner.put_cf(parquet_idx_cf, &key, &val).map_err(Error::Db)?;
+        self.inner
+            .put_cf(parquet_idx_cf, &key, &val)
+            .map_err(Error::Db)?;
 
-        self.status.parquet_height.store(Ordering::Relaxed, dir_name.range.to);
+        self.status
+            .parquet_height
+            .store(Ordering::Relaxed, dir_name.range.to);
 
         Ok(())
     }
 
-    pub fn insert_batches(&self, (block_batches, log_batches): (Vec<Vec<Block>>, Vec<Vec<Log>>)) -> Result<()> {
+    pub fn insert_batches(
+        &self,
+        (block_batches, log_batches): (Vec<Vec<Block>>, Vec<Vec<Log>>),
+    ) -> Result<()> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
@@ -68,11 +75,15 @@ impl DbHandle {
                     let val = rmp_serde::encode::to_vec(&tx).map_err(Error::MsgPack)?;
                     let tx_key = tx_key(&tx);
                     db_tx.put_cf(tx_cf, &tx_key, &val).map_err(Error::Db)?;
-                    db_tx.put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key).map_err(Error::Db)?;
+                    db_tx
+                        .put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key)
+                        .map_err(Error::Db)?;
                 }
 
                 let val = rmp_serde::encode::to_vec(&block).map_err(Error::MsgPack)?;
-                db_tx.put_cf(block_cf, &block.number.as_be_bytes(), &val).map_err(Error::Db)?;
+                db_tx
+                    .put_cf(block_cf, &block.number.as_be_bytes(), &val)
+                    .map_err(Error::Db)?;
 
                 db_height = cmp::max(db_height, block.number);
                 db_tail = cmp::min(db_tail, block.number);
@@ -82,7 +93,9 @@ impl DbHandle {
                 let val = rmp_serde::encode::to_vec(&log).map_err(Error::MsgPack)?;
                 let log_key = log_key(&log);
                 db_tx.put_cf(log_cf, &log_key, &val).map_err(Error::Db)?;
-                db_tx.put_cf(addr_log_cf, &addr_log_key(&log), &log_key).map_err(Error::Db)?;
+                db_tx
+                    .put_cf(addr_log_cf, &addr_log_key(&log), &log_key)
+                    .map_err(Error::Db)?;
             }
 
             db_tx.commit().map_err(Error::Db)?;
@@ -113,14 +126,20 @@ impl DbHandle {
             let mut addr_tx_keys = Vec::new();
             let mut addr_log_keys = Vec::new();
 
-            for res in self.inner.prefix_iterator_cf(tx_cf, &block_num.to_be_bytes()) {
+            for res in self
+                .inner
+                .prefix_iterator_cf(tx_cf, &block_num.to_be_bytes())
+            {
                 let (_, tx) = res.map_err(Error::Db)?;
                 let tx = rmp_serde::decode::from_read_ref(&tx).unwrap();
 
                 addr_tx_keys.push(addr_tx_key(&tx));
             }
 
-            for res in self.inner.prefix_iterator_cf(log_cf, &block_num.to_be_bytes()) {
+            for res in self
+                .inner
+                .prefix_iterator_cf(log_cf, &block_num.to_be_bytes())
+            {
                 let (_, log) = res.map_err(Error::Db)?;
                 let log = rmp_serde::decode::from_read_ref(&log).unwrap();
 
@@ -137,7 +156,7 @@ impl DbHandle {
             }
 
             let from = block_num.to_be_bytes();
-            let to = (block_num+1).to_be_bytes();
+            let to = (block_num + 1).to_be_bytes();
 
             db_tx.delete_cf(block_cf, &from);
 
@@ -146,7 +165,7 @@ impl DbHandle {
 
             self.inner.write(batch).map_err(Error::Db)?;
 
-            self.status.db_tail.store(block_num+1, Ordering::Relaxed);
+            self.status.db_tail.store(block_num + 1, Ordering::Relaxed);
         }
 
         Ok(())
@@ -167,25 +186,26 @@ impl DbHandle {
     fn get_status(inner: &rocksdb::OptimisticTransactionDB) -> Result<Status> {
         let parquet_idx_cf = inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
-        let parquet_height = inner.iterator_cf(parquet_idx_cf, rocksdb::IteratorMode::End)
+        let parquet_height = inner
+            .iterator_cf(parquet_idx_cf, rocksdb::IteratorMode::End)
             .next()
             .transpose()
             .map_err(Error::Db)?
-            .map(|(key, _)| {
-                dir_name_from_key(&key).range.to
-            })
+            .map(|(key, _)| dir_name_from_key(&key).range.to)
             .unwrap_or(0);
 
         let block_cf = inner.cf_handle(cf_name::BLOCK).unwrap();
 
-        let db_tail = inner.iterator_cf(block_cf, rocksdb::IteratorMode::Start)
+        let db_tail = inner
+            .iterator_cf(block_cf, rocksdb::IteratorMode::Start)
             .next()
             .transpose()
             .map_err(Error::Db)?
             .map(|(key, _)| u32::from_be_bytes(key.try_into().unwrap()))
             .unwrap_or(0);
 
-        let db_height = inner.iterator_cf(block_cf, rocksdb::IteratorMode::End)
+        let db_height = inner
+            .iterator_cf(block_cf, rocksdb::IteratorMode::End)
             .next()
             .transpose()
             .map_err(Error::Db)?
@@ -209,14 +229,7 @@ mod cf_name {
     pub const ADDR_TX: &str = "ADDR_TX";
     pub const PARQUET_IDX: &str = "PARQUET_FOLDERS";
 
-    pub const ALL_CF_NAMES: [&str; 6] = [
-        BLOCK,
-        TX,
-        LOG,
-        ADDR_LOG,
-        ADDR_TX,
-        PARQUET_IDX,
-    ];
+    pub const ALL_CF_NAMES: [&str; 6] = [BLOCK, TX, LOG, ADDR_LOG, ADDR_TX, PARQUET_IDX];
 }
 
 #[derive(Serialize, Deserialize)]
