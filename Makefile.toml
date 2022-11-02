@@ -7,7 +7,7 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release","--bin", "eth-archive-ingester", "--",
-	"--data-path", "./data",
+	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
 	"--eth-rpc-url", "http://65.21.143.239:8646",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
@@ -24,10 +24,20 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release", "--bin", "eth-archive-gateway", "--",
-	"--data-path", "./data",
+	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
 	"--max-block-range", "500000",
 	"--default-block-range", "1000000",
 	"--response-log-limit", "10000",
 	"--query-chunk-size", "256",
 	"--query-time-limit-ms", "6000",
+]
+
+[tasks.sync-s3]
+workspace = false
+command = "mc"
+args = [
+	"mirror", "--watch",
+	"${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
+	"subsquid-filebase/eth0",
+	"--exclude", "*temp/*", "--overwrite"
 ]

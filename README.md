@@ -20,6 +20,8 @@
 
 - `makers sync-s3`
 
+NOTE: `Makefile.toml` config for this command needs to compatible with `mc` configuration. It assumes `subsquid-filebase/eth0` by default.
+
 ## Development
 
 Runtime arguments can be changed by editing `Makefile.toml` in project root.

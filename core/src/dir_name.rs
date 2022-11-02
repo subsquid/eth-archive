@@ -47,7 +47,11 @@ impl FromStr for DirName {
 
 impl fmt::Display for DirName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}-{}", FOLDER_PREFIX, self.range.from, self.range.to)?;
+        write!(
+            f,
+            "{}{:09}-{:09}",
+            FOLDER_PREFIX, self.range.from, self.range.to
+        )?;
 
         if self.is_temp {
             f.write_str(TEMP_SUFFIX)?;
