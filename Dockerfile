@@ -5,7 +5,7 @@ WORKDIR /eth
 COPY ./ .
 RUN cargo build --release --bin "eth-archive-${component}"
 
-FROM debian:bullseye-slim
+FROM buildpack-deps:bullseye-curl
 ARG component
 WORKDIR /eth
 RUN apt-get update && apt-get upgrade -y && apt-get -y install libatomic1

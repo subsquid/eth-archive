@@ -5,10 +5,12 @@ use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
 use futures::stream::Stream;
 use serde_json::Value as JsonValue;
-use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
+use std::{cmp, env};
+
+const ETH_RPC_URL: &str = "ETH_RPC_URL";
 
 pub struct EthClient {
     http_client: reqwest::Client,
@@ -22,6 +24,9 @@ impl EthClient {
         let request_timeout = Duration::from_secs(cfg.request_timeout_secs.get());
         let connect_timeout = Duration::from_millis(cfg.connect_timeout_ms.get());
 
+        let rpc_url = env::var(ETH_RPC_URL).map_err(Error::ReadRpcUrlFromEnv)?;
+        let rpc_url = url::Url::parse(&rpc_url).map_err(Error::ParseRpcUrl)?;
+
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)
             .timeout(request_timeout)
@@ -31,7 +36,7 @@ impl EthClient {
 
         Ok(EthClient {
             http_client,
-            rpc_url: cfg.eth_rpc_url.clone(),
+            rpc_url,
             cfg,
             retry,
         })

@@ -11,9 +11,6 @@ pub struct RetryConfig {
 
 #[derive(Parser, Clone, Debug)]
 pub struct IngestConfig {
-    /// Ethereum node RPC url
-    #[clap(long)]
-    pub eth_rpc_url: url::Url,
     /// Http request timeout in seconds
     #[clap(long)]
     pub request_timeout_secs: NonZeroU64,

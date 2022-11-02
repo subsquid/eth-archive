@@ -8,7 +8,6 @@ command = "cargo"
 args = [
 	"run", "--release","--bin", "eth-archive-ingester", "--",
 	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
-	"--eth-rpc-url", "http://65.21.143.239:8646",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
 	"--block-batch-size", "50",
