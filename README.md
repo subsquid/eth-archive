@@ -4,19 +4,21 @@
 
 #### Install cargo make
 
-`cargo install --force cargo-make`
+- `cargo install --force cargo-make`
 
 #### Build and run ingester
 
-`makers ingester`
+- `makers ingester`
 
 #### Build and run worker
 
-`makers worker`
+- `makers worker`
 
 #### Run MinIO Client to sync to s3 compatible storage
 
-[Link to minio docs](https://min.io/docs/minio/linux/reference/minio-mc.html#quickstart)
+- [Link to minio docs](https://min.io/docs/minio/linux/reference/minio-mc.html#quickstart) for installing and configuring `mc`
+
+- `makers sync-s3`
 
 ## Development
 
