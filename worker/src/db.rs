@@ -18,6 +18,10 @@ impl DbHandle {
     pub async fn new<P: AsRef<Path>>(path: P) -> Result<DbHandle> {
         let mut opts = rocksdb::Options::default();
 
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+
         let (inner, status) = tokio::spawn_blocking(move || {
             let inner =
                 rocksdb::OptimisticTransactionDB::open_cf(&opts, path, cf_name::ALL_CF_NAMES)

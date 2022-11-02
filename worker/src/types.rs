@@ -92,15 +92,6 @@ impl MiniTransactionSelection {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Status {
-    pub parquet_block_number: u32,
-    pub db_max_block_number: u32,
-    pub db_min_block_number: u32,
-    pub archive_height: u32,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BlockEntry {
     pub block: ResponseBlock,
     pub transactions: Vec<ResponseTransaction>,

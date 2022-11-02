@@ -23,7 +23,7 @@ impl Server {
             App::new()
                 .app_data(web::Data::new(data_ctx.clone()))
                 .service(web::resource("/query").route(web::post().to(query)))
-                .service(web::resource("/status").route(web::get().to(status)))
+                .service(web::resource("/height").route(web::get().to(height)))
         })
         .bind(config.server_addr)
         .map_err(Error::BindHttpServer)?
@@ -33,10 +33,12 @@ impl Server {
     }
 }
 
-async fn status(ctx: web::Data<Arc<DataCtx>>) -> Result<web::Json<Status>> {
-    let status = ctx.status().await?;
+async fn height(ctx: web::Data<Arc<DataCtx>>) -> Result<web::Json<serde_json::Value>> {
+    let height = ctx.height();
 
-    Ok(web::Json(status))
+    Ok(web::Json(serde_json::json! {
+        "height": height,
+    }))
 }
 
 async fn query(query: web::Json<Query>, ctx: web::Data<Arc<DataCtx>>) -> Result<HttpResponse> {

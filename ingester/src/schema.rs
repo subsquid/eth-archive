@@ -308,14 +308,14 @@ impl IntoChunks for Logs {
         let indices = lexsort_to_indices::<i64>(
             &[
                 SortColumn {
-                    values: block_number.as_ref(),
+                    values: address.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
                     }),
                 },
                 SortColumn {
-                    values: address.as_ref(),
+                    values: block_number.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,

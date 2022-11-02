@@ -5,6 +5,7 @@ mod error;
 mod field_selection;
 mod server;
 mod types;
+mod parquet_frame;
 
 pub use config::{Config, DataConfig};
 pub use error::{Error, Result};

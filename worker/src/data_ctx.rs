@@ -16,148 +16,26 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
+use crate::db::DbHandle;
 
 pub struct DataCtx {
     config: DataConfig,
-    parquet_state: Arc<RwLock<ParquetState>>,
-}
-
-#[derive(Debug)]
-struct ParquetState {
-    parquet_block_number: u32,
-    block_ranges: RangeMap,
-    tx_ranges: RangeMap,
-    log_ranges: RangeMap,
+    db: Arc<DbHandle>,
 }
 
 impl DataCtx {
     pub async fn new(config: DataConfig) -> Result<Self> {
-        log::info!("setting up data context...");
-
-        let parquet_state = Self::setup_parquet_state(&config).await?;
-        let parquet_state = Arc::new(RwLock::new(parquet_state));
-
-        {
-            let config = config.clone();
-            let parquet_state = parquet_state.clone();
-            tokio::spawn(async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(60));
-
-                loop {
-                    interval.tick().await;
-
-                    log::info!("updating parquet state...");
-
-                    let start_time = Instant::now();
-
-                    let new_parquet_state = match Self::setup_parquet_state(&config).await {
-                        Ok(new_parquet_state) => new_parquet_state,
-                        Err(e) => {
-                            log::error!("failed to update parquet state:\n{}", e);
-                            continue;
-                        }
-                    };
-
-                    let mut parquet_state = parquet_state.write().await;
-
-                    *parquet_state = new_parquet_state;
-
-                    log::info!(
-                        "updated parquet state in {}ms",
-                        start_time.elapsed().as_millis()
-                    );
-                }
-            });
-        }
+        let db = DbHandle::new().await?;
+        let db = Arc::new(db);
 
         Ok(Self {
             config,
-            parquet_state,
+            db,
         })
     }
 
-    async fn setup_parquet_state(config: &DataConfig) -> Result<ParquetState> {
-        log::info!("collecting block range info for parquet (block header) files...");
-        let block_path = config.data_path.join("block");
-        let (block_ranges, blk_num) = Self::get_block_ranges("block", &block_path).await?;
-        log::info!("collecting block range info for parquet (transaction) files...");
-        let tx_path = config.data_path.join("tx");
-        let (tx_ranges, tx_num) = Self::get_block_ranges("tx", &tx_path).await?;
-        log::info!("collecting block range info for parquet (log) files...");
-        let log_path = config.data_path.join("log");
-        let (log_ranges, log_num) = Self::get_block_ranges("log", &log_path).await?;
-
-        let parquet_block_number = cmp::min(blk_num, cmp::min(tx_num, log_num));
-
-        Ok(ParquetState {
-            parquet_block_number,
-            block_ranges,
-            tx_ranges,
-            log_ranges,
-        })
-    }
-
-    pub async fn status(&self) -> Result<Status> {
-        let parquet_block_number = { self.parquet_state.read().await.parquet_block_number };
-
-        let archive_height = if parquet_block_number > db_min_block_number {
-            db_max_block_number
-        } else {
-            parquet_block_number
-        };
-
-        Ok(Status {
-            db_max_block_number,
-            db_min_block_number,
-            parquet_block_number,
-            archive_height,
-        })
-    }
-
-    async fn get_block_ranges(prefix: &str, path: &PathBuf) -> Result<(RangeMap, u32)> {
-        let mut dir = fs::read_dir(path).await.map_err(Error::ReadParquetDir)?;
-
-        let mut ranges = Vec::new();
-        let mut max_block_num = 0;
-
-        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
-            let file_name = entry
-                .file_name()
-                .into_string()
-                .map_err(|_| Error::ReadParquetFileName)?;
-            let file_name = match file_name.strip_prefix(prefix) {
-                Some(file_name) => file_name,
-                None => return Err(Error::InvalidParquetFilename(file_name.to_owned())),
-            };
-            let file_name = match file_name.strip_suffix(".parquet") {
-                Some(file_name) => file_name,
-                None => continue,
-            };
-            let (start, end) = file_name
-                .split_once('_')
-                .ok_or_else(|| Error::InvalidParquetFilename(file_name.to_owned()))?;
-
-            let (start, end) = {
-                let start = start
-                    .parse::<u32>()
-                    .map_err(|_| Error::InvalidParquetFilename(file_name.to_owned()))?;
-                let end = end
-                    .parse::<u32>()
-                    .map_err(|_| Error::InvalidParquetFilename(file_name.to_owned()))?;
-
-                (start, end)
-            };
-
-            ranges.push((start, end));
-            max_block_num = cmp::max(max_block_num, end - 1);
-        }
-
-        ranges.sort_by_key(|r| r.0);
-
-        let range_map =
-            RangeMap::from_sorted(&ranges).map_err(|e| Error::CreateRangeMap(Box::new(e)))?;
-
-        Ok((range_map, max_block_num))
+    pub fn height(&self) -> u32 {
+        self.db.height()
     }
 
     pub async fn query(&self, query: Query) -> Result<Vec<u8>> {
@@ -173,9 +51,7 @@ impl DataCtx {
 
         let to_block = cmp::min(to_block, query.from_block + self.config.max_block_range);
 
-        let status = self.status().await?;
-
-        let archive_height = status.archive_height;
+        let archive_height = self.db.height();
 
         let to_block = cmp::min(to_block, archive_height);
 
