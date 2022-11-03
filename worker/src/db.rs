@@ -35,7 +35,7 @@ impl DbHandle {
         Ok(Self { inner, status })
     }
 
-    pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
+    pub fn iter_parquet_idxs(&self, from: u32) -> impl Iterator<Item = Result<ParquetIdx>> {
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
             rocksdb::IteratorMode::From(&query.from.to_be_bytes(), rocksdb::Direction::Backward),
@@ -47,28 +47,22 @@ impl DbHandle {
             None => return Err(Error::ParquetIdxNotFound),
         };
 
-        let mut iter = self.inner.iterator_cf(
-            parquet_idx_cf,
-            rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
-        );
+        self.inner
+            .iterator_cf(
+                parquet_idx_cf,
+                rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
+            )
+            .map(|idx| {
+                let (dir_name, idx) = idx.map_err(Error::Db)?;
+                let dir_name = dir_name_from_key(&dir_name);
+                let idx = rmp_serde::decode::from_read_ref(&idx).map_err(Error::MsgPack)?;
 
-        for idx in iter {
-            let (dir_name, idx) = idx.map_err(Error::Db)?;
-            let dir_name = dir_name_from_key(&dir_name);
-            let idx = rmp_serde::decode::from_read_ref(&idx).map_err(Error::MsgPack)?;
+                Ok(idx)
+            })
+    }
 
-            let parquet_frame = load_parquet_frame(dir_name)?;
-
-            let query = query.prune(&idx);
-
-            if !query.logs.is_empty() {
-                parquet_frame.query_logs(&query.logs);
-            }
-
-            if !query.transactions.is_empty() {
-                parquet_frame.query_txs(&query.transactions);
-            }
-        }
+    pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
+        todo!()
     }
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
@@ -121,7 +115,7 @@ impl DbHandle {
                     .put_cf(block_cf, &block.number.as_be_bytes(), &val)
                     .map_err(Error::Db)?;
 
-                db_height = cmp::max(db_height, block.number);
+                db_height = cmp::max(db_height, block.number + 1);
                 db_tail = cmp::min(db_tail, block.number);
             }
 
@@ -245,7 +239,7 @@ impl DbHandle {
             .next()
             .transpose()
             .map_err(Error::Db)?
-            .map(|(key, _)| u32::from_be_bytes(key.try_into().unwrap()))
+            .map(|(key, _)| u32::from_be_bytes(key.try_into().unwrap() + 1))
             .unwrap_or(0);
 
         Ok(Status {

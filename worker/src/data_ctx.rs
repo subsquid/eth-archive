@@ -1,4 +1,5 @@
 use crate::config::DataConfig;
+use crate::db::DbHandle;
 use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
 use crate::types::{
@@ -16,7 +17,6 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
-use crate::db::DbHandle;
 
 pub struct DataCtx {
     config: DataConfig,
@@ -28,10 +28,7 @@ impl DataCtx {
         let db = DbHandle::new().await?;
         let db = Arc::new(db);
 
-        Ok(Self {
-            config,
-            db,
-        })
+        Ok(Self { config, db })
     }
 
     pub fn height(&self) -> u32 {
@@ -171,14 +168,18 @@ impl DataCtx {
                 metrics.total += elapsed;
             }
 
-            let status = serde_json::to_string(&status).unwrap();
             let metrics = serde_json::to_string(&metrics).unwrap();
+
+            let archive_height = match archive_height {
+                0 => "null",
+                _ => (archive_height - 1).to_string(),
+            };
 
             bytes.extend_from_slice(
                 format!(
-                    r#"],"metrics":{},"status":{},"nextBlock":{},"totalTime":{}}}"#,
+                    r#"],"metrics":{},"archive_height":{},"nextBlock":{},"totalTime":{}}}"#,
                     metrics,
-                    status,
+                    archive_height,
                     next_block,
                     query_start.elapsed().as_millis(),
                 )
@@ -289,138 +290,6 @@ impl DataCtx {
         Ok(QueryResult { data, metrics })
     }
 
-    fn setup_log_pruned_frame(
-        &self,
-        field_selection: FieldSelection,
-        from_block: u32,
-        to_block: u32,
-    ) -> Result<LazyFrame> {
-        let range = (from_block, to_block);
-
-        let parquet_state = self.parquet_state.blocking_read();
-
-        let blocks = self.get_lazy_frame_from_parquet(
-            &parquet_state.block_ranges,
-            range,
-            "block",
-            &self.config.data_path.join("block"),
-        )?;
-        let transactions = self.get_lazy_frame_from_parquet(
-            &parquet_state.tx_ranges,
-            range,
-            "tx",
-            &self.config.data_path.join("tx"),
-        )?;
-        let logs = self.get_lazy_frame_from_parquet(
-            &parquet_state.log_ranges,
-            range,
-            "log",
-            &self.config.data_path.join("log"),
-        )?;
-
-        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
-        let logs = logs.select(field_selection.log.unwrap().to_cols());
-
-        let frame = logs
-            .join(
-                blocks,
-                &[col("log_block_number")],
-                &[col("block_number")],
-                JoinType::Inner,
-            )
-            .join(
-                transactions,
-                &[col("log_block_number"), col("log_transaction_index")],
-                &[col("tx_block_number"), col("tx_transaction_index")],
-                JoinType::Inner,
-            );
-
-        Ok(frame)
-    }
-
-    fn setup_tx_pruned_frame(
-        &self,
-        field_selection: FieldSelection,
-        from_block: u32,
-        to_block: u32,
-    ) -> Result<LazyFrame> {
-        use polars::prelude::*;
-
-        let range = (from_block, to_block);
-
-        let parquet_state = self.parquet_state.blocking_read();
-
-        let blocks = self.get_lazy_frame_from_parquet(
-            &parquet_state.block_ranges,
-            range,
-            "block",
-            &self.config.data_path.join("block"),
-        )?;
-        let transactions = self.get_lazy_frame_from_parquet(
-            &parquet_state.tx_ranges,
-            range,
-            "tx",
-            &self.config.data_path.join("tx"),
-        )?;
-
-        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let mut transaction_cols = field_selection.transaction.unwrap().to_cols();
-        let sighash_col = col("sighash").prefix("tx_");
-        transaction_cols.push(sighash_col);
-        let transactions = transactions.select(transaction_cols);
-
-        let frame = transactions.join(
-            blocks,
-            &[col("tx_block_number")],
-            &[col("block_number")],
-            JoinType::Inner,
-        );
-
-        Ok(frame)
-    }
-
-    fn get_lazy_frame_from_parquet(
-        &self,
-        map: &RangeMap,
-        range: (u32, u32),
-        table_name: &'static str,
-        folder_path: &Path,
-    ) -> Result<LazyFrame> {
-        let block_ranges = map.get(range.0..range.1).collect::<Vec<_>>();
-        if block_ranges.is_empty() {
-            return Err(Error::RangeNotFoundInParquetFiles(range, table_name));
-        }
-        let file_range = block_ranges[0].clone();
-        let file_path = format!(
-            "{}/{}{}_{}.parquet",
-            folder_path.display(),
-            table_name,
-            file_range.start,
-            file_range.end
-        );
-
-        let mut main_frame =
-            LazyFrame::scan_parquet(file_path, Default::default()).map_err(Error::ScanParquet)?;
-
-        for file_range in block_ranges.iter().skip(1) {
-            let file_path = format!(
-                "{}/{}{}_{}.parquet",
-                folder_path.display(),
-                table_name,
-                file_range.start,
-                file_range.end
-            );
-            let data_frame = LazyFrame::scan_parquet(file_path, Default::default())
-                .map_err(Error::ScanParquet)?;
-
-            main_frame =
-                concat(&[main_frame, data_frame], true, true).map_err(Error::UnionFrames)?;
-        }
-
-        Ok(main_frame)
-    }
-
     fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {
         let mut metrics = QueryMetrics::default();
         let mut data = vec![];
@@ -428,17 +297,13 @@ impl DataCtx {
         if !query.logs.is_empty() {
             let logs = self.query_logs(&query)?;
             metrics += logs.metrics;
-            for row in logs.data {
-                data.push(row);
-            }
+            data.extend_from_slice(&logs.data);
         }
 
         if !query.transactions.is_empty() {
             let transactions = self.query_transactions(&query)?;
             metrics += transactions.metrics;
-            for row in transactions.data {
-                data.push(row);
-            }
+            data.extend_from_slice(&transactions.data);
         }
 
         Ok(QueryResult { data, metrics })
