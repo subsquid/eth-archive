@@ -22,6 +22,14 @@ pub struct Config {
     /// Blocks that fall out of this range will be periodically deleted.
     #[command(flatten)]
     pub min_hot_block_range: u32,
+    /// Maximum response body size
+    #[clap(long)]
+    pub max_resp_body_size: usize,
+    /// Response time limit in milliseconds.
+    /// The query will stop and found data will be returned
+    /// if the request takes more than this amount of time to handle.
+    #[clap(long)]
+    pub response_time_limit_millis: u64,
 }
 
 const fn default_server_addr() -> SocketAddr {

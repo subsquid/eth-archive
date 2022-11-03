@@ -35,7 +35,11 @@ impl DbHandle {
         Ok(Self { inner, status })
     }
 
-    pub fn iter_parquet_idxs(&self, from: u32) -> impl Iterator<Item = Result<ParquetIdx>> {
+    pub fn iter_parquet_idxs(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> impl Iterator<Item = Result<(DirName, ParquetIdx)>> {
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
             rocksdb::IteratorMode::From(&query.from.to_be_bytes(), rocksdb::Direction::Backward),
@@ -57,8 +61,9 @@ impl DbHandle {
                 let dir_name = dir_name_from_key(&dir_name);
                 let idx = rmp_serde::decode::from_read_ref(&idx).map_err(Error::MsgPack)?;
 
-                Ok(idx)
+                Ok((dir_name, idx))
             })
+            .take_while(|(dir_name, _)| dir_name.range.from < to)
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {

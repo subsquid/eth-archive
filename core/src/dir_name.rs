@@ -62,7 +62,7 @@ impl fmt::Display for DirName {
 }
 
 impl DirName {
-    pub async fn list_sorted_folder_names<P: AsRef<Path>>(path: P) -> Result<Vec<DirName>> {
+    pub async fn delete_temp_and_list_sorted<P: AsRef<Path>>(path: P) -> Result<Vec<DirName>> {
         log::info!("listing folder names...");
 
         let mut dir = tokio::fs::read_dir(&path)

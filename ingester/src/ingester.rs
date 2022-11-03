@@ -48,7 +48,7 @@ impl Ingester {
             .await
             .map_err(Error::CreateMissingDirectories)?;
 
-        let dir_names = DirName::list_sorted_folder_names(data_path)
+        let dir_names = DirName::delete_temp_and_list_sorted(data_path)
             .await
             .map_err(Error::ListFolderNames)?;
 
