@@ -38,5 +38,5 @@ args = [
 	"mirror", "--watch",
 	"${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
 	"subsquid-filebase/eth0",
-	"--exclude", "*temp/*", "--overwrite"
+	"--exclude", "*temp/*",
 ]
