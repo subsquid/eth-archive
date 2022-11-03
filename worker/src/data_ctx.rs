@@ -31,12 +31,44 @@ impl DataCtx {
         Ok(Self { config, db })
     }
 
-    pub fn height(&self) -> u32 {
-        self.db.height()
+    fn height_closed_range(&self) -> (u32, u32) {
+        let parquet_height = self.db.status.parquet_height.load(Ordering::Relaxed);
+        let db_height = self.db.self.status.db_height.load(Ordering::Relaxed);
+        let db_tail = self.db.self.status.db_tail.load(Ordering::Relaxed);
+
+        if db_tail <= parquet_height {
+            db_height
+        } else {
+            parquet_height
+        }
+    }
+
+    pub fn height(&self) -> Option<u32> {
+        match self.height_closed_range().0 {
+            0 => None,
+            num => Some(num - 1),
+        }
+    }
+
+    pub async fn query(&self, query: Query) -> Result<Vec<u8>> {
+        // to_block is supposed to be inclusive in api but exclusive in implementation
+        // so we add one to it here
+        let to_block = query.to_block.map(|a| a + 1);
+
+        if let Some(to_block) = to_block {
+            if to_block == 1 || query.from_block > to_block {
+                return Err(Error::InvalidBlockRange);
+            }
+        }
+
+        let field_selection = query.field_selection();
+
+        let log_selection = query.log_selection();
+        let tx_selection = query.tx_selection();
     }
 
     async fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
-        let parquet_block_number = { self.parquet_state.read().await.parquet_block_number };
+        let parquet_height = self.db.status.parquet_height.load(Ordering::Relaxed);
 
         if parquet_block_number >= query.to_block {
             let ctx = DataCtx {
@@ -131,13 +163,10 @@ impl DataCtx {
         })
     }
 
-    fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
+    fn query_transactions(&self, query: &MiniQuery, lazy_frame: LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
-
-        let mut data_frame =
-            self.setup_tx_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
 
         data_frame = data_frame.filter(
             col("tx_block_number")

@@ -1,5 +1,6 @@
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce};
 use serde::{Deserialize, Serialize};
+use std::cmp;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -174,15 +175,6 @@ pub struct ResponseRow {
     pub log: Option<ResponseLog>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryMetrics {
-    pub build_query: u128,
-    pub run_query: u128,
-    pub serialize_result: u128,
-    pub total: u128,
-}
-
 impl std::ops::AddAssign for QueryMetrics {
     fn add_assign(&mut self, other: Self) {
         self.build_query += other.build_query;
@@ -196,7 +188,6 @@ impl std::ops::AddAssign for QueryMetrics {
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub data: Vec<ResponseRow>,
-    pub metrics: QueryMetrics,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -205,11 +196,11 @@ pub struct BlockRange {
     pub to: u32,
 }
 
-impl std::ops::AddAssign for BlockRange {
-    fn add_assign(&mut self, other: Self) {
-        use std::cmp;
-
-        self.from = cmp::min(self.from, other.from);
-        self.to = cmp::max(self.to, other.to);
+impl std::ops::Add for BlockRange {
+    fn add(&self, other: &Self) -> Self {
+        Self {
+            from: cmp::min(self.from, other.from),
+            to: cmp::max(self.to, other.to),
+        }
     }
 }

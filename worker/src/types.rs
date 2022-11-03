@@ -107,6 +107,60 @@ pub struct Query {
     pub transactions: Vec<TransactionSelection>,
 }
 
+impl Query {
+    pub fn field_selection(&self) -> FieldSelection {
+        let mut field_selection = None;
+        for log in &query.logs {
+            field_selection = FieldSelection::merge(field_selection, log.field_selection);
+        }
+        for tx in &query.transactions {
+            field_selection = FieldSelection::merge(field_selection, tx.field_selection);
+        }
+        let mut field_selection = field_selection.ok_or(Error::NoFieldsSelected)?;
+
+        let mut block_selection = field_selection.block.unwrap_or_default();
+        let mut tx_selection = field_selection.transaction.unwrap_or_default();
+        let mut log_selection = field_selection.log.unwrap_or_default();
+
+        block_selection.number = Some(true);
+        tx_selection.hash = Some(true);
+        tx_selection.block_number = Some(true);
+        tx_selection.transaction_index = Some(true);
+        tx_selection.dest = Some(true);
+        log_selection.block_number = Some(true);
+        log_selection.transaction_index = Some(true);
+        log_selection.address = Some(true);
+        log_selection.topics = Some(true);
+
+        field_selection.block = Some(block_selection);
+        field_selection.transaction = Some(tx_selection);
+        field_selection.log = Some(log_selection);
+
+        field_selection
+    }
+
+    pub fn log_selection(&self) -> Vec<MiniLogSelection> {
+        self.logs
+            .into_iter()
+            .map(|log| MiniLogSelection {
+                address: log.address,
+                topics: log.topics,
+            })
+            .collect()
+    }
+
+    pub fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
+        query
+            .transactions
+            .into_iter()
+            .map(|transaction| MiniTransactionSelection {
+                address: transaction.address,
+                sighash: transaction.sighash,
+            })
+            .collect()
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {

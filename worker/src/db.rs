@@ -9,9 +9,9 @@ pub struct DbHandle {
 }
 
 pub struct Status {
-    parquet_height: AtomicU32,
-    db_height: AtomicU32,
-    db_tail: AtomicU32,
+    pub parquet_height: AtomicU32,
+    pub db_height: AtomicU32,
+    pub db_tail: AtomicU32,
 }
 
 impl DbHandle {
@@ -204,18 +204,6 @@ impl DbHandle {
         }
 
         Ok(())
-    }
-
-    pub fn height(&self) -> u32 {
-        let parquet_height = self.status.parquet_height.load(Ordering::Relaxed);
-        let db_height = self.status.db_height.load(Ordering::Relaxed);
-        let db_tail = self.status.db_tail.load(Ordering::Relaxed);
-
-        if db_tail <= parquet_height {
-            db_height
-        } else {
-            parquet_height
-        }
     }
 
     fn get_status(inner: &rocksdb::OptimisticTransactionDB) -> Result<Status> {
