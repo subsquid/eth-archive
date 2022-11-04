@@ -32,7 +32,7 @@ pub struct Config {
     pub response_time_limit_millis: u64,
 }
 
-const fn default_server_addr() -> SocketAddr {
+fn default_server_addr() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)
 }
 

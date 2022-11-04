@@ -16,7 +16,7 @@ use std::{cmp, iter, mem};
 type Bloom = BloomFilter<Address>;
 
 pub struct DbHandle {
-    inner: rocksdb::OptimisticTransactionDB,
+    inner: rocksdb::DB,
     status: Status,
 }
 
@@ -38,8 +38,7 @@ impl DbHandle {
             opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
 
             let inner =
-                rocksdb::OptimisticTransactionDB::open_cf(&opts, path, cf_name::ALL_CF_NAMES)
-                    .map_err(Error::OpenDb)?;
+                rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
 
             let status = Self::get_status(&inner)?;
 
@@ -55,7 +54,7 @@ impl DbHandle {
         &self,
         from: u32,
         to: Option<u32>,
-    ) -> Result<Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>>>> {
+    ) -> Result<Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + '_>> {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let mut iter = self.inner.iterator_cf(
@@ -82,8 +81,8 @@ impl DbHandle {
 
                 Ok((dir_name, idx))
             })
-            .take_while(|res| {
-                let (dir_name, _) = match res {
+            .take_while(move |res| {
+                let (dir_name, _) = match &res {
                     Ok(a) => a,
                     Err(_) => return true,
                 };
@@ -131,7 +130,7 @@ impl DbHandle {
         let tail_is_zero = self.status.db_tail.load(Ordering::Relaxed) == 0;
 
         for (blocks, logs) in block_batches.into_iter().zip(log_batches.into_iter()) {
-            let db_tx = self.inner.transaction();
+            let mut batch = rocksdb::WriteBatch::default();
 
             let mut db_height = self.status.db_height.load(Ordering::Relaxed);
             let mut db_tail = std::u32::MAX;
@@ -142,18 +141,14 @@ impl DbHandle {
                 for tx in txs {
                     let val = rmp_serde::encode::to_vec(&tx).unwrap();
                     let tx_key = tx_key(&tx);
-                    db_tx.put_cf(tx_cf, &tx_key, &val).map_err(Error::Db)?;
+                    batch.put_cf(tx_cf, &tx_key, &val);
                     if tx.dest.is_some() {
-                        db_tx
-                            .put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key)
-                            .map_err(Error::Db)?;
+                        batch.put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key);
                     }
                 }
 
                 let val = rmp_serde::encode::to_vec(&block).unwrap();
-                db_tx
-                    .put_cf(block_cf, &block.number.to_be_bytes(), &val)
-                    .map_err(Error::Db)?;
+                batch.put_cf(block_cf, &block.number.to_be_bytes(), &val);
 
                 db_height = cmp::max(db_height, block.number.0 + 1);
                 db_tail = cmp::min(db_tail, block.number.0);
@@ -162,13 +157,11 @@ impl DbHandle {
             for log in logs {
                 let val = rmp_serde::encode::to_vec(&log).unwrap();
                 let log_key = log_key(&log);
-                db_tx.put_cf(log_cf, &log_key, &val).map_err(Error::Db)?;
-                db_tx
-                    .put_cf(addr_log_cf, &addr_log_key(&log), &log_key)
-                    .map_err(Error::Db)?;
+                batch.put_cf(log_cf, &log_key, &val);
+                batch.put_cf(addr_log_cf, &addr_log_key(&log), &log_key);
             }
 
-            db_tx.commit().map_err(Error::Db)?;
+            self.inner.write(batch).map_err(Error::Db)?;
 
             if db_tail != std::u32::MAX && tail_is_zero {
                 self.status.db_tail.store(db_tail, Ordering::Relaxed);
@@ -220,7 +213,7 @@ impl DbHandle {
                 addr_log_keys.push(addr_log_key(&log));
             }
 
-            let mut batch = rocksdb::WriteBatchWithTransaction::<false>::default();
+            let mut batch = rocksdb::WriteBatch::default();
 
             for key in addr_tx_keys {
                 batch.delete_cf(addr_tx_cf, &key);
@@ -261,7 +254,7 @@ impl DbHandle {
         self.status.parquet_height.load(Ordering::Relaxed)
     }
 
-    fn get_status(inner: &rocksdb::OptimisticTransactionDB) -> Result<Status> {
+    fn get_status(inner: &rocksdb::DB) -> Result<Status> {
         let parquet_idx_cf = inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let parquet_height = inner
@@ -337,7 +330,7 @@ fn log_key(log: &Log) -> [u8; 8] {
 fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
     let mut key = [0; 28];
 
-    (&mut key[..20]).copy_from_slice(tx.dest.unwrap().as_slice());
+    (&mut key[..20]).copy_from_slice(tx.dest.as_ref().unwrap().as_slice());
     (&mut key[20..24]).copy_from_slice(&tx.block_number.to_be_bytes());
     (&mut key[24..]).copy_from_slice(&tx.transaction_index.to_be_bytes());
 

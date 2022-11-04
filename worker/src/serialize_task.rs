@@ -3,18 +3,21 @@ use crate::{Error, Result};
 use eth_archive_core::rayon_async;
 use eth_archive_core::types::{BlockRange, QueryMetrics, QueryResult};
 use std::collections::HashMap;
+use std::io::Write;
 use std::mem;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
+type Sender = mpsc::Sender<(QueryResult, BlockRange)>;
+
 pub struct SerializeTask {
-    tx: mpsc::Sender<(QueryResult, BlockRange)>,
+    tx: Sender,
     join_handle: tokio::task::JoinHandle<Vec<u8>>,
 }
 
 impl SerializeTask {
     pub fn new(from_block: u32, size_limit: usize, archive_height: Option<u32>) -> Self {
-        let (tx, mut rx) = mpsc::channel(1);
+        let (tx, mut rx): (Sender, _) = mpsc::channel(1);
 
         let join_handle = tokio::spawn(async move {
             let query_start = Instant::now();

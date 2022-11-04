@@ -108,7 +108,7 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn field_selection(&self) -> FieldSelection {
+    pub fn field_selection(&self) -> Result<FieldSelection> {
         let mut field_selection = None;
         for log in &self.logs {
             field_selection = FieldSelection::merge(field_selection, log.field_selection);
@@ -136,25 +136,25 @@ impl Query {
         field_selection.transaction = Some(tx_selection);
         field_selection.log = Some(log_selection);
 
-        field_selection
+        Ok(field_selection)
     }
 
     pub fn log_selection(&self) -> Vec<MiniLogSelection> {
         self.logs
-            .into_iter()
+            .iter()
             .map(|log| MiniLogSelection {
-                address: log.address,
-                topics: log.topics,
+                address: log.address.clone(),
+                topics: log.topics.clone(),
             })
             .collect()
     }
 
     pub fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
         self.transactions
-            .into_iter()
+            .iter()
             .map(|transaction| MiniTransactionSelection {
-                address: transaction.address,
-                sighash: transaction.sighash,
+                address: transaction.address.clone(),
+                sighash: transaction.sighash.clone(),
             })
             .collect()
     }

@@ -48,7 +48,7 @@ impl DataCtx {
             }
         }
 
-        let field_selection = query.field_selection();
+        let field_selection = query.field_selection()?;
 
         let log_selection = query.log_selection();
         let tx_selection = query.tx_selection();
@@ -91,25 +91,14 @@ impl DataCtx {
         let mut metrics = QueryMetrics::default();
         let mut data = vec![];
 
-        let mut lazy_frame = None;
-
-        let mut lazy_frame = || match &lazy_frame {
-            Some(lazy_frame) => Ok(lazy_frame),
-            None => {
-                lazy_frame = Some(self.open_lazy_frame(dir_name)?);
-
-                Ok(lazy_frame.as_ref().unwrap())
-            }
-        };
-
         if !query.logs.is_empty() {
-            let logs = self.query_logs(&query, lazy_frame()?)?;
+            let logs = self.query_logs(&query, self.open_lazy_frame(dir_name)?)?;
             metrics += logs.metrics;
             data.extend_from_slice(&logs.data);
         }
 
         if !query.transactions.is_empty() {
-            let transactions = self.query_transactions(&query, lazy_frame()?)?;
+            let transactions = self.query_transactions(&query, self.open_lazy_frame(dir_name)?)?;
             metrics += transactions.metrics;
             data.extend_from_slice(&transactions.data);
         }
@@ -117,7 +106,7 @@ impl DataCtx {
         Ok(QueryResult { data, metrics })
     }
 
-    fn query_logs(&self, query: &MiniQuery, lazy_frame: &LazyFrame) -> Result<QueryResult> {
+    fn query_logs(&self, query: &MiniQuery, mut lazy_frame: LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
@@ -173,7 +162,7 @@ impl DataCtx {
         })
     }
 
-    fn query_transactions(&self, query: &MiniQuery, lazy_frame: &LazyFrame) -> Result<QueryResult> {
+    fn query_transactions(&self, query: &MiniQuery, mut lazy_frame: LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
