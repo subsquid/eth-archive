@@ -1,21 +1,16 @@
 use crate::config::Config;
 use crate::db::DbHandle;
-use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
-use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
+use crate::types::{MiniQuery, Query};
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
 use polars::prelude::*;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::cmp;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use std::{cmp, mem};
-use tokio::fs;
-use tokio::sync::{mpsc, RwLock};
+use std::time::Instant;
 
 pub struct DataCtx {
     config: Config,
@@ -162,7 +157,11 @@ impl DataCtx {
         })
     }
 
-    fn query_transactions(&self, query: &MiniQuery, mut lazy_frame: LazyFrame) -> Result<QueryResult> {
+    fn query_transactions(
+        &self,
+        query: &MiniQuery,
+        mut lazy_frame: LazyFrame,
+    ) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();

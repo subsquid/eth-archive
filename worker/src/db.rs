@@ -2,18 +2,16 @@ use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::types::{
-    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
-    ResponseTransaction, Transaction,
-};
+use eth_archive_core::types::{Block, BlockRange, Log, QueryResult, Transaction};
 use serde::{Deserialize, Serialize};
 use solana_bloom::bloom::Bloom as BloomFilter;
 use std::convert::TryInto;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{cmp, iter, mem};
 
 type Bloom = BloomFilter<Address>;
+pub type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + 'a>;
 
 pub struct DbHandle {
     inner: rocksdb::DB,
@@ -27,8 +25,8 @@ struct Status {
 }
 
 impl DbHandle {
-    pub async fn new(path: &PathBuf) -> Result<DbHandle> {
-        let path = path.clone();
+    pub async fn new(path: &Path) -> Result<DbHandle> {
+        let path = path.to_owned();
 
         let (inner, status) = tokio::task::spawn_blocking(move || {
             let mut opts = rocksdb::Options::default();
@@ -50,11 +48,7 @@ impl DbHandle {
         Ok(Self { inner, status })
     }
 
-    pub fn iter_parquet_idxs(
-        &self,
-        from: u32,
-        to: Option<u32>,
-    ) -> Result<Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + '_>> {
+    pub fn iter_parquet_idxs(&self, from: u32, to: Option<u32>) -> Result<ParquetIdxIter<'_>> {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let mut iter = self.inner.iterator_cf(
@@ -77,7 +71,7 @@ impl DbHandle {
             .map(|idx| {
                 let (dir_name, idx) = idx.map_err(Error::Db)?;
                 let dir_name = dir_name_from_key(&dir_name);
-                let idx = rmp_serde::decode::from_read_ref(&idx).unwrap();
+                let idx = rmp_serde::decode::from_slice(&idx).unwrap();
 
                 Ok((dir_name, idx))
             })
@@ -196,7 +190,7 @@ impl DbHandle {
                 .prefix_iterator_cf(tx_cf, &block_num.to_be_bytes())
             {
                 let (_, tx) = res.map_err(Error::Db)?;
-                let tx: Transaction = rmp_serde::decode::from_read_ref(&tx).unwrap();
+                let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
 
                 if tx.dest.is_some() {
                     addr_tx_keys.push(addr_tx_key(&tx));
@@ -208,7 +202,7 @@ impl DbHandle {
                 .prefix_iterator_cf(log_cf, &block_num.to_be_bytes())
             {
                 let (_, log) = res.map_err(Error::Db)?;
-                let log = rmp_serde::decode::from_read_ref(&log).unwrap();
+                let log = rmp_serde::decode::from_slice(&log).unwrap();
 
                 addr_log_keys.push(addr_log_key(&log));
             }
@@ -312,8 +306,8 @@ pub struct ParquetIdx {
 fn tx_key(tx: &Transaction) -> [u8; 8] {
     let mut key = [0; 8];
 
-    (&mut key[..4]).copy_from_slice(&tx.block_number.to_be_bytes());
-    (&mut key[4..]).copy_from_slice(&tx.transaction_index.to_be_bytes());
+    key[..4].copy_from_slice(&tx.block_number.to_be_bytes());
+    key[4..].copy_from_slice(&tx.transaction_index.to_be_bytes());
 
     key
 }
@@ -321,8 +315,8 @@ fn tx_key(tx: &Transaction) -> [u8; 8] {
 fn log_key(log: &Log) -> [u8; 8] {
     let mut key = [0; 8];
 
-    (&mut key[..4]).copy_from_slice(&log.block_number.to_be_bytes());
-    (&mut key[4..]).copy_from_slice(&log.log_index.to_be_bytes());
+    key[..4].copy_from_slice(&log.block_number.to_be_bytes());
+    key[4..].copy_from_slice(&log.log_index.to_be_bytes());
 
     key
 }
@@ -330,9 +324,9 @@ fn log_key(log: &Log) -> [u8; 8] {
 fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
     let mut key = [0; 28];
 
-    (&mut key[..20]).copy_from_slice(tx.dest.as_ref().unwrap().as_slice());
-    (&mut key[20..24]).copy_from_slice(&tx.block_number.to_be_bytes());
-    (&mut key[24..]).copy_from_slice(&tx.transaction_index.to_be_bytes());
+    key[..20].copy_from_slice(tx.dest.as_ref().unwrap().as_slice());
+    key[20..24].copy_from_slice(&tx.block_number.to_be_bytes());
+    key[24..].copy_from_slice(&tx.transaction_index.to_be_bytes());
 
     key
 }
@@ -340,9 +334,9 @@ fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
 fn addr_log_key(log: &Log) -> [u8; 28] {
     let mut key = [0; 28];
 
-    (&mut key[..20]).copy_from_slice(log.address.as_slice());
-    (&mut key[20..24]).copy_from_slice(&log.block_number.to_be_bytes());
-    (&mut key[24..]).copy_from_slice(&log.log_index.to_be_bytes());
+    key[..20].copy_from_slice(log.address.as_slice());
+    key[20..24].copy_from_slice(&log.block_number.to_be_bytes());
+    key[24..].copy_from_slice(&log.log_index.to_be_bytes());
 
     key
 }
@@ -361,12 +355,12 @@ fn dir_name_from_key(key: &[u8]) -> DirName {
 }
 
 fn key_from_dir_name(dir_name: DirName) -> [u8; 8] {
-    assert_eq!(dir_name.is_temp, false);
+    assert!(!dir_name.is_temp);
 
     let mut key = [0; 8];
 
-    (&mut key[..4]).copy_from_slice(&dir_name.range.from.to_be_bytes());
-    (&mut key[4..]).copy_from_slice(&dir_name.range.to.to_be_bytes());
+    key[..4].copy_from_slice(&dir_name.range.from.to_be_bytes());
+    key[4..].copy_from_slice(&dir_name.range.to.to_be_bytes());
 
     key
 }

@@ -4,7 +4,6 @@ use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
