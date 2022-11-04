@@ -1082,7 +1082,6 @@ dependencies = [
  "eth-archive-core",
  "itertools",
  "log",
- "once_cell",
  "polars",
  "prefix-hex",
  "rayon",

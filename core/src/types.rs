@@ -175,7 +175,9 @@ pub struct ResponseRow {
     pub log: Option<ResponseLog>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign,
+)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryMetrics {
     pub build_query: u128,

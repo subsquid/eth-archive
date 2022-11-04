@@ -5,7 +5,7 @@ use polars::error::PolarsError;
 use std::io;
 use thiserror::Error as ThisError;
 
-#[derive(Debug, ThisError, Clone)]
+#[derive(Debug, ThisError)]
 pub enum Error {
     #[error("failed to execute query:\n{0}")]
     ExecuteQuery(PolarsError),

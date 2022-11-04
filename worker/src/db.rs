@@ -143,9 +143,11 @@ impl DbHandle {
                     let val = rmp_serde::encode::to_vec(&tx).unwrap();
                     let tx_key = tx_key(&tx);
                     db_tx.put_cf(tx_cf, &tx_key, &val).map_err(Error::Db)?;
-                    db_tx
-                        .put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key)
-                        .map_err(Error::Db)?;
+                    if tx.dest.is_some() {
+                        db_tx
+                            .put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key)
+                            .map_err(Error::Db)?;
+                    }
                 }
 
                 let val = rmp_serde::encode::to_vec(&block).unwrap();
@@ -201,9 +203,11 @@ impl DbHandle {
                 .prefix_iterator_cf(tx_cf, &block_num.to_be_bytes())
             {
                 let (_, tx) = res.map_err(Error::Db)?;
-                let tx = rmp_serde::decode::from_read_ref(&tx).unwrap();
+                let tx: Transaction = rmp_serde::decode::from_read_ref(&tx).unwrap();
 
-                addr_tx_keys.push(addr_tx_key(&tx));
+                if tx.dest.is_some() {
+                    addr_tx_keys.push(addr_tx_key(&tx));
+                }
             }
 
             for res in self
@@ -275,7 +279,7 @@ impl DbHandle {
             .next()
             .transpose()
             .map_err(Error::Db)?
-            .map(|(key, _)| u32::from_be_bytes((*key).try_into().unwrap()))
+            .map(|(key, _)| block_num_from_key(&key))
             .unwrap_or(0);
 
         let db_height = inner
@@ -283,7 +287,7 @@ impl DbHandle {
             .next()
             .transpose()
             .map_err(Error::Db)?
-            .map(|(key, _)| u32::from_be_bytes((*key).try_into().unwrap() + 1))
+            .map(|(key, _)| block_num_from_key(&key) + 1)
             .unwrap_or(0);
 
         Ok(Status {
@@ -333,7 +337,7 @@ fn log_key(log: &Log) -> [u8; 8] {
 fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
     let mut key = [0; 28];
 
-    (&mut key[..20]).copy_from_slice(tx.dest.as_slice());
+    (&mut key[..20]).copy_from_slice(tx.dest.unwrap().as_slice());
     (&mut key[20..24]).copy_from_slice(&tx.block_number.to_be_bytes());
     (&mut key[24..]).copy_from_slice(&tx.transaction_index.to_be_bytes());
 
@@ -368,10 +372,16 @@ fn key_from_dir_name(dir_name: DirName) -> [u8; 8] {
 
     let mut key = [0; 8];
 
-    (&mut key[..4]).copy_from_slice(dir_name.range.from.to_be_bytes());
-    (&mut key[4..]).copy_from_slice(dir_name.range.to.to_be_bytes());
+    (&mut key[..4]).copy_from_slice(&dir_name.range.from.to_be_bytes());
+    (&mut key[4..]).copy_from_slice(&dir_name.range.to.to_be_bytes());
 
     key
+}
+
+fn block_num_from_key(key: &[u8]) -> u32 {
+    let arr: [u8; 4] = key.try_into().unwrap();
+
+    u32::from_be_bytes(arr)
 }
 
 #[cfg(test)]

@@ -4,10 +4,10 @@ use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
 use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
+use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
-use once_cell::unsync::Lazy;
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,6 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
-use eth_archive_core::dir_name::DirName;
 
 pub struct DataCtx {
     config: Config,
@@ -92,16 +91,25 @@ impl DataCtx {
         let mut metrics = QueryMetrics::default();
         let mut data = vec![];
 
-        let lazy_frame = Lazy::new(|| self.open_lazy_frame(dir_name));
+        let mut lazy_frame = None;
+
+        let mut lazy_frame = || match &lazy_frame {
+            Some(lazy_frame) => Ok(lazy_frame),
+            None => {
+                lazy_frame = Some(self.open_lazy_frame(dir_name)?);
+
+                Ok(lazy_frame.as_ref().unwrap())
+            }
+        };
 
         if !query.logs.is_empty() {
-            let logs = self.query_logs(&query, Lazy::force(&lazy_frame).map_err(|e| e.clone())?)?;
+            let logs = self.query_logs(&query, lazy_frame()?)?;
             metrics += logs.metrics;
             data.extend_from_slice(&logs.data);
         }
 
         if !query.transactions.is_empty() {
-            let transactions = self.query_transactions(&query, Lazy::force(&lazy_frame).map_err(|e| e.clone())?)?;
+            let transactions = self.query_transactions(&query, lazy_frame()?)?;
             metrics += transactions.metrics;
             data.extend_from_slice(&transactions.data);
         }
@@ -109,7 +117,7 @@ impl DataCtx {
         Ok(QueryResult { data, metrics })
     }
 
-    fn query_logs(&self, query: &MiniQuery, lazy_frame: LazyFrame) -> Result<QueryResult> {
+    fn query_logs(&self, query: &MiniQuery, lazy_frame: &LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
@@ -165,7 +173,7 @@ impl DataCtx {
         })
     }
 
-    fn query_transactions(&self, query: &MiniQuery, lazy_frame: LazyFrame) -> Result<QueryResult> {
+    fn query_transactions(&self, query: &MiniQuery, lazy_frame: &LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
