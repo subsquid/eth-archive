@@ -8,10 +8,10 @@ pub struct DbHandle {
     status: Status,
 }
 
-pub struct Status {
-    pub parquet_height: AtomicU32,
-    pub db_height: AtomicU32,
-    pub db_tail: AtomicU32,
+struct Status {
+    parquet_height: AtomicU32,
+    db_height: AtomicU32,
+    db_tail: AtomicU32,
 }
 
 impl DbHandle {
@@ -38,7 +38,7 @@ impl DbHandle {
     pub fn iter_parquet_idxs(
         &self,
         from: u32,
-        to: u32,
+        to: Option<u32>,
     ) -> impl Iterator<Item = Result<(DirName, ParquetIdx)>> {
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
@@ -63,7 +63,10 @@ impl DbHandle {
 
                 Ok((dir_name, idx))
             })
-            .take_while(|(dir_name, _)| dir_name.range.from < to)
+            .take_while(|(dir_name, _)| match to {
+                Some(to) => dir_name.range.from < to,
+                None => true,
+            })
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
@@ -204,6 +207,22 @@ impl DbHandle {
         }
 
         Ok(())
+    }
+
+    pub fn height(&self) -> u32 {
+        let parquet_height = self.status.parquet_height.load(Ordering::Relaxed);
+        let db_height = self.status.db_height.load(Ordering::Relaxed);
+        let db_tail = self.status.db_tail.load(Ordering::Relaxed);
+
+        if db_tail <= parquet_height {
+            db_height
+        } else {
+            parquet_height
+        }
+    }
+
+    pub fn parquet_height(&self) -> u32 {
+        self.status.parquet_height.load(Ordering::Relaxed)
     }
 
     fn get_status(inner: &rocksdb::OptimisticTransactionDB) -> Result<Status> {

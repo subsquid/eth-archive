@@ -2,6 +2,7 @@ use crate::config::DataConfig;
 use crate::db::DbHandle;
 use crate::field_selection::FieldSelection;
 use crate::range_map::RangeMap;
+use crate::serialize_task::SerializeTask;
 use crate::types::{
     BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, Status,
 };
@@ -31,26 +32,7 @@ impl DataCtx {
         Ok(Self { config, db })
     }
 
-    fn height_closed_range(&self) -> (u32, u32) {
-        let parquet_height = self.db.status.parquet_height.load(Ordering::Relaxed);
-        let db_height = self.db.self.status.db_height.load(Ordering::Relaxed);
-        let db_tail = self.db.self.status.db_tail.load(Ordering::Relaxed);
-
-        if db_tail <= parquet_height {
-            db_height
-        } else {
-            parquet_height
-        }
-    }
-
-    pub fn height(&self) -> Option<u32> {
-        match self.height_closed_range().0 {
-            0 => None,
-            num => Some(num - 1),
-        }
-    }
-
-    pub async fn query(&self, query: Query) -> Result<Vec<u8>> {
+    pub async fn query(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
         // to_block is supposed to be inclusive in api but exclusive in implementation
         // so we add one to it here
         let to_block = query.to_block.map(|a| a + 1);
@@ -65,24 +47,34 @@ impl DataCtx {
 
         let log_selection = query.log_selection();
         let tx_selection = query.tx_selection();
-    }
 
-    async fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
-        let parquet_height = self.db.status.parquet_height.load(Ordering::Relaxed);
+        let height = self.db.height();
 
-        if parquet_block_number >= query.to_block {
-            let ctx = DataCtx {
-                db: self.db.clone(),
-                parquet_state: self.parquet_state.clone(),
-                config: self.config.clone(),
-            };
+        let inclusive_height = match height {
+            0 => None,
+            num => Some(num - 1),
+        };
 
-            tokio::task::spawn_blocking(move || ctx.query_parquet(query))
-                .await
-                .map_err(Error::TaskJoinError)?
-        } else {
-            self.query_sql(query).await
+        let serialize_task = SerializeTask::new(
+            query.from_block,
+            self.config.max_resp_body_size,
+            inclusive_height,
+        );
+
+        if query.from_block < height {
+            if query.from_block < self.db.parquet_height() {
+                // iter parquet idxs, prune and execute queries
+            }
+
+            match to_block {
+                None | Some(to_block) if to_block <= height => {
+                    // query db
+                }
+                _ => (),
+            }
         }
+
+        serialize_task.join().await
     }
 
     fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {

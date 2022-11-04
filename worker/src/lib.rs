@@ -3,6 +3,7 @@ mod data_ctx;
 mod db;
 mod error;
 mod field_selection;
+mod serialize_task;
 mod server;
 mod types;
 
