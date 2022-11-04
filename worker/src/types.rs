@@ -150,8 +150,7 @@ impl Query {
     }
 
     pub fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
-        self
-            .transactions
+        self.transactions
             .into_iter()
             .map(|transaction| MiniTransactionSelection {
                 address: transaction.address,

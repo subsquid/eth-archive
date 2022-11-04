@@ -9,9 +9,9 @@ use eth_archive_core::types::{
 use serde::{Deserialize, Serialize};
 use solana_bloom::bloom::Bloom as BloomFilter;
 use std::convert::TryInto;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::{cmp, mem};
+use std::{cmp, iter, mem};
 
 type Bloom = BloomFilter<Address>;
 
@@ -27,22 +27,26 @@ struct Status {
 }
 
 impl DbHandle {
-    pub async fn new<P: AsRef<Path>>(path: P) -> Result<DbHandle> {
-        let mut opts = rocksdb::Options::default();
-
-        opts.create_if_missing(true);
-        opts.create_missing_column_families(true);
-        opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+    pub async fn new(path: &PathBuf) -> Result<DbHandle> {
+        let path = path.clone();
 
         let (inner, status) = tokio::task::spawn_blocking(move || {
+            let mut opts = rocksdb::Options::default();
+
+            opts.create_if_missing(true);
+            opts.create_missing_column_families(true);
+            opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+
             let inner =
                 rocksdb::OptimisticTransactionDB::open_cf(&opts, path, cf_name::ALL_CF_NAMES)
                     .map_err(Error::OpenDb)?;
 
-            let status = Self::get_status(&inner).map_err(Error::GetMaxBlock)?;
+            let status = Self::get_status(&inner)?;
 
             Ok((inner, status))
-        });
+        })
+        .await
+        .map_err(Error::TaskJoinError)??;
 
         Ok(Self { inner, status })
     }
@@ -51,21 +55,22 @@ impl DbHandle {
         &self,
         from: u32,
         to: Option<u32>,
-    ) -> impl Iterator<Item = Result<(DirName, ParquetIdx)>> {
+    ) -> Result<Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>>>> {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
-            rocksdb::IteratorMode::From(&from.to_be_bytes(), rocksdb::Direction::Backward),
+            rocksdb::IteratorMode::From(&from.to_be_bytes(), rocksdb::Direction::Reverse),
         );
 
         let start_key = match iter.next() {
             Some(Ok((start_key, _))) => start_key,
             Some(Err(e)) => return Err(Error::Db(e)),
-            None => return Err(Error::ParquetIdxNotFound),
+            None => return Ok(Box::new(iter::empty())),
         };
 
-        self.inner
+        let iterator = self
+            .inner
             .iterator_cf(
                 parquet_idx_cf,
                 rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
@@ -73,14 +78,23 @@ impl DbHandle {
             .map(|idx| {
                 let (dir_name, idx) = idx.map_err(Error::Db)?;
                 let dir_name = dir_name_from_key(&dir_name);
-                let idx = rmp_serde::decode::from_read_ref(&idx).map_err(Error::MsgPack)?;
+                let idx = rmp_serde::decode::from_read_ref(&idx).unwrap();
 
                 Ok((dir_name, idx))
             })
-            .take_while(|(dir_name, _)| match to {
-                Some(to) => dir_name.range.from < to,
-                None => true,
-            })
+            .take_while(|res| {
+                let (dir_name, _) = match res {
+                    Ok(a) => a,
+                    Err(_) => return true,
+                };
+
+                match to {
+                    Some(to) => dir_name.range.from < to,
+                    None => true,
+                }
+            });
+
+        Ok(Box::new(iterator))
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
@@ -91,7 +105,7 @@ impl DbHandle {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let key = key_from_dir_name(dir_name);
-        let val = rmp_serde::encode::to_vec(idx).map_err(Error::MsgPack)?;
+        let val = rmp_serde::encode::to_vec(idx).unwrap();
 
         self.inner
             .put_cf(parquet_idx_cf, &key, &val)
@@ -99,7 +113,7 @@ impl DbHandle {
 
         self.status
             .parquet_height
-            .store(Ordering::Relaxed, dir_name.range.to);
+            .store(dir_name.range.to, Ordering::Relaxed);
 
         Ok(())
     }
@@ -126,7 +140,7 @@ impl DbHandle {
                 let txs = mem::take(&mut block.transactions);
 
                 for tx in txs {
-                    let val = rmp_serde::encode::to_vec(&tx).map_err(Error::MsgPack)?;
+                    let val = rmp_serde::encode::to_vec(&tx).unwrap();
                     let tx_key = tx_key(&tx);
                     db_tx.put_cf(tx_cf, &tx_key, &val).map_err(Error::Db)?;
                     db_tx
@@ -134,17 +148,17 @@ impl DbHandle {
                         .map_err(Error::Db)?;
                 }
 
-                let val = rmp_serde::encode::to_vec(&block).map_err(Error::MsgPack)?;
+                let val = rmp_serde::encode::to_vec(&block).unwrap();
                 db_tx
-                    .put_cf(block_cf, &block.number.as_be_bytes(), &val)
+                    .put_cf(block_cf, &block.number.to_be_bytes(), &val)
                     .map_err(Error::Db)?;
 
-                db_height = cmp::max(db_height, block.number + 1);
-                db_tail = cmp::min(db_tail, block.number);
+                db_height = cmp::max(db_height, block.number.0 + 1);
+                db_tail = cmp::min(db_tail, block.number.0);
             }
 
             for log in logs {
-                let val = rmp_serde::encode::to_vec(&log).map_err(Error::MsgPack)?;
+                let val = rmp_serde::encode::to_vec(&log).unwrap();
                 let log_key = log_key(&log);
                 db_tx.put_cf(log_cf, &log_key, &val).map_err(Error::Db)?;
                 db_tx
@@ -160,6 +174,8 @@ impl DbHandle {
 
             self.status.db_height.store(db_height, Ordering::Relaxed);
         }
+
+        Ok(())
     }
 
     pub fn delete_up_to(&self, to: u32) -> Result<()> {
@@ -197,7 +213,7 @@ impl DbHandle {
                 let (_, log) = res.map_err(Error::Db)?;
                 let log = rmp_serde::decode::from_read_ref(&log).unwrap();
 
-                addr_log_key.push(addr_log_key(&log));
+                addr_log_keys.push(addr_log_key(&log));
             }
 
             let mut batch = rocksdb::WriteBatchWithTransaction::<false>::default();
@@ -259,7 +275,7 @@ impl DbHandle {
             .next()
             .transpose()
             .map_err(Error::Db)?
-            .map(|(key, _)| u32::from_be_bytes(key.try_into().unwrap()))
+            .map(|(key, _)| u32::from_be_bytes((*key).try_into().unwrap()))
             .unwrap_or(0);
 
         let db_height = inner
@@ -267,7 +283,7 @@ impl DbHandle {
             .next()
             .transpose()
             .map_err(Error::Db)?
-            .map(|(key, _)| u32::from_be_bytes(key.try_into().unwrap() + 1))
+            .map(|(key, _)| u32::from_be_bytes((*key).try_into().unwrap() + 1))
             .unwrap_or(0);
 
         Ok(Status {

@@ -5,7 +5,7 @@ use polars::error::PolarsError;
 use std::io;
 use thiserror::Error as ThisError;
 
-#[derive(Debug, ThisError)]
+#[derive(Debug, ThisError, Clone)]
 pub enum Error {
     #[error("failed to execute query:\n{0}")]
     ExecuteQuery(PolarsError),
@@ -55,8 +55,12 @@ pub enum Error {
     UnionFrames(PolarsError),
     #[error("failed to get column from result frame:\n{0}")]
     GetColumn(PolarsError),
-    #[error("failed to join async task\n{0}")]
+    #[error("failed to join async task:\n{0}")]
     TaskJoinError(tokio::task::JoinError),
+    #[error("failed to open database:\n{0}")]
+    OpenDb(rocksdb::Error),
+    #[error("database error:\n{0}")]
+    Db(rocksdb::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

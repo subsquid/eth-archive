@@ -1,11 +1,11 @@
+use crate::types::BlockEntry;
 use crate::{Error, Result};
 use eth_archive_core::rayon_async;
-use std::mem;
-use tokio::sync::mpsc;
-use eth_archive_core::types::{QueryResult, BlockRange, QueryMetrics};
-use std::time::Instant;
+use eth_archive_core::types::{BlockRange, QueryMetrics, QueryResult};
 use std::collections::HashMap;
-use crate::types::{BlockEntry};
+use std::mem;
+use std::time::Instant;
+use tokio::sync::mpsc;
 
 pub struct SerializeTask {
     tx: mpsc::Sender<(QueryResult, BlockRange)>,

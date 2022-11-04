@@ -175,26 +175,13 @@ pub struct ResponseRow {
     pub log: Option<ResponseLog>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryMetrics {
     pub build_query: u128,
     pub run_query: u128,
     pub serialize_result: u128,
     pub total: u128,
-}
-
-impl std::ops::Add for QueryMetrics {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self::Output {
-        Self {
-            build_query: self.build_query + other.build_query,
-            run_query: self.run_query + other.run_query,
-            serialize_result: self.serialize_result + other.serialize_result,
-            total: self.total + other.total,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize)]

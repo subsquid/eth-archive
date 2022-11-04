@@ -20,7 +20,7 @@ pub struct Config {
     pub server_addr: SocketAddr,
     /// Minimum hot block range.
     /// Blocks that fall out of this range will be periodically deleted.
-    #[command(flatten)]
+    #[clap(long)]
     pub min_hot_block_range: u32,
     /// Maximum response body size
     #[clap(long)]

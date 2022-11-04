@@ -7,6 +7,7 @@ use crate::{Error, Result};
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
+use once_cell::unsync::Lazy;
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -15,6 +16,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
+use eth_archive_core::dir_name::DirName;
 
 pub struct DataCtx {
     config: Config,
@@ -23,10 +25,17 @@ pub struct DataCtx {
 
 impl DataCtx {
     pub async fn new(config: Config) -> Result<Self> {
-        let db = DbHandle::new().await?;
+        let db = DbHandle::new(&config.data_path).await?;
         let db = Arc::new(db);
 
         Ok(Self { config, db })
+    }
+
+    pub fn inclusive_height(&self) -> Option<u32> {
+        match self.db.height() {
+            0 => None,
+            num => Some(num - 1),
+        }
     }
 
     pub async fn query(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
@@ -75,18 +84,24 @@ impl DataCtx {
         serialize_task.join().await
     }
 
-    fn query_parquet(&self, query: MiniQuery) -> Result<QueryResult> {
+    fn open_lazy_frame(&self, dir_name: DirName) -> Result<LazyFrame> {
+        todo!()
+    }
+
+    fn query_parquet(&self, dir_name: DirName, query: MiniQuery) -> Result<QueryResult> {
         let mut metrics = QueryMetrics::default();
         let mut data = vec![];
 
+        let lazy_frame = Lazy::new(|| self.open_lazy_frame(dir_name));
+
         if !query.logs.is_empty() {
-            let logs = self.query_logs(&query)?;
+            let logs = self.query_logs(&query, Lazy::force(&lazy_frame).map_err(|e| e.clone())?)?;
             metrics += logs.metrics;
             data.extend_from_slice(&logs.data);
         }
 
         if !query.transactions.is_empty() {
-            let transactions = self.query_transactions(&query)?;
+            let transactions = self.query_transactions(&query, Lazy::force(&lazy_frame).map_err(|e| e.clone())?)?;
             metrics += transactions.metrics;
             data.extend_from_slice(&transactions.data);
         }
