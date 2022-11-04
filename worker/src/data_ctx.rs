@@ -62,15 +62,16 @@ impl DataCtx {
         );
 
         if query.from_block < height {
-            if query.from_block < self.db.parquet_height() {
-                // iter parquet idxs, prune and execute queries
+            let parquet_height = self.db.parquet_height();
+
+            if query.from_block < parquet_height {
+                // iter parquet idxs, prune and execute queries, send results to ser_task
             }
 
-            match to_block {
-                None | Some(to_block) if to_block <= height => {
-                    // query db
-                }
-                _ => (),
+            let from_block = cmp::max(query.from_block, parquet_height);
+
+            if from_block < height {
+                // query db, send results to ser_task
             }
         }
 
@@ -96,15 +97,12 @@ impl DataCtx {
         Ok(QueryResult { data, metrics })
     }
 
-    fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
+    fn query_logs(&self, query: &MiniQuery, lazy_frame: LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
 
         let start_time = Instant::now();
 
-        let mut data_frame =
-            self.setup_log_pruned_frame(query.field_selection, query.from_block, query.to_block)?;
-
-        data_frame = data_frame.filter(
+        lazy_frame = lazy_frame.filter(
             col("log_block_number")
                 .gt_eq(lit(query.from_block))
                 .and(col("log_block_number").lt(lit(query.to_block))),
@@ -126,7 +124,7 @@ impl DataCtx {
             }
 
             if let Some(expr) = expr {
-                data_frame = data_frame.filter(expr);
+                lazy_frame = lazy_frame.filter(expr);
             }
         }
 
@@ -134,7 +132,7 @@ impl DataCtx {
 
         let start_time = Instant::now();
 
-        let result_frame = data_frame.collect().map_err(Error::ExecuteQuery)?;
+        let result_frame = lazy_frame.collect().map_err(Error::ExecuteQuery)?;
 
         let run_query = start_time.elapsed().as_millis();
 
@@ -160,7 +158,7 @@ impl DataCtx {
 
         let start_time = Instant::now();
 
-        data_frame = data_frame.filter(
+        lazy_frame = lazy_frame.filter(
             col("tx_block_number")
                 .gt_eq(lit(query.from_block))
                 .and(col("tx_block_number").lt(lit(query.to_block))),
@@ -182,7 +180,7 @@ impl DataCtx {
             }
 
             if let Some(expr) = expr {
-                data_frame = data_frame.filter(expr);
+                lazy_frame = lazy_frame.filter(expr);
             }
         }
 
@@ -190,7 +188,7 @@ impl DataCtx {
 
         let start_time = Instant::now();
 
-        let result_frame = data_frame.collect().map_err(Error::ExecuteQuery)?;
+        let result_frame = lazy_frame.collect().map_err(Error::ExecuteQuery)?;
 
         let run_query = start_time.elapsed().as_millis();
 
