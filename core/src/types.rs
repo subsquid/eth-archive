@@ -175,12 +175,25 @@ pub struct ResponseRow {
     pub log: Option<ResponseLog>,
 }
 
-impl std::ops::AddAssign for QueryMetrics {
-    fn add_assign(&mut self, other: Self) {
-        self.build_query += other.build_query;
-        self.run_query += other.run_query;
-        self.serialize_result += other.serialize_result;
-        self.total += other.total;
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryMetrics {
+    pub build_query: u128,
+    pub run_query: u128,
+    pub serialize_result: u128,
+    pub total: u128,
+}
+
+impl std::ops::Add for QueryMetrics {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Self {
+            build_query: self.build_query + other.build_query,
+            run_query: self.run_query + other.run_query,
+            serialize_result: self.serialize_result + other.serialize_result,
+            total: self.total + other.total,
+        }
     }
 }
 
@@ -188,6 +201,7 @@ impl std::ops::AddAssign for QueryMetrics {
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub data: Vec<ResponseRow>,
+    pub metrics: QueryMetrics,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -197,10 +211,19 @@ pub struct BlockRange {
 }
 
 impl std::ops::Add for BlockRange {
-    fn add(&self, other: &Self) -> Self {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
         Self {
             from: cmp::min(self.from, other.from),
             to: cmp::max(self.to, other.to),
         }
+    }
+}
+
+impl std::ops::AddAssign for BlockRange {
+    fn add_assign(&mut self, other: Self) {
+        self.from = cmp::min(self.from, other.from);
+        self.to = cmp::max(self.to, other.to);
     }
 }

@@ -1,11 +1,8 @@
-use crate::config::DataConfig;
+use crate::config::Config;
 use crate::db::DbHandle;
 use crate::field_selection::FieldSelection;
-use crate::range_map::RangeMap;
 use crate::serialize_task::SerializeTask;
-use crate::types::{
-    BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, Status,
-};
+use crate::types::{BlockEntry, MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
 use eth_archive_core::types::{
     QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
@@ -20,12 +17,12 @@ use tokio::fs;
 use tokio::sync::{mpsc, RwLock};
 
 pub struct DataCtx {
-    config: DataConfig,
+    config: Config,
     db: Arc<DbHandle>,
 }
 
 impl DataCtx {
-    pub async fn new(config: DataConfig) -> Result<Self> {
+    pub async fn new(config: Config) -> Result<Self> {
         let db = DbHandle::new().await?;
         let db = Arc::new(db);
 

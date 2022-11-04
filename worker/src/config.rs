@@ -1,6 +1,6 @@
 use clap::Parser;
 use eth_archive_core::config::{IngestConfig, RetryConfig};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]

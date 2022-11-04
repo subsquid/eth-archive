@@ -110,10 +110,10 @@ pub struct Query {
 impl Query {
     pub fn field_selection(&self) -> FieldSelection {
         let mut field_selection = None;
-        for log in &query.logs {
+        for log in &self.logs {
             field_selection = FieldSelection::merge(field_selection, log.field_selection);
         }
-        for tx in &query.transactions {
+        for tx in &self.transactions {
             field_selection = FieldSelection::merge(field_selection, tx.field_selection);
         }
         let mut field_selection = field_selection.ok_or(Error::NoFieldsSelected)?;
@@ -150,7 +150,7 @@ impl Query {
     }
 
     pub fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
-        query
+        self
             .transactions
             .into_iter()
             .map(|transaction| MiniTransactionSelection {

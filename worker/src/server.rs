@@ -1,8 +1,7 @@
 use crate::config::Config;
 use crate::data_ctx::DataCtx;
 use crate::error::{Error, Result};
-use crate::types::{Query, Status};
-use eth_archive_core::db::DbHandle;
+use crate::types::Query;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpResponse, HttpServer};
@@ -11,12 +10,7 @@ pub struct Server {}
 
 impl Server {
     pub async fn run(config: Config) -> Result<()> {
-        let db = DbHandle::new(false, &config.db)
-            .await
-            .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
-        let db = Arc::new(db);
-
-        let data_ctx = DataCtx::new(db, config.data).await?;
+        let data_ctx = DataCtx::new(config).await?;
         let data_ctx = Arc::new(data_ctx);
 
         HttpServer::new(move || {
@@ -36,9 +30,9 @@ impl Server {
 async fn height(ctx: web::Data<Arc<DataCtx>>) -> Result<web::Json<serde_json::Value>> {
     let height = ctx.height();
 
-    Ok(web::Json(serde_json::json! {
-        "height": height,
-    }))
+    Ok(web::Json(serde_json::json!({
+        "height": height
+    })))
 }
 
 async fn query(query: web::Json<Query>, ctx: web::Data<Arc<DataCtx>>) -> Result<HttpResponse> {

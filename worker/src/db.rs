@@ -1,7 +1,19 @@
-use solana_bloom::bloom::Bloom;
+use crate::types::MiniQuery;
+use crate::{Error, Result};
+use eth_archive_core::deserialize::Address;
+use eth_archive_core::dir_name::DirName;
+use eth_archive_core::types::{
+    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
+    ResponseTransaction, Transaction,
+};
+use serde::{Deserialize, Serialize};
+use solana_bloom::bloom::Bloom as BloomFilter;
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::{cmp, mem};
+
+type Bloom = BloomFilter<Address>;
 
 pub struct DbHandle {
     inner: rocksdb::OptimisticTransactionDB,
@@ -22,7 +34,7 @@ impl DbHandle {
         opts.create_missing_column_families(true);
         opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
 
-        let (inner, status) = tokio::spawn_blocking(move || {
+        let (inner, status) = tokio::task::spawn_blocking(move || {
             let inner =
                 rocksdb::OptimisticTransactionDB::open_cf(&opts, path, cf_name::ALL_CF_NAMES)
                     .map_err(Error::OpenDb)?;
@@ -40,9 +52,11 @@ impl DbHandle {
         from: u32,
         to: Option<u32>,
     ) -> impl Iterator<Item = Result<(DirName, ParquetIdx)>> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
+
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
-            rocksdb::IteratorMode::From(&query.from.to_be_bytes(), rocksdb::Direction::Backward),
+            rocksdb::IteratorMode::From(&from.to_be_bytes(), rocksdb::Direction::Backward),
         );
 
         let start_key = match iter.next() {
@@ -74,6 +88,8 @@ impl DbHandle {
     }
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
+
         let key = key_from_dir_name(dir_name);
         let val = rmp_serde::encode::to_vec(idx).map_err(Error::MsgPack)?;
 
@@ -96,7 +112,7 @@ impl DbHandle {
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
         let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
-        let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
+        let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
 
         let tail_is_zero = self.status.db_tail.load(Ordering::Relaxed) == 0;
 
@@ -157,7 +173,7 @@ impl DbHandle {
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
         let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
-        let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
+        let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
 
         let db_tail = self.status.db_tail.load(Ordering::Relaxed);
         for block_num in db_tail..to {
@@ -196,10 +212,10 @@ impl DbHandle {
             let from = block_num.to_be_bytes();
             let to = (block_num + 1).to_be_bytes();
 
-            db_tx.delete_cf(block_cf, &from);
+            batch.delete_cf(block_cf, &from);
 
-            db_tx.delete_range_cf(tx_cf, &from, &to);
-            db_tx.delete_range_cf(log_cf, &from, &to);
+            batch.delete_range_cf(tx_cf, &from, &to);
+            batch.delete_range_cf(log_cf, &from, &to);
 
             self.inner.write(batch).map_err(Error::Db)?;
 
@@ -308,7 +324,7 @@ fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
     key
 }
 
-fn addr_log_key(tx: &Log) -> [u8; 28] {
+fn addr_log_key(log: &Log) -> [u8; 28] {
     let mut key = [0; 28];
 
     (&mut key[..20]).copy_from_slice(log.address.as_slice());

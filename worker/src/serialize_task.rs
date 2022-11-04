@@ -1,4 +1,11 @@
+use crate::{Error, Result};
+use eth_archive_core::rayon_async;
 use std::mem;
+use tokio::sync::mpsc;
+use eth_archive_core::types::{QueryResult, BlockRange, QueryMetrics};
+use std::time::Instant;
+use std::collections::HashMap;
+use crate::types::{BlockEntry};
 
 pub struct SerializeTask {
     tx: mpsc::Sender<(QueryResult, BlockRange)>,
@@ -10,6 +17,8 @@ impl SerializeTask {
         let (tx, mut rx) = mpsc::channel(1);
 
         let join_handle = tokio::spawn(async move {
+            let query_start = Instant::now();
+
             let mut bytes = br#"{"data":["#.to_vec();
 
             let mut is_first = true;
@@ -39,7 +48,6 @@ impl SerializeTask {
                 }
             }
 
-            let status = serde_json::to_string(&status).unwrap();
             let metrics = serde_json::to_string(&metrics).unwrap();
 
             let archive_height = match archive_height {
