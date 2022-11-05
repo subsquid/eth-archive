@@ -3,7 +3,10 @@ use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::types::{ResponseLog, ResponseBlock, ResponseTransaction, Block, BlockRange, Log, QueryMetrics, QueryResult, Transaction};
+use eth_archive_core::types::{
+    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog,
+    ResponseTransaction, Transaction,
+};
 use serde::{Deserialize, Serialize};
 use solana_bloom::bloom::Bloom as BloomFilter;
 use std::collections::{BTreeMap, BTreeSet};
@@ -442,7 +445,10 @@ fn response_log_from_log(log: Log, selection: LogFieldSelection) -> ResponseLog 
     todo!();
 }
 
-fn response_tx_from_tx(tx: Transaction, selection: TransactionFieldSelection) -> ResponseTransaction {
+fn response_tx_from_tx(
+    tx: Transaction,
+    selection: TransactionFieldSelection,
+) -> ResponseTransaction {
     todo!();
 }
 

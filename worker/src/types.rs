@@ -1,8 +1,8 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
+use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
 use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction};
-use generic_array::{GenericArray, typenum::U4};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -21,7 +21,7 @@ pub struct MiniQuery {
 #[serde(rename_all = "camelCase")]
 pub struct MiniLogSelection {
     pub address: Option<Vec<Address>>,
-    pub topics: GenericArray<Vec<Bytes32>, U4>,
+    pub topics: ArrayVec<Vec<Bytes32>, 4>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -186,7 +186,7 @@ impl Query {
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {
     pub address: Option<Vec<Address>>,
-    pub topics: GenericArray<Vec<Bytes32>, U4>,
+    pub topics: ArrayVec<Vec<Bytes32>, 4>,
     pub field_selection: Option<FieldSelection>,
 }
 
