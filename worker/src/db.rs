@@ -115,6 +115,10 @@ impl DbHandle {
         Ok(QueryResult { data, metrics })
     }
 
+    fn get_log_iter(&self, query: &MiniQuery) -> rocksdb::DBIteratorWithThreadMode<'_, rocksdb::DB> {
+        todo!()
+    }
+
     fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
@@ -127,10 +131,7 @@ impl DbHandle {
         let mut tx_keys = BTreeSet::new();
         let mut logs = BTreeMap::new();
 
-        for res in self
-            .inner
-            .iterator_cf(addr_log_cf, rocksdb::IteratorMode::Start)
-        {
+        for res in self.get_log_iter(query) {
             let (log_key, log) = res.map_err(Error::Db)?;
             let log = rmp_serde::decode::from_slice(&log).unwrap();
 
@@ -202,6 +203,10 @@ impl DbHandle {
         })
     }
 
+    fn get_tx_iter(&self, query: &MiniQuery) -> rocksdb::DBIteratorWithThreadMode<'_, rocksdb::DB> {
+        todo!()
+    }
+
     fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
@@ -212,10 +217,7 @@ impl DbHandle {
         let mut block_nums = BTreeSet::new();
         let mut txs = BTreeMap::new();
 
-        for res in self
-            .inner
-            .iterator_cf(addr_tx_cf, rocksdb::IteratorMode::Start)
-        {
+        for res in self.get_tx_iter(query) {
             let (tx_key, tx) = res.map_err(Error::Db)?;
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
