@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
 use std::fmt;
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
 impl Bytes32 {
@@ -25,7 +25,7 @@ impl ToHexPrefixed for &Bytes32 {
     }
 }
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Address(pub Box<[u8; 20]>);
 
 impl Address {

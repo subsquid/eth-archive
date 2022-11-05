@@ -2,7 +2,7 @@ use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
-use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction};
+use eth_archive_core::types::{Transaction, Log, ResponseBlock, ResponseLog, ResponseTransaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -64,7 +64,15 @@ impl MiniLogSelection {
 
     pub fn matches(&self, log: &Log) -> bool {
         if let Some(address) = &self.address {
-            for addr in address.iter() {}
+            if !address.iter().any(|addr| addr == &log.address) {
+                return false;
+            }
+        }
+
+        for (topic, log_topic) in self.topics.iter().zip(log.topics.iter()) {
+            if !topic.is_empty() && !topic.iter().any(|topic| log_topic == topic) {
+                return false;
+            }
         }
 
         true
@@ -92,6 +100,30 @@ impl MiniTransactionSelection {
         }
 
         Ok(expr)
+    }
+
+    pub fn matches(&self, tx: &Transaction) -> bool {
+        if let Some(address) = &self.address {
+            let tx_addr = match tx.dest.as_ref() {
+                Some(addr) => addr,
+                None => return false,
+            };
+
+            if !address.iter().any(|addr| addr == tx_addr) {
+                return false;
+            }
+        }
+
+        if let Some(sighash) = &self.sighash {
+            match tx.input.get(..4) {
+                Some(sig) => if sig != sighash.as_slice() {
+                    return false;
+                }
+                None => return false,
+            }
+        }
+
+        true
     }
 }
 
