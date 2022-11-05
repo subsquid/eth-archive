@@ -59,7 +59,7 @@ impl DataCtx {
             inclusive_height,
         );
 
-        let serialize_task = rayon_async::spawn(move || {
+        let query_task = rayon_async::spawn(move || {
             if query.from_block < height {
                 let parquet_height = self.db.parquet_height();
 
@@ -175,31 +175,35 @@ impl DataCtx {
                         to: to_block,
                     };
 
-                    let mini_query = MiniQuery {
-                        from_block,
-                        to_block,
-                        logs: query.log_selection(),
-                        transactions: query.tx_selection(),
-                        field_selection,
-                    };
+                    for start in (from_block..to_block).step_by(self.config.db_query_batch_size) {
+                        let end = cmp::min(to_block, start + from_block);
 
-                    if serialize_task.is_closed() {
-                        return Ok(serialize_task);
-                    }
+                        let mini_query = MiniQuery {
+                            from_block: start,
+                            to_block: end,
+                            logs: query.log_selection(),
+                            transactions: query.tx_selection(),
+                            field_selection,
+                        };
 
-                    let res = self.db.query(mini_query)?;
+                        if serialize_task.is_closed() {
+                            return Ok(serialize_task);
+                        }
 
-                    if !serialize_task.send((res, block_range)) {
-                        return Ok(serialize_task);
+                        let res = self.db.query(mini_query)?;
+
+                        if !serialize_task.send((res, block_range)) {
+                            return Ok(serialize_task);
+                        }
                     }
                 }
             }
 
             Ok(serialize_task)
-        })
-        .await?;
+        });
 
-        serialize_task.join().await
+        // run query task to end, then run serialization task to end
+        query_task.await?.join().await
     }
 
     fn query_parquet(&self, dir_name: DirName, query: MiniQuery) -> Result<QueryResult> {

@@ -30,6 +30,10 @@ pub struct Config {
     /// if the request takes more than this amount of time to handle.
     #[clap(long)]
     pub response_time_limit_millis: u64,
+    /// Size of each database query.
+    /// Database queries are batched because we don't want to query the entire db at once.
+    #[clap(long, default_value_t = 200)]
+    pub db_query_batch_size: usize,
 }
 
 fn default_server_addr() -> SocketAddr {

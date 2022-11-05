@@ -115,15 +115,10 @@ impl DbHandle {
         Ok(QueryResult { data, metrics })
     }
 
-    fn get_log_iter(&self, query: &MiniQuery) -> rocksdb::DBIteratorWithThreadMode<'_, rocksdb::DB> {
-        todo!()
-    }
-
     fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
-        let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
 
         let start = Instant::now();
 
@@ -131,8 +126,19 @@ impl DbHandle {
         let mut tx_keys = BTreeSet::new();
         let mut logs = BTreeMap::new();
 
-        for res in self.get_log_iter(query) {
+        for res in self.inner.iterator_cf(
+            log_cf,
+            rocksdb::IteratorMode::From(
+                &query.from_block.to_be_bytes(),
+                rocksdb::Direction::Forward,
+            ),
+        ) {
             let (log_key, log) = res.map_err(Error::Db)?;
+
+            if log_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
+                break;
+            }
+
             let log = rmp_serde::decode::from_slice(&log).unwrap();
 
             if !query.matches_log(&log) {
@@ -157,7 +163,7 @@ impl DbHandle {
         for num in block_nums {
             let block = self
                 .inner
-                .get_cf(block_cf, &num.to_be_bytes())
+                .get_pinned_cf(block_cf, &num.to_be_bytes())
                 .map_err(Error::Db)?
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
@@ -168,7 +174,7 @@ impl DbHandle {
         }
 
         for key in tx_keys {
-            let tx = self.inner.get_cf(tx_cf, &key).map_err(Error::Db)?.unwrap();
+            let tx = self.inner.get_pinned_cf(tx_cf, &key).map_err(Error::Db)?.unwrap();
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
             let tx = response_tx_from_tx(tx, query.field_selection.transaction.unwrap());
@@ -203,22 +209,28 @@ impl DbHandle {
         })
     }
 
-    fn get_tx_iter(&self, query: &MiniQuery) -> rocksdb::DBIteratorWithThreadMode<'_, rocksdb::DB> {
-        todo!()
-    }
-
     fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
-        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
 
         let start = Instant::now();
 
         let mut block_nums = BTreeSet::new();
         let mut txs = BTreeMap::new();
 
-        for res in self.get_tx_iter(query) {
+        for res in self.inner.iterator_cf(
+            tx_cf,
+            rocksdb::IteratorMode::From(
+                &query.from_block.to_be_bytes(),
+                rocksdb::Direction::Forward,
+            ),
+        ) {
             let (tx_key, tx) = res.map_err(Error::Db)?;
+
+            if tx_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
+                break;
+            }
+
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
             if !query.matches_tx(&tx) {
@@ -236,7 +248,7 @@ impl DbHandle {
         for num in block_nums {
             let block = self
                 .inner
-                .get_cf(block_cf, &num.to_be_bytes())
+                .get_pinned_cf(block_cf, &num.to_be_bytes())
                 .map_err(Error::Db)?
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
@@ -291,8 +303,6 @@ impl DbHandle {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
-        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
-        let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
 
         let tail_is_zero = self.status.db_tail.load(Ordering::Relaxed) == 0;
 
@@ -309,9 +319,6 @@ impl DbHandle {
                     let val = rmp_serde::encode::to_vec(&tx).unwrap();
                     let tx_key = tx_key(&tx);
                     batch.put_cf(tx_cf, &tx_key, &val);
-                    if tx.dest.is_some() {
-                        batch.put_cf(addr_tx_cf, &addr_tx_key(&tx), &tx_key);
-                    }
                 }
 
                 let val = rmp_serde::encode::to_vec(&block).unwrap();
@@ -325,7 +332,6 @@ impl DbHandle {
                 let val = rmp_serde::encode::to_vec(&log).unwrap();
                 let log_key = log_key(&log);
                 batch.put_cf(log_cf, &log_key, &val);
-                batch.put_cf(addr_log_cf, &addr_log_key(&log), &log_key);
             }
 
             self.inner.write(batch).map_err(Error::Db)?;
@@ -350,44 +356,10 @@ impl DbHandle {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
-        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
-        let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
 
         let db_tail = self.status.db_tail.load(Ordering::Relaxed);
         for block_num in db_tail..to {
-            let mut addr_tx_keys = Vec::new();
-            let mut addr_log_keys = Vec::new();
-
-            for res in self
-                .inner
-                .prefix_iterator_cf(tx_cf, &block_num.to_be_bytes())
-            {
-                let (_, tx) = res.map_err(Error::Db)?;
-                let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
-
-                if tx.dest.is_some() {
-                    addr_tx_keys.push(addr_tx_key(&tx));
-                }
-            }
-
-            for res in self
-                .inner
-                .prefix_iterator_cf(log_cf, &block_num.to_be_bytes())
-            {
-                let (_, log) = res.map_err(Error::Db)?;
-                let log = rmp_serde::decode::from_slice(&log).unwrap();
-
-                addr_log_keys.push(addr_log_key(&log));
-            }
-
             let mut batch = rocksdb::WriteBatch::default();
-
-            for key in addr_tx_keys {
-                batch.delete_cf(addr_tx_cf, &key);
-            }
-            for key in addr_log_keys {
-                batch.delete_cf(addr_log_cf, &key);
-            }
 
             let from = block_num.to_be_bytes();
             let to = (block_num + 1).to_be_bytes();
@@ -463,11 +435,9 @@ mod cf_name {
     pub const BLOCK: &str = "BLOCK";
     pub const TX: &str = "TX";
     pub const LOG: &str = "LOG";
-    pub const ADDR_LOG: &str = "ADDR_LOG";
-    pub const ADDR_TX: &str = "ADDR_TX";
     pub const PARQUET_IDX: &str = "PARQUET_FOLDERS";
 
-    pub const ALL_CF_NAMES: [&str; 6] = [BLOCK, TX, LOG, ADDR_LOG, ADDR_TX, PARQUET_IDX];
+    pub const ALL_CF_NAMES: [&str; 4] = [BLOCK, TX, LOG, PARQUET_IDX];
 }
 
 #[derive(Serialize, Deserialize)]
@@ -494,26 +464,6 @@ fn log_key(log: &Log) -> [u8; 8] {
 
     key[..4].copy_from_slice(&log.block_number.to_be_bytes());
     key[4..].copy_from_slice(&log.log_index.to_be_bytes());
-
-    key
-}
-
-fn addr_tx_key(tx: &Transaction) -> [u8; 28] {
-    let mut key = [0; 28];
-
-    key[..20].copy_from_slice(tx.dest.as_ref().unwrap().as_slice());
-    key[20..24].copy_from_slice(&tx.block_number.to_be_bytes());
-    key[24..].copy_from_slice(&tx.transaction_index.to_be_bytes());
-
-    key
-}
-
-fn addr_log_key(log: &Log) -> [u8; 28] {
-    let mut key = [0; 28];
-
-    key[..20].copy_from_slice(log.address.as_slice());
-    key[20..24].copy_from_slice(&log.block_number.to_be_bytes());
-    key[24..].copy_from_slice(&log.log_index.to_be_bytes());
 
     key
 }
