@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 use std::{cmp, iter, mem};
 
-type Bloom = BloomFilter<Address>;
+pub type Bloom = BloomFilter<Address>;
 pub type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + 'a>;
 
 pub struct DbHandle {
