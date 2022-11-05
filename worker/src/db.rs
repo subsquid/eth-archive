@@ -134,7 +134,7 @@ impl DbHandle {
             let (log_key, log) = res.map_err(Error::Db)?;
             let log = rmp_serde::decode::from_slice(&log).unwrap();
 
-            if !query.logs.iter().any(|selection| selection.matches(&log)) {
+            if !query.matches_log(&log) {
                 continue;
             }
 
@@ -219,11 +219,7 @@ impl DbHandle {
             let (tx_key, tx) = res.map_err(Error::Db)?;
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
-            if !query
-                .transactions
-                .iter()
-                .any(|selection| selection.matches(&tx))
-            {
+            if !query.matches_tx(&tx) {
                 continue;
             }
 

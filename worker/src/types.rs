@@ -30,6 +30,30 @@ pub struct MiniTransactionSelection {
     pub sighash: Option<Sighash>,
 }
 
+impl MiniQuery {
+    pub fn matches_log(&self, log: &Log) -> bool {
+        let block_num = log.block_number.0;
+
+        if block_num < self.from_block || block_num >= self.to_block {
+            return false;
+        }
+
+        self.logs.iter().any(|selection| selection.matches(log))
+    }
+
+    pub fn matches_tx(&self, tx: &Transaction) -> bool {
+        let block_num = tx.block_number.0;
+
+        if block_num < self.from_block || block_num >= self.to_block {
+            return false;
+        }
+
+        self.transactions
+            .iter()
+            .any(|selection| selection.matches(tx))
+    }
+}
+
 impl MiniLogSelection {
     pub fn to_expr(&self) -> Result<Option<Expr>> {
         let mut expr = match &self.address {
