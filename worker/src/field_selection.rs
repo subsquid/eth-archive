@@ -1,3 +1,6 @@
+use eth_archive_core::types::{
+    Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
+};
 use polars::prelude::*;
 use serde::Deserialize;
 
@@ -9,6 +12,15 @@ macro_rules! append_col {
             let col = col.prefix(&format!("{}_", $table_name));
             $cols.push(col);
         }
+    };
+}
+
+macro_rules! prune_col {
+    ($src:ident, $self:ident, $field:ident) => {
+        $self
+            .$field
+            .map(|cond| if cond { Some($src.$field) } else { None })
+            .flatten()
     };
 }
 
@@ -86,6 +98,28 @@ impl BlockFieldSelection {
         append_col!(table_name, cols, self, timestamp);
 
         cols
+    }
+
+    pub fn prune(&self, block: Block) -> ResponseBlock {
+        ResponseBlock {
+            number: prune_col!(block, self, number),
+            hash: prune_col!(block, self, hash),
+            parent_hash: prune_col!(block, self, parent_hash),
+            nonce: prune_col!(block, self, nonce),
+            sha3_uncles: prune_col!(block, self, sha3_uncles),
+            logs_bloom: prune_col!(block, self, logs_bloom),
+            transactions_root: prune_col!(block, self, transactions_root),
+            state_root: prune_col!(block, self, state_root),
+            receipts_root: prune_col!(block, self, receipts_root),
+            miner: prune_col!(block, self, miner),
+            difficulty: prune_col!(block, self, difficulty),
+            total_difficulty: prune_col!(block, self, total_difficulty),
+            extra_data: prune_col!(block, self, extra_data),
+            size: prune_col!(block, self, size),
+            gas_limit: prune_col!(block, self, gas_limit),
+            gas_used: prune_col!(block, self, gas_used),
+            timestamp: prune_col!(block, self, timestamp),
+        }
     }
 
     pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
@@ -170,6 +204,27 @@ impl TransactionFieldSelection {
         cols
     }
 
+    pub fn prune(&self, tx: Transaction) -> ResponseTransaction {
+        ResponseTransaction {
+            block_hash: prune_col!(tx, self, block_hash),
+            block_number: prune_col!(tx, self, block_number),
+            source: prune_col!(tx, self, source),
+            gas: prune_col!(tx, self, gas),
+            gas_price: prune_col!(tx, self, gas_price),
+            hash: prune_col!(tx, self, hash),
+            input: prune_col!(tx, self, input),
+            nonce: prune_col!(tx, self, nonce),
+            dest: prune_col!(tx, self, dest).flatten(),
+            transaction_index: prune_col!(tx, self, transaction_index),
+            value: prune_col!(tx, self, value),
+            kind: prune_col!(tx, self, kind),
+            chain_id: prune_col!(tx, self, chain_id),
+            v: prune_col!(tx, self, v),
+            r: prune_col!(tx, self, r),
+            s: prune_col!(tx, self, s),
+        }
+    }
+
     pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
         let left = match left {
             Some(left) => left,
@@ -240,6 +295,20 @@ impl LogFieldSelection {
         append_col!(table_name, cols, self, transaction_index);
 
         cols
+    }
+
+    pub fn prune(&self, log: Log) -> ResponseLog {
+        ResponseLog {
+            address: prune_col!(log, self, address),
+            block_hash: prune_col!(log, self, block_hash),
+            block_number: prune_col!(log, self, block_number),
+            data: prune_col!(log, self, data),
+            log_index: prune_col!(log, self, log_index),
+            removed: prune_col!(log, self, removed),
+            topics: prune_col!(log, self, topics),
+            transaction_hash: prune_col!(log, self, transaction_hash),
+            transaction_index: prune_col!(log, self, transaction_index),
+        }
     }
 
     pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {

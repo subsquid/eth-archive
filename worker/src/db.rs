@@ -1,11 +1,9 @@
-use crate::field_selection::{BlockFieldSelection, LogFieldSelection, TransactionFieldSelection};
 use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{
-    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
-    ResponseTransaction, Transaction,
+    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseRow, Transaction,
 };
 use serde::{Deserialize, Serialize};
 use solana_bloom::bloom::Bloom as BloomFilter;
@@ -153,7 +151,7 @@ impl DbHandle {
 
             let log_idx = log.log_index.0;
 
-            let log = response_log_from_log(log, query.field_selection.log.unwrap());
+            let log = query.field_selection.log.unwrap().prune(log);
             logs.insert(log_idx, log);
         }
 
@@ -168,16 +166,20 @@ impl DbHandle {
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
 
-            let block = response_block_from_block(block, query.field_selection.block.unwrap());
+            let block = query.field_selection.block.unwrap().prune(block);
 
             blocks.insert(num, block);
         }
 
         for key in tx_keys {
-            let tx = self.inner.get_pinned_cf(tx_cf, &key).map_err(Error::Db)?.unwrap();
+            let tx = self
+                .inner
+                .get_pinned_cf(tx_cf, &key)
+                .map_err(Error::Db)?
+                .unwrap();
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
-            let tx = response_tx_from_tx(tx, query.field_selection.transaction.unwrap());
+            let tx = query.field_selection.transaction.unwrap().prune(tx);
 
             txs.insert(key, tx);
         }
@@ -239,7 +241,7 @@ impl DbHandle {
 
             block_nums.insert(tx.block_number.0);
 
-            let tx = response_tx_from_tx(tx, query.field_selection.transaction.unwrap());
+            let tx = query.field_selection.transaction.unwrap().prune(tx);
             txs.insert(tx_key, tx);
         }
 
@@ -253,7 +255,7 @@ impl DbHandle {
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
 
-            let block = response_block_from_block(block, query.field_selection.block.unwrap());
+            let block = query.field_selection.block.unwrap().prune(block);
 
             blocks.insert(num, block);
         }
@@ -496,21 +498,6 @@ fn block_num_from_key(key: &[u8]) -> u32 {
     let arr: [u8; 4] = key.try_into().unwrap();
 
     u32::from_be_bytes(arr)
-}
-
-fn response_block_from_block(block: Block, selection: BlockFieldSelection) -> ResponseBlock {
-    todo!();
-}
-
-fn response_log_from_log(log: Log, selection: LogFieldSelection) -> ResponseLog {
-    todo!();
-}
-
-fn response_tx_from_tx(
-    tx: Transaction,
-    selection: TransactionFieldSelection,
-) -> ResponseTransaction {
-    todo!();
 }
 
 #[cfg(test)]
