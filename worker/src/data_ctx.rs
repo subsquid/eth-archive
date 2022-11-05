@@ -170,11 +170,6 @@ impl DataCtx {
                         None => height,
                     };
 
-                    let block_range = BlockRange {
-                        from: from_block,
-                        to: to_block,
-                    };
-
                     for start in (from_block..to_block).step_by(self.config.db_query_batch_size) {
                         let end = cmp::min(to_block, start + from_block);
 
@@ -191,6 +186,11 @@ impl DataCtx {
                         }
 
                         let res = self.db.query(mini_query)?;
+
+                        let block_range = BlockRange {
+                            from: start,
+                            to: end,
+                        };
 
                         if !serialize_task.send((res, block_range)) {
                             return Ok(serialize_task);
