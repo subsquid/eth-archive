@@ -13,7 +13,7 @@ args = [
 	"--block-batch-size", "50",
 	"--http-req-concurrency", "100",
 	"--best-block-offset", "10",
-	"--max-blocks-per-file", "300000",
+	"--max-blocks-per-file", "100000",
 	"--max-txs-per-file", "200000",
 	"--max-logs-per-file", "200000",
 ]
@@ -23,12 +23,16 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release", "--bin", "eth-archive-gateway", "--",
+	"--db-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/db",
 	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
-	"--max-block-range", "500000",
-	"--default-block-range", "1000000",
-	"--response-log-limit", "10000",
-	"--query-chunk-size", "256",
-	"--query-time-limit-ms", "6000",
+	"--request-timeout-secs", "300",
+	"--connect-timeout-ms", "1000",
+	"--block-batch-size", "50",
+	"--http-req-concurrency", "100",
+	"--best-block-offset", "10",
+	"--min-hot-block-range", "100500",
+	"--max-resp-body-size", "30",
+	"--resp-time-limit", "5000",
 ]
 
 [tasks.sync-s3]

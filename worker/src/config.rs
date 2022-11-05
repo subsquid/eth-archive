@@ -22,14 +22,15 @@ pub struct Config {
     /// Blocks that fall out of this range will be periodically deleted.
     #[clap(long)]
     pub min_hot_block_range: u32,
-    /// Maximum response body size
+    /// Query stops as soon as the response body size in megabytes reaches this number.
+    /// Response body might be bigger than this amount of MBs.
     #[clap(long)]
     pub max_resp_body_size: usize,
     /// Response time limit in milliseconds.
     /// The query will stop and found data will be returned
     /// if the request takes more than this amount of time to handle.
     #[clap(long)]
-    pub response_time_limit_millis: u64,
+    pub resp_time_limit: u128,
     /// Size of each database query.
     /// Database queries are batched because we don't want to query the entire db at once.
     #[clap(long, default_value_t = 200)]

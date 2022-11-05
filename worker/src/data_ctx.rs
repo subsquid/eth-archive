@@ -56,6 +56,7 @@ impl DataCtx {
         let serialize_task = SerializeTask::new(
             query.from_block,
             self.config.max_resp_body_size,
+            self.config.resp_time_limit,
             inclusive_height,
         );
 
