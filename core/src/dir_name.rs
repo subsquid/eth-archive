@@ -113,27 +113,25 @@ impl DirName {
             }
         }
 
-        let sorted_names = rayon_async::spawn(move || {
+        let dir_names = rayon_async::spawn(move || {
             let mut names = names;
             names.par_sort_by_key(|name| name.range.from);
-            names
+
+            let mut next = from;
+            let mut dir_names = Vec::new();
+
+            for name in names.into_iter().skip_while(|name| name.range.from != from) {
+                if name.range.from == next {
+                    next = name.range.to;
+                    dir_names.push(name);
+                } else {
+                    break;
+                }
+            }
+
+            dir_names
         })
         .await;
-
-        let mut next = from;
-        let mut dir_names = Vec::new();
-
-        for name in sorted_names
-            .into_iter()
-            .skip_while(|name| name.range.from != from)
-        {
-            if name.range.from == next {
-                next = name.range.to;
-                dir_names.push(name);
-            } else {
-                break;
-            }
-        }
 
         Ok(dir_names)
     }
