@@ -137,6 +137,26 @@ impl Query {
 
         Ok(field_selection)
     }
+
+    pub fn log_selection(&self) -> Vec<MiniLogSelection> {
+        self.logs
+            .iter()
+            .map(|log| MiniLogSelection {
+                address: log.address.clone(),
+                topics: log.topics.clone(),
+            })
+            .collect()
+    }
+
+    pub fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
+        self.transactions
+            .iter()
+            .map(|transaction| MiniTransactionSelection {
+                address: transaction.address.clone(),
+                sighash: transaction.sighash.clone(),
+            })
+            .collect()
+    }
 }
 
 #[derive(Deserialize)]

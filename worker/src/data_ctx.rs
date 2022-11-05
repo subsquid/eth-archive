@@ -46,8 +46,6 @@ impl DataCtx {
             }
         }
 
-        let field_selection = query.field_selection()?;
-
         let height = self.db.height();
 
         let inclusive_height = match height {
@@ -64,6 +62,8 @@ impl DataCtx {
         let serialize_task = rayon_async::spawn(move || {
             if query.from_block < height {
                 let parquet_height = self.db.parquet_height();
+
+                let field_selection = query.field_selection()?;
 
                 if query.from_block < parquet_height {
                     for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
@@ -165,7 +165,33 @@ impl DataCtx {
                 let from_block = cmp::max(query.from_block, parquet_height);
 
                 if from_block < height {
-                    // query db, send results to ser_task
+                    let to_block = match to_block {
+                        Some(to_block) => cmp::min(height, to_block),
+                        None => height,
+                    };
+
+                    let block_range = BlockRange {
+                        from: from_block,
+                        to: to_block,
+                    };
+
+                    let mini_query = MiniQuery {
+                        from_block,
+                        to_block,
+                        logs: query.log_selection(),
+                        transactions: query.tx_selection(),
+                        field_selection,
+                    };
+
+                    if serialize_task.is_closed() {
+                        return Ok(serialize_task);
+                    }
+
+                    let res = self.db.query(mini_query)?;
+
+                    if !serialize_task.send((res, block_range)) {
+                        return Ok(serialize_task);
+                    }
                 }
             }
 
