@@ -97,21 +97,44 @@ impl DirName {
         Ok(sorted_names)
     }
 
-    pub async fn find<P: AsRef<Path>>(path: P, from: u32) -> Result<Option<DirName>> {
+    pub async fn find_sorted<P: AsRef<Path>>(path: P, from: u32) -> Result<Vec<DirName>> {
         let mut dir = tokio::fs::read_dir(&path)
             .await
             .map_err(Error::ReadParquetDir)?;
 
+        let mut names = Vec::new();
         while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
             let folder_name = entry.file_name();
             let folder_name = folder_name.to_str().ok_or(Error::InvalidFolderName)?;
             let dir_name = DirName::from_str(folder_name)?;
 
-            if !dir_name.is_temp && dir_name.range.from == from {
-                return Ok(Some(dir_name));
+            if !dir_name.is_temp {
+                names.push(dir_name);
             }
         }
 
-        Ok(None)
+        let sorted_names = rayon_async::spawn(move || {
+            let mut names = names;
+            names.par_sort_by_key(|name| name.range.from);
+            names
+        })
+        .await;
+
+        let mut next = from;
+        let mut dir_names = Vec::new();
+
+        for name in sorted_names
+            .into_iter()
+            .skip_while(|name| name.range.from != from)
+        {
+            if name.range.from == next {
+                next = name.range.to;
+                dir_names.push(name);
+            } else {
+                break;
+            }
+        }
+
+        Ok(dir_names)
     }
 }

@@ -55,7 +55,7 @@ impl DataCtx {
                 while let Some(res) = batches.next().await {
                     let (_, blocks, logs) = res.unwrap();
                     let batches = (blocks, logs);
-                    db_writer.write_batches(batches).await.unwrap();
+                    db_writer.write_batches(batches).await;
                 }
             }
         });
@@ -70,9 +70,10 @@ impl DataCtx {
                 loop {
                     tokio::time::sleep(Duration::from_secs(5)).await;
 
-                    while let Some(dir_name) = DirName::find(&data_path, next_start).await.unwrap()
-                    {
-                        db_writer.register_parquet_folder(dir_name).await.unwrap();
+                    let dir_names = DirName::find_sorted(&data_path, next_start).await.unwrap();
+
+                    for dir_name in dir_names {
+                        db_writer.register_parquet_folder(dir_name).await;
                         next_start = dir_name.range.to;
                     }
                 }

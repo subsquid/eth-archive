@@ -7,7 +7,7 @@ use polars::export::arrow::array::BinaryArray;
 use polars::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 pub struct DbWriter {
     tx: mpsc::Sender<Job>,
@@ -15,56 +15,36 @@ pub struct DbWriter {
 
 impl DbWriter {
     pub fn new(db: Arc<DbHandle>, data_path: &Path, min_hot_block_range: u32) -> Self {
-        let (tx, mut rx) = mpsc::channel::<Job>(2);
+        let (tx, mut rx) = mpsc::channel::<Job>(4);
 
         let data_path = data_path.to_owned();
 
         std::thread::spawn(move || {
             while let Some(job) = rx.blocking_recv() {
-                let res = match job.kind {
-                    JobKind::WriteBatches(batches) => {
-                        Self::handle_write_batches(&db, batches, min_hot_block_range)
+                match job {
+                    Job::WriteBatches(batches) => {
+                        Self::handle_write_batches(&db, batches, min_hot_block_range).unwrap();
                     }
-                    JobKind::RegisterParquetFolder(dir_name) => {
-                        Self::handle_register_parquet_folder(&db, &data_path, dir_name)
+                    Job::RegisterParquetFolder(dir_name) => {
+                        Self::handle_register_parquet_folder(&db, &data_path, dir_name).unwrap();
                     }
                 };
-
-                job.respond.send(res).ok().unwrap();
             }
         });
 
         Self { tx }
     }
 
-    pub async fn write_batches(&self, batches: (Vec<Vec<Block>>, Vec<Vec<Log>>)) -> Result<()> {
-        let (tx, rx) = oneshot::channel();
-
-        self.tx
-            .send(Job {
-                respond: tx,
-                kind: JobKind::WriteBatches(batches),
-            })
-            .await
-            .ok()
-            .unwrap();
-
-        rx.await.unwrap()
+    pub async fn write_batches(&self, batches: (Vec<Vec<Block>>, Vec<Vec<Log>>)) {
+        self.tx.send(Job::WriteBatches(batches)).await.ok().unwrap();
     }
 
-    pub async fn register_parquet_folder(&self, dir_name: DirName) -> Result<()> {
-        let (tx, rx) = oneshot::channel();
-
+    pub async fn register_parquet_folder(&self, dir_name: DirName) {
         self.tx
-            .send(Job {
-                respond: tx,
-                kind: JobKind::RegisterParquetFolder(dir_name),
-            })
+            .send(Job::RegisterParquetFolder(dir_name))
             .await
             .ok()
             .unwrap();
-
-        rx.await.unwrap()
     }
 
     fn handle_write_batches(
@@ -168,12 +148,7 @@ impl DbWriter {
     }
 }
 
-struct Job {
-    respond: oneshot::Sender<Result<()>>,
-    kind: JobKind,
-}
-
-enum JobKind {
+enum Job {
     WriteBatches((Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
 }
