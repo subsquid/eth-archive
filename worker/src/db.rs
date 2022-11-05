@@ -4,7 +4,7 @@ use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{
-    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog,
+    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
     ResponseTransaction, Transaction,
 };
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Instant;
 use std::{cmp, iter, mem};
 
 type Bloom = BloomFilter<Address>;
@@ -120,8 +121,10 @@ impl DbHandle {
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
         let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
 
-        let mut blocks = BTreeSet::new();
-        let mut txs = BTreeSet::new();
+        let start = Instant::now();
+
+        let mut block_nums = BTreeSet::new();
+        let mut tx_keys = BTreeSet::new();
         let mut logs = BTreeMap::new();
 
         for res in self
@@ -135,17 +138,68 @@ impl DbHandle {
                 continue;
             }
 
-            blocks.insert(log.block_number.0);
-            txs.insert(tx_key_from_parts(
+            block_nums.insert(log.block_number.0);
+            tx_keys.insert(tx_key_from_parts(
                 log.block_number.0,
                 log.transaction_index.0,
             ));
 
+            let log_idx = log.log_index.0;
+
             let log = response_log_from_log(log, query.field_selection.log.unwrap());
-            logs.insert(log_key, log);
+            logs.insert(log_idx, log);
         }
 
-        todo!()
+        let mut blocks = BTreeMap::new();
+        let mut txs = BTreeMap::new();
+
+        for num in block_nums {
+            let block = self
+                .inner
+                .get_cf(block_cf, &num.to_be_bytes())
+                .map_err(Error::Db)?
+                .unwrap();
+            let block = rmp_serde::decode::from_slice(&block).unwrap();
+
+            let block = response_block_from_block(block, query.field_selection.block.unwrap());
+
+            blocks.insert(num, block);
+        }
+
+        for key in tx_keys {
+            let tx = self.inner.get_cf(tx_cf, &key).map_err(Error::Db)?.unwrap();
+            let tx = rmp_serde::decode::from_slice(&tx).unwrap();
+
+            let tx = response_tx_from_tx(tx, query.field_selection.transaction.unwrap());
+
+            txs.insert(key, tx);
+        }
+
+        let data = logs
+            .into_values()
+            .map(|log| ResponseRow {
+                block: blocks.get(&log.block_number.unwrap().0).unwrap().clone(),
+                transaction: txs
+                    .get(&tx_key_from_parts(
+                        log.block_number.unwrap().0,
+                        log.transaction_index.unwrap().0,
+                    ))
+                    .unwrap()
+                    .clone(),
+                log: Some(log),
+            })
+            .collect();
+
+        let elapsed = start.elapsed().as_millis();
+
+        Ok(QueryResult {
+            data,
+            metrics: QueryMetrics {
+                run_query: elapsed,
+                total: elapsed,
+                ..Default::default()
+            },
+        })
     }
 
     fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
@@ -153,7 +207,66 @@ impl DbHandle {
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
 
-        todo!()
+        let start = Instant::now();
+
+        let mut block_nums = BTreeSet::new();
+        let mut txs = BTreeMap::new();
+
+        for res in self
+            .inner
+            .iterator_cf(addr_tx_cf, rocksdb::IteratorMode::Start)
+        {
+            let (tx_key, tx) = res.map_err(Error::Db)?;
+            let tx = rmp_serde::decode::from_slice(&tx).unwrap();
+
+            if !query
+                .transactions
+                .iter()
+                .any(|selection| selection.matches(&tx))
+            {
+                continue;
+            }
+
+            block_nums.insert(tx.block_number.0);
+
+            let tx = response_tx_from_tx(tx, query.field_selection.transaction.unwrap());
+            txs.insert(tx_key, tx);
+        }
+
+        let mut blocks = BTreeMap::new();
+
+        for num in block_nums {
+            let block = self
+                .inner
+                .get_cf(block_cf, &num.to_be_bytes())
+                .map_err(Error::Db)?
+                .unwrap();
+            let block = rmp_serde::decode::from_slice(&block).unwrap();
+
+            let block = response_block_from_block(block, query.field_selection.block.unwrap());
+
+            blocks.insert(num, block);
+        }
+
+        let data = txs
+            .into_values()
+            .map(|tx| ResponseRow {
+                block: blocks.get(&tx.block_number.unwrap().0).unwrap().clone(),
+                transaction: tx,
+                log: None,
+            })
+            .collect();
+
+        let elapsed = start.elapsed().as_millis();
+
+        Ok(QueryResult {
+            data,
+            metrics: QueryMetrics {
+                run_query: elapsed,
+                total: elapsed,
+                ..Default::default()
+            },
+        })
     }
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {

@@ -2,7 +2,7 @@ use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
-use eth_archive_core::types::{Transaction, Log, ResponseBlock, ResponseLog, ResponseTransaction};
+use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -116,8 +116,10 @@ impl MiniTransactionSelection {
 
         if let Some(sighash) = &self.sighash {
             match tx.input.get(..4) {
-                Some(sig) => if sig != sighash.as_slice() {
-                    return false;
+                Some(sig) => {
+                    if sig != sighash.as_slice() {
+                        return false;
+                    }
                 }
                 None => return false,
             }
