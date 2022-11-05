@@ -1,15 +1,20 @@
 use crate::config::Config;
 use crate::db::DbHandle;
+use crate::db_writer::DbWriter;
 use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
+use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::rayon_async;
+use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{
     BlockRange, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
     ResponseTransaction,
 };
+use futures::pin_mut;
+use futures::stream::StreamExt;
 use polars::prelude::*;
 use std::cmp;
 use std::sync::Arc;
@@ -22,8 +27,38 @@ pub struct DataCtx {
 
 impl DataCtx {
     pub async fn new(config: Config) -> Result<Self> {
-        let db = DbHandle::new(&config.data_path).await?;
+        let db = DbHandle::new(&config.db_path).await?;
         let db = Arc::new(db);
+
+        let db_writer = DbWriter::new(db.clone(), &config.data_path, config.min_hot_block_range);
+        let db_writer = Arc::new(db_writer);
+
+        let retry = Retry::new(config.retry);
+        let eth_client =
+            EthClient::new(config.ingest.clone(), retry).map_err(Error::CreateEthClient)?;
+        let eth_client = Arc::new(eth_client);
+
+        tokio::spawn({
+            let db_writer = db_writer.clone();
+
+            async move {
+                let best_block = eth_client.clone().get_best_block().await.unwrap();
+                let start = if best_block > config.min_hot_block_range {
+                    best_block - config.min_hot_block_range
+                } else {
+                    0
+                };
+
+                let batches = eth_client.clone().stream_batches(Some(start), None);
+                pin_mut!(batches);
+
+                while let Some(res) = batches.next().await {
+                    let (_, blocks, logs) = res.unwrap();
+                    let batches = (blocks, logs);
+                    db_writer.write_batches(batches).await.unwrap();
+                }
+            }
+        });
 
         Ok(Self { config, db })
     }

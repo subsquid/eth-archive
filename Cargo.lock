@@ -1084,6 +1084,7 @@ dependencies = [
  "clap",
  "env_logger",
  "eth-archive-core",
+ "futures",
  "itertools",
  "log",
  "polars",

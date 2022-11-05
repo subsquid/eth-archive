@@ -1,5 +1,6 @@
 use crate::db::{Bloom, DbHandle, ParquetIdx};
 use crate::{Error, Result};
+use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, Log};
 use polars::export::arrow::array::BinaryArray;
@@ -7,7 +8,6 @@ use polars::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-use eth_archive_core::deserialize::Address;
 
 pub struct DbWriter {
     tx: mpsc::Sender<Job>,

@@ -61,6 +61,8 @@ pub enum Error {
     OpenDb(rocksdb::Error),
     #[error("database error:\n{0}")]
     Db(rocksdb::Error),
+    #[error("failed to build ethereum rpc client:\n{0}")]
+    CreateEthClient(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
