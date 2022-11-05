@@ -4,6 +4,7 @@ use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -89,12 +90,28 @@ impl MiniTransactionSelection {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BlockEntry {
+    pub block: ResponseBlock,
+    pub transactions: BTreeMap<u32, ResponseTransaction>,
+    pub logs: BTreeMap<u32, ResponseLog>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockEntryVec {
     pub block: ResponseBlock,
     pub transactions: Vec<ResponseTransaction>,
     pub logs: Vec<ResponseLog>,
+}
+
+impl From<BlockEntry> for BlockEntryVec {
+    fn from(entry: BlockEntry) -> Self {
+        Self {
+            block: entry.block,
+            transactions: entry.transactions.into_values().collect(),
+            logs: entry.logs.into_values().collect(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -127,6 +144,7 @@ impl Query {
         tx_selection.transaction_index = Some(true);
         tx_selection.dest = Some(true);
         log_selection.block_number = Some(true);
+        log_selection.log_index = Some(true);
         log_selection.transaction_index = Some(true);
         log_selection.address = Some(true);
         log_selection.topics = Some(true);

@@ -2,13 +2,14 @@ use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::types::{Block, BlockRange, Log, QueryResult, Transaction};
+use eth_archive_core::types::{Block, BlockRange, Log, QueryMetrics, QueryResult, Transaction};
 use serde::{Deserialize, Serialize};
 use solana_bloom::bloom::Bloom as BloomFilter;
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{cmp, iter, mem};
+use std::collections::{HashSet, BTreeSet};
 
 type Bloom = BloomFilter<Address>;
 pub type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + 'a>;
@@ -91,6 +92,39 @@ impl DbHandle {
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
+        let mut metrics = QueryMetrics::default();
+        let mut data = vec![];
+
+        if !query.logs.is_empty() {
+            let logs = self.query_logs(&query)?;
+            metrics += logs.metrics;
+            data.extend_from_slice(&logs.data);
+        }
+
+        if !query.transactions.is_empty() {
+            let transactions = self.query_transactions(&query)?;
+            metrics += transactions.metrics;
+            data.extend_from_slice(&transactions.data);
+        }
+
+        Ok(QueryResult { data, metrics })
+    }
+
+    fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
+        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
+        let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
+        let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
+        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
+        let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
+
+        todo!()
+    }
+
+    fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
+        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
+        let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
+        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
+
         todo!()
     }
 

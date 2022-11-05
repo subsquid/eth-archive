@@ -202,94 +202,6 @@ impl DataCtx {
         serialize_task.join().await
     }
 
-    fn open_log_lazy_frame(
-        &self,
-        dir_name: DirName,
-        field_selection: FieldSelection,
-    ) -> Result<LazyFrame> {
-        let mut path = self.config.data_path.clone();
-        path.push(dir_name.to_string());
-
-        let blocks = {
-            let mut path = path.clone();
-            path.push("block.parquet");
-
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
-        };
-
-        let transactions = {
-            let mut path = path.clone();
-            path.push("tx.parquet");
-
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
-        };
-
-        let logs = {
-            let mut path = path.clone();
-            path.push("log.parquet");
-
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
-        };
-
-        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
-        let logs = logs.select(field_selection.log.unwrap().to_cols());
-
-        let lazy_frame = logs
-            .join(
-                blocks,
-                &[col("log_block_number")],
-                &[col("block_number")],
-                JoinType::Inner,
-            )
-            .join(
-                transactions,
-                &[col("log_block_number"), col("log_transaction_index")],
-                &[col("tx_block_number"), col("tx_transaction_index")],
-                JoinType::Inner,
-            );
-
-        Ok(lazy_frame)
-    }
-
-    fn open_tx_lazy_frame(
-        &self,
-        dir_name: DirName,
-        field_selection: FieldSelection,
-    ) -> Result<LazyFrame> {
-        let mut path = self.config.data_path.clone();
-        path.push(dir_name.to_string());
-
-        let blocks = {
-            let mut path = path.clone();
-            path.push("block.parquet");
-
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
-        };
-
-        let transactions = {
-            let mut path = path.clone();
-            path.push("tx.parquet");
-
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
-        };
-
-        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let mut transaction_cols = field_selection.transaction.unwrap().to_cols();
-        let sighash_col = col("sighash").prefix("tx_");
-        transaction_cols.push(sighash_col);
-        let transactions = transactions.select(transaction_cols);
-
-        let lazy_frame = transactions.join(
-            blocks,
-            &[col("tx_block_number")],
-            &[col("block_number")],
-            JoinType::Inner,
-        );
-
-        Ok(lazy_frame)
-    }
-
     fn query_parquet(&self, dir_name: DirName, query: MiniQuery) -> Result<QueryResult> {
         let mut metrics = QueryMetrics::default();
         let mut data = vec![];
@@ -429,6 +341,94 @@ impl DataCtx {
                 total: build_query + run_query + serialize_result,
             },
         })
+    }
+
+    fn open_log_lazy_frame(
+        &self,
+        dir_name: DirName,
+        field_selection: FieldSelection,
+    ) -> Result<LazyFrame> {
+        let mut path = self.config.data_path.clone();
+        path.push(dir_name.to_string());
+
+        let blocks = {
+            let mut path = path.clone();
+            path.push("block.parquet");
+
+            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+        };
+
+        let transactions = {
+            let mut path = path.clone();
+            path.push("tx.parquet");
+
+            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+        };
+
+        let logs = {
+            let mut path = path.clone();
+            path.push("log.parquet");
+
+            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+        };
+
+        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
+        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
+        let logs = logs.select(field_selection.log.unwrap().to_cols());
+
+        let lazy_frame = logs
+            .join(
+                blocks,
+                &[col("log_block_number")],
+                &[col("block_number")],
+                JoinType::Inner,
+            )
+            .join(
+                transactions,
+                &[col("log_block_number"), col("log_transaction_index")],
+                &[col("tx_block_number"), col("tx_transaction_index")],
+                JoinType::Inner,
+            );
+
+        Ok(lazy_frame)
+    }
+
+    fn open_tx_lazy_frame(
+        &self,
+        dir_name: DirName,
+        field_selection: FieldSelection,
+    ) -> Result<LazyFrame> {
+        let mut path = self.config.data_path.clone();
+        path.push(dir_name.to_string());
+
+        let blocks = {
+            let mut path = path.clone();
+            path.push("block.parquet");
+
+            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+        };
+
+        let transactions = {
+            let mut path = path.clone();
+            path.push("tx.parquet");
+
+            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+        };
+
+        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
+        let mut transaction_cols = field_selection.transaction.unwrap().to_cols();
+        let sighash_col = col("sighash").prefix("tx_");
+        transaction_cols.push(sighash_col);
+        let transactions = transactions.select(transaction_cols);
+
+        let lazy_frame = transactions.join(
+            blocks,
+            &[col("tx_block_number")],
+            &[col("block_number")],
+            JoinType::Inner,
+        );
+
+        Ok(lazy_frame)
     }
 }
 

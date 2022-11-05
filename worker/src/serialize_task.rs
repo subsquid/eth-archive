@@ -1,8 +1,8 @@
-use crate::types::BlockEntry;
+use crate::types::{BlockEntry, BlockEntryVec};
 use crate::{Error, Result};
 use eth_archive_core::rayon_async;
 use eth_archive_core::types::{BlockRange, QueryMetrics, QueryResult};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::mem;
 use std::time::Instant;
@@ -94,41 +94,37 @@ fn process_query_result(
     res: QueryResult,
     is_first: bool,
 ) -> (Vec<u8>, QueryMetrics) {
-    let mut data = Vec::new();
+    use std::collections::btree_map::Entry::{Occupied, Vacant};
 
-    let mut block_idxs = HashMap::new();
-    let mut tx_idxs = HashMap::new();
+    let mut data: BTreeMap<u32, BlockEntry> = BTreeMap::new();
 
     for row in res.data {
         let block_number = row.block.number.unwrap().0;
-        let tx_hash = row.transaction.hash.clone().unwrap().0;
+        let tx_idx = row.transaction.transaction_index.unwrap().0;
 
-        let block_idx = match block_idxs.get(&block_number) {
-            Some(block_idx) => *block_idx,
-            None => {
-                let block_idx = data.len();
-
-                data.push(BlockEntry {
-                    block: row.block,
-                    logs: Vec::new(),
-                    transactions: Vec::new(),
-                });
-
-                block_idxs.insert(block_number, block_idx);
-
-                block_idx
-            }
+        let block_entry = match data.entry(block_number) {
+            Vacant(entry) => entry.insert(BlockEntry {
+                block: row.block,
+                logs: BTreeMap::new(),
+                transactions: BTreeMap::new(),
+            }),
+            Occupied(entry) => entry.into_mut(),
         };
 
-        if let std::collections::hash_map::Entry::Vacant(e) = tx_idxs.entry(tx_hash) {
-            e.insert(data[block_idx].transactions.len());
-            data[block_idx].transactions.push(row.transaction);
+        if let Vacant(entry) = block_entry.transactions.entry(tx_idx) {
+            entry.insert(row.transaction);
         }
 
         if let Some(log) = row.log {
-            data[block_idx].logs.push(log);
+            let log_idx = log.log_index.unwrap().0;
+            block_entry.logs.insert(log_idx, log);
         }
     }
+
+    let data = data
+        .into_values()
+        .map(BlockEntryVec::from)
+        .collect::<Vec<BlockEntryVec>>();
 
     if !is_first {
         bytes.push(b',');
