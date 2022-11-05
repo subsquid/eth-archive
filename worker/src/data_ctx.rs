@@ -18,7 +18,7 @@ use futures::stream::StreamExt;
 use polars::prelude::*;
 use std::cmp;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub struct DataCtx {
     config: Config,
@@ -56,6 +56,25 @@ impl DataCtx {
                     let (_, blocks, logs) = res.unwrap();
                     let batches = (blocks, logs);
                     db_writer.write_batches(batches).await.unwrap();
+                }
+            }
+        });
+
+        tokio::spawn({
+            let start = db.parquet_height();
+            let data_path = config.data_path.clone();
+
+            async move {
+                let mut next_start = start;
+
+                loop {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+
+                    while let Some(dir_name) = DirName::find(&data_path, next_start).await.unwrap()
+                    {
+                        db_writer.register_parquet_folder(dir_name).await.unwrap();
+                        next_start = dir_name.range.to;
+                    }
                 }
             }
         });

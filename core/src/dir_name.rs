@@ -96,4 +96,22 @@ impl DirName {
 
         Ok(sorted_names)
     }
+
+    pub async fn find<P: AsRef<Path>>(path: P, from: u32) -> Result<Option<DirName>> {
+        let mut dir = tokio::fs::read_dir(&path)
+            .await
+            .map_err(Error::ReadParquetDir)?;
+
+        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
+            let folder_name = entry.file_name();
+            let folder_name = folder_name.to_str().ok_or(Error::InvalidFolderName)?;
+            let dir_name = DirName::from_str(folder_name)?;
+
+            if !dir_name.is_temp && dir_name.range.from == from {
+                return Ok(Some(dir_name));
+            }
+        }
+
+        Ok(None)
+    }
 }
