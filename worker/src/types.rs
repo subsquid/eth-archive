@@ -1,7 +1,8 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
-use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
+use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction};
+use generic_array::{GenericArray, typenum::U4};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -20,7 +21,7 @@ pub struct MiniQuery {
 #[serde(rename_all = "camelCase")]
 pub struct MiniLogSelection {
     pub address: Option<Vec<Address>>,
-    pub topics: Vec<Vec<Bytes32>>,
+    pub topics: GenericArray<Vec<Bytes32>, U4>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -41,10 +42,6 @@ impl MiniLogSelection {
             _ => None,
         };
 
-        if self.topics.len() > 4 {
-            return Err(Error::TooManyTopics(self.topics.len()));
-        }
-
         for (i, topic) in self.topics.iter().enumerate() {
             if !topic.is_empty() {
                 let series = topic
@@ -63,6 +60,14 @@ impl MiniLogSelection {
         }
 
         Ok(expr)
+    }
+
+    pub fn matches(&self, log: &Log) -> bool {
+        if let Some(address) = &self.address {
+            for addr in address.iter() {}
+        }
+
+        true
     }
 }
 
@@ -181,7 +186,7 @@ impl Query {
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {
     pub address: Option<Vec<Address>>,
-    pub topics: Vec<Vec<Bytes32>>,
+    pub topics: GenericArray<Vec<Bytes32>, U4>,
     pub field_selection: Option<FieldSelection>,
 }
 

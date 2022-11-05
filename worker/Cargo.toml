@@ -18,6 +18,7 @@ itertools = "0.10"
 actix-web = "4"
 solana-bloom = "1"
 rmp-serde = "1.1.1"
+generic-array = "0.14.6"
 
 eth-archive-core = { path = "../core" }
 

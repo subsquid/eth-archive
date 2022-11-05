@@ -1080,6 +1080,7 @@ dependencies = [
  "clap",
  "env_logger",
  "eth-archive-core",
+ "generic-array",
  "itertools",
  "log",
  "polars",

@@ -1,15 +1,16 @@
+use crate::field_selection::{BlockFieldSelection, LogFieldSelection, TransactionFieldSelection};
 use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::types::{Block, BlockRange, Log, QueryMetrics, QueryResult, Transaction};
+use eth_archive_core::types::{ResponseLog, ResponseBlock, ResponseTransaction, Block, BlockRange, Log, QueryMetrics, QueryResult, Transaction};
 use serde::{Deserialize, Serialize};
 use solana_bloom::bloom::Bloom as BloomFilter;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{cmp, iter, mem};
-use std::collections::{HashSet, BTreeSet};
 
 type Bloom = BloomFilter<Address>;
 pub type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + 'a>;
@@ -114,8 +115,32 @@ impl DbHandle {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
-        let addr_tx_cf = self.inner.cf_handle(cf_name::ADDR_TX).unwrap();
         let addr_log_cf = self.inner.cf_handle(cf_name::ADDR_LOG).unwrap();
+
+        let mut blocks = BTreeSet::new();
+        let mut txs = BTreeSet::new();
+        let mut logs = BTreeMap::new();
+
+        for res in self
+            .inner
+            .iterator_cf(addr_log_cf, rocksdb::IteratorMode::Start)
+        {
+            let (log_key, log) = res.map_err(Error::Db)?;
+            let log = rmp_serde::decode::from_slice(&log).unwrap();
+
+            if !query.logs.iter().any(|selection| selection.matches(&log)) {
+                continue;
+            }
+
+            blocks.insert(log.block_number.0);
+            txs.insert(tx_key_from_parts(
+                log.block_number.0,
+                log.transaction_index.0,
+            ));
+
+            let log = response_log_from_log(log, query.field_selection.log.unwrap());
+            logs.insert(log_key, log);
+        }
 
         todo!()
     }
@@ -338,10 +363,14 @@ pub struct ParquetIdx {
 }
 
 fn tx_key(tx: &Transaction) -> [u8; 8] {
+    tx_key_from_parts(tx.block_number.0, tx.transaction_index.0)
+}
+
+fn tx_key_from_parts(block_number: u32, transaction_index: u32) -> [u8; 8] {
     let mut key = [0; 8];
 
-    key[..4].copy_from_slice(&tx.block_number.to_be_bytes());
-    key[4..].copy_from_slice(&tx.transaction_index.to_be_bytes());
+    key[..4].copy_from_slice(&block_number.to_be_bytes());
+    key[4..].copy_from_slice(&transaction_index.to_be_bytes());
 
     key
 }
@@ -403,6 +432,18 @@ fn block_num_from_key(key: &[u8]) -> u32 {
     let arr: [u8; 4] = key.try_into().unwrap();
 
     u32::from_be_bytes(arr)
+}
+
+fn response_block_from_block(block: Block, selection: BlockFieldSelection) -> ResponseBlock {
+    todo!();
+}
+
+fn response_log_from_log(log: Log, selection: LogFieldSelection) -> ResponseLog {
+    todo!();
+}
+
+fn response_tx_from_tx(tx: Transaction, selection: TransactionFieldSelection) -> ResponseTransaction {
+    todo!();
 }
 
 #[cfg(test)]
