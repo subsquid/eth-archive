@@ -188,22 +188,22 @@ impl EthClient {
 
     pub fn stream_batches(
         self: Arc<Self>,
-        from_block: Option<u32>,
-        to_block: Option<u32>,
+        from: Option<u32>,
+        to: Option<u32>,
     ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
-        let from_block = from_block.unwrap_or(0);
+        let from_block = from.unwrap_or(0);
 
         let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
         async_stream::try_stream! {
             let mut block_num = from_block;
             loop {
-                match to_block {
+                match to {
                     Some(to_block) if block_num >= to_block => break,
                     _ => (),
                 }
 
-                let best_block = self.clone().get_best_block().await?;
-                let to_block = match to_block {
+                let mut best_block = self.clone().get_best_block().await?;
+                let mut to_block = match to {
                     Some(to_block) => cmp::min(to_block, best_block),
                     None => best_block,
                 };
@@ -215,6 +215,12 @@ impl EthClient {
                     let offset = self.cfg.best_block_offset;
                     log::info!("waiting for chain tip to reach {}, current value is {}", block_num + offset, best_block + offset);
                     tokio::time::sleep(Duration::from_secs(3)).await;
+
+                    best_block = self.clone().get_best_block().await?;
+                    to_block = match to {
+                        Some(to_block) => cmp::min(to_block, best_block),
+                        None => best_block,
+                    };
                 }
 
                 if block_num + batch_size > best_block {

@@ -18,11 +18,11 @@ args = [
 	"--max-logs-per-file", "200000",
 ]
 
-[tasks.gateway]
+[tasks.worker]
 workspace = false
 command = "cargo"
 args = [
-	"run", "--release", "--bin", "eth-archive-gateway", "--",
+	"run", "--release", "--bin", "eth-archive-worker", "--",
 	"--db-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/db",
 	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
 	"--request-timeout-secs", "300",

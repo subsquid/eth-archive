@@ -39,6 +39,8 @@ impl DbHandle {
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
 
+            opts.set_max_open_files(10000);
+
             let inner =
                 rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
 
@@ -393,6 +395,10 @@ impl DbHandle {
 
     pub fn parquet_height(&self) -> u32 {
         self.status.parquet_height.load(Ordering::Relaxed)
+    }
+
+    pub fn db_height(&self) -> u32 {
+        self.status.db_height.load(Ordering::Relaxed)
     }
 
     fn get_status(inner: &rocksdb::DB) -> Result<Status> {

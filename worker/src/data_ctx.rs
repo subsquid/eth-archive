@@ -40,14 +40,19 @@ impl DataCtx {
 
         tokio::spawn({
             let db_writer = db_writer.clone();
+            let db_height = db.db_height();
 
             async move {
                 let best_block = eth_client.clone().get_best_block().await.unwrap();
-                let start = if best_block > config.min_hot_block_range {
+                let mut start = if best_block > config.min_hot_block_range {
                     best_block - config.min_hot_block_range
                 } else {
                     0
                 };
+
+                if db_height > start {
+                    start = db_height;
+                }
 
                 let batches = eth_client.clone().stream_batches(Some(start), None);
                 pin_mut!(batches);
