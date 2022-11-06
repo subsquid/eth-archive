@@ -59,7 +59,7 @@ impl DbHandle {
 
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
-            rocksdb::IteratorMode::From(&from.to_be_bytes(), rocksdb::Direction::Reverse),
+            rocksdb::IteratorMode::From(&from.to_be_bytes(), rocksdb::Direction::Forward),
         );
 
         let start_key = match iter.next() {
