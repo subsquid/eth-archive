@@ -44,7 +44,7 @@ impl DbHandle {
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
             opts.set_enable_blob_files(true);
-            opts.set_min_blob_size(1000);
+            opts.set_min_blob_size(16000);
             opts.set_blob_compression_type(rocksdb::DBCompressionType::Lz4);
             opts.set_max_open_files(10000);
             opts.set_block_based_table_factory(&block_opts);
