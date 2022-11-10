@@ -134,15 +134,8 @@ impl DbHandle {
         let mut tx_keys = BTreeSet::new();
         let mut logs = BTreeMap::new();
 
-        let mut read_opts = rocksdb::ReadOptions::default();
-
-        read_opts.set_iterate_range(
-            query.from_block.to_be_bytes().as_slice()..query.to_block.to_be_bytes().as_slice(),
-        );
-
-        for res in self.inner.iterator_cf_opt(
+        for res in self.inner.iterator_cf(
             log_cf,
-            read_opts,
             rocksdb::IteratorMode::From(
                 &query.from_block.to_be_bytes(),
                 rocksdb::Direction::Forward,
@@ -154,9 +147,13 @@ impl DbHandle {
                 break;
             }
 
-            let log = rmp_serde::decode::from_slice(&log).unwrap();
+            if !query.matches_log_addr(&log_key_to_address(&log_key)) {
+                continue;
+            }
 
-            if !query.matches_log(&log) {
+            let log: Log = rmp_serde::decode::from_slice(&log).unwrap();
+
+            if !query.matches_log_topics(&log.topics) {
                 continue;
             }
 
@@ -164,6 +161,7 @@ impl DbHandle {
             tx_keys.insert(tx_key_from_parts(
                 log.block_number.0,
                 log.transaction_index.0,
+                log.address.0.as_slice(),
             ));
 
             let log_idx = log.log_index.0;
@@ -209,6 +207,7 @@ impl DbHandle {
                     .get(&tx_key_from_parts(
                         log.block_number.unwrap().0,
                         log.transaction_index.unwrap().0,
+                        log.address.as_ref().unwrap().0.as_slice(),
                     ))
                     .unwrap()
                     .clone(),
@@ -250,9 +249,13 @@ impl DbHandle {
                 break;
             }
 
-            let tx = rmp_serde::decode::from_slice(&tx).unwrap();
+            if !query.matches_tx_dest(&tx_key_to_dest(&tx_key)) {
+                continue;
+            }
 
-            if !query.matches_tx(&tx) {
+            let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
+
+            if !query.matches_tx_sighash(&tx.input) {
                 continue;
             }
 
@@ -469,26 +472,49 @@ pub struct ParquetIdx {
     pub tx_addr_filter: Bloom,
 }
 
-fn tx_key(tx: &Transaction) -> [u8; 8] {
-    tx_key_from_parts(tx.block_number.0, tx.transaction_index.0)
+fn tx_key(tx: &Transaction) -> [u8; 28] {
+    tx_key_from_parts(
+        tx.block_number.0,
+        tx.transaction_index.0,
+        match &tx.dest {
+            Some(dest) => dest.as_slice(),
+            None => &[],
+        }
+    )
 }
 
-fn tx_key_from_parts(block_number: u32, transaction_index: u32) -> [u8; 8] {
-    let mut key = [0; 8];
+fn tx_key_from_parts(block_number: u32, transaction_index: u32, dest: &[u8]) -> [u8; 28] {
+    let mut key = [0; 28];
 
     key[..4].copy_from_slice(&block_number.to_be_bytes());
-    key[4..].copy_from_slice(&transaction_index.to_be_bytes());
+    key[4..8].copy_from_slice(&transaction_index.to_be_bytes());
+    if !dest.is_empty() {
+        key[8..].copy_from_slice(dest);
+    }
 
     key
 }
 
-fn log_key(log: &Log) -> [u8; 8] {
-    let mut key = [0; 8];
+fn tx_key_to_dest(key: &[u8]) -> Option<Address> {
+    if key.len() == 8 {
+        return None;
+    }
+
+    Some(Address::new(&key[8..]))
+}
+
+fn log_key(log: &Log) -> [u8; 28] {
+    let mut key = [0; 28];
 
     key[..4].copy_from_slice(&log.block_number.to_be_bytes());
-    key[4..].copy_from_slice(&log.log_index.to_be_bytes());
+    key[4..8].copy_from_slice(&log.log_index.to_be_bytes());
+    key[8..].copy_from_slice(log.address.as_slice());
 
     key
+}
+
+fn log_key_to_address(key: &[u8]) -> Address {
+    Address::new(&key[8..])
 }
 
 fn dir_name_from_key(key: &[u8]) -> DirName {

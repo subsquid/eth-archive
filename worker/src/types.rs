@@ -1,8 +1,8 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
-use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
-use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
+use eth_archive_core::deserialize::{Address, Bytes32, Sighash, Bytes};
+use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -31,26 +31,28 @@ pub struct MiniTransactionSelection {
 }
 
 impl MiniQuery {
-    pub fn matches_log(&self, log: &Log) -> bool {
-        let block_num = log.block_number.0;
-
-        if block_num < self.from_block || block_num >= self.to_block {
-            return false;
-        }
-
-        self.logs.iter().any(|selection| selection.matches(log))
+    pub fn matches_log_addr(&self, addr: &Address) -> bool {
+        self.logs
+            .iter()
+            .any(|selection| selection.matches_addr(addr))
     }
 
-    pub fn matches_tx(&self, tx: &Transaction) -> bool {
-        let block_num = tx.block_number.0;
+    pub fn matches_log_topics(&self, topics: &[Bytes32]) -> bool {
+        self.logs
+            .iter()
+            .any(|selection| selection.matches_topics(topics))
+    }
 
-        if block_num < self.from_block || block_num >= self.to_block {
-            return false;
-        }
-
+    pub fn matches_tx_dest(&self, dest: &Option<Address>) -> bool {
         self.transactions
             .iter()
-            .any(|selection| selection.matches(tx))
+            .any(|selection| selection.matches_dest(dest))
+    }
+
+    pub fn matches_tx_sighash(&self, input: &Bytes) -> bool {
+        self.transactions
+            .iter()
+            .any(|selection| selection.matches_sighash(input))
     }
 }
 
@@ -86,14 +88,18 @@ impl MiniLogSelection {
         Ok(expr)
     }
 
-    pub fn matches(&self, log: &Log) -> bool {
+    pub fn matches_addr(&self, filter_addr: &Address) -> bool {
         if let Some(address) = &self.address {
-            if !address.iter().any(|addr| addr == &log.address) {
+            if !address.iter().any(|addr| addr == filter_addr) {
                 return false;
             }
         }
 
-        for (topic, log_topic) in self.topics.iter().zip(log.topics.iter()) {
+        true
+    }
+
+    pub fn matches_topics(&self, topics: &[Bytes32]) -> bool {
+        for (topic, log_topic) in self.topics.iter().zip(topics.iter()) {
             if !topic.is_empty() && !topic.iter().any(|topic| log_topic == topic) {
                 return false;
             }
@@ -126,9 +132,9 @@ impl MiniTransactionSelection {
         Ok(expr)
     }
 
-    pub fn matches(&self, tx: &Transaction) -> bool {
+    pub fn matches_dest(&self, dest: &Option<Address>) -> bool {
         if let Some(address) = &self.address {
-            let tx_addr = match tx.dest.as_ref() {
+            let tx_addr = match dest.as_ref() {
                 Some(addr) => addr,
                 None => return false,
             };
@@ -138,8 +144,12 @@ impl MiniTransactionSelection {
             }
         }
 
+        true
+    }
+
+    pub fn matches_sighash(&self, input: &Bytes) -> bool {
         if let Some(sighash) = &self.sighash {
-            match tx.input.get(..4) {
+            match input.get(..4) {
                 Some(sig) => {
                     if sig != sighash.as_slice() {
                         return false;

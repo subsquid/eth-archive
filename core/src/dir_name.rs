@@ -98,8 +98,6 @@ impl DirName {
     }
 
     pub async fn find_sorted<P: AsRef<Path>>(path: P, from: u32) -> Result<Vec<DirName>> {
-        log::info!("checking for next parquet dir...");
-
         let mut dir = tokio::fs::read_dir(&path)
             .await
             .map_err(Error::ReadParquetDir)?;
