@@ -43,16 +43,10 @@ pub struct Transaction {
     pub value: Bytes,
     #[serde(rename = "type")]
     pub kind: Index,
-    #[serde(default = "default_chain_id")]
-    pub chain_id: Index,
+    pub chain_id: Option<Index>,
     pub v: BigInt,
     pub r: Bytes,
     pub s: Bytes,
-}
-
-fn default_chain_id() -> Index {
-    // ETH mainnet
-    Index(1)
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

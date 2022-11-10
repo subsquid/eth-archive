@@ -52,7 +52,7 @@ pub fn tx_schema() -> Schema {
         Field::new("transaction_index", DataType::UInt32, false),
         Field::new("value", DataType::Binary, false),
         Field::new("kind", DataType::UInt32, false),
-        Field::new("chain_id", DataType::UInt32, false),
+        Field::new("chain_id", DataType::UInt32, true),
         Field::new("v", DataType::Int64, false),
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
@@ -273,7 +273,7 @@ impl Transactions {
         self.transaction_index.push(Some(elem.transaction_index.0));
         self.value.push(Some(elem.value.0));
         self.kind.push(Some(elem.kind.0));
-        self.chain_id.push(Some(elem.chain_id.0));
+        self.chain_id.push(elem.chain_id.map(|c| c.0));
         self.v.push(Some(elem.v.0));
         self.r.push(Some(elem.r.0));
         self.s.push(Some(elem.s.0));

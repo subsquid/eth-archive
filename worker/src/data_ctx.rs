@@ -837,15 +837,12 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .unwrap()
                         })
                         .map(Index),
-                    chain_id: tx_chain_id
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
+                    chain_id: match tx_chain_id
+                        .map(|arr| arr.as_any().downcast_ref::<UInt32Array>().unwrap().get(i))
+                    {
+                        Some(Some(chain_id)) => Some(Index(chain_id)),
+                        _ => None,
+                    },
                     v: tx_v
                         .map(|arr| {
                             arr.as_any()
@@ -1299,15 +1296,12 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                                 .unwrap()
                         })
                         .map(Index),
-                    chain_id: tx_chain_id
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
+                    chain_id: match tx_chain_id
+                        .map(|arr| arr.as_any().downcast_ref::<UInt32Array>().unwrap().get(i))
+                    {
+                        Some(Some(chain_id)) => Some(Index(chain_id)),
+                        _ => None,
+                    },
                     v: tx_v
                         .map(|arr| {
                             arr.as_any()

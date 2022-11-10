@@ -218,7 +218,7 @@ impl TransactionFieldSelection {
             transaction_index: prune_col!(tx, self, transaction_index),
             value: prune_col!(tx, self, value),
             kind: prune_col!(tx, self, kind),
-            chain_id: prune_col!(tx, self, chain_id),
+            chain_id: prune_col!(tx, self, chain_id).flatten(),
             v: prune_col!(tx, self, v),
             r: prune_col!(tx, self, r),
             s: prune_col!(tx, self, s),
