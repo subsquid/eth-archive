@@ -24,6 +24,6 @@ pub struct IngestConfig {
     #[clap(long)]
     pub http_req_concurrency: u32,
     /// Offset from tip of the chain (to avoid rollbacks)
-    #[clap(long)]
+    #[clap(long, default_value_t = 10)]
     pub best_block_offset: u32,
 }

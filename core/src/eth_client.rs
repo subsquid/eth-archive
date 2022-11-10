@@ -213,7 +213,7 @@ impl EthClient {
 
                 while block_num > best_block {
                     let offset = self.cfg.best_block_offset;
-                    log::info!("waiting for chain tip to reach {}, current value is {}", block_num + offset, best_block + offset);
+                    log::info!("waiting for chain tip to reach {}, current value is {}. (offset is {})", block_num + offset, best_block + offset, offset);
                     tokio::time::sleep(Duration::from_secs(3)).await;
 
                     best_block = self.clone().get_best_block().await?;
@@ -232,11 +232,15 @@ impl EthClient {
 
                     block_num += 1;
 
+                    log::info!("downloaded block {}", block_num);
+
                     yield (
                         vec![BlockRange{from: block_num, to: block_num}],
                         vec![vec![block]],
                         vec![logs],
                     );
+
+                    continue;
                 }
 
                 let block_batches = (0..concurrency)
