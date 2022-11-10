@@ -120,10 +120,15 @@ impl DirName {
             let mut next = from;
             let mut dir_names = Vec::new();
 
-            for name in names.into_iter().skip_while(|name| name.range.from != from) {
+            let idx = match names.binary_search_by(|name| name.range.from.cmp(&from)) {
+                Ok(idx) => idx,
+                Err(_) => return dir_names,
+            };
+
+            for name in &names[idx..] {
                 if name.range.from == next {
                     next = name.range.to;
-                    dir_names.push(name);
+                    dir_names.push(*name);
                 } else {
                     break;
                 }

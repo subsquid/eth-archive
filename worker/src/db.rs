@@ -479,7 +479,7 @@ fn tx_key(tx: &Transaction) -> [u8; 28] {
         match &tx.dest {
             Some(dest) => dest.as_slice(),
             None => &[],
-        }
+        },
     )
 }
 
