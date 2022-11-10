@@ -121,141 +121,144 @@ impl DataCtx {
         );
 
         let query_task = rayon_async::spawn(move || {
-            if query.from_block < height {
-                let parquet_height = self.db.parquet_height();
+            if query.from_block >= height {
+                return Ok(serialize_task);
+            }
 
-                let field_selection = query.field_selection()?;
+            let parquet_height = self.db.parquet_height();
 
-                if query.from_block < parquet_height {
-                    for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
-                        let (dir_name, parquet_idx) = res?;
+            let field_selection = query.field_selection()?;
 
-                        let logs = query
-                            .logs
-                            .iter()
-                            .filter_map(|log_selection| {
-                                let address = match &log_selection.address {
-                                    Some(address) => address,
-                                    None => {
-                                        return Some(MiniLogSelection {
-                                            address: log_selection.address.clone(),
-                                            topics: log_selection.topics.clone(),
-                                        });
-                                    }
-                                };
+            if query.from_block < parquet_height {
+                for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
+                    let (dir_name, parquet_idx) = res?;
 
-                                let address = address
-                                    .iter()
-                                    .filter(|addr| parquet_idx.log_addr_filter.contains(addr))
-                                    .cloned()
-                                    .collect::<Vec<_>>();
-
-                                if !address.is_empty() {
-                                    Some(MiniLogSelection {
-                                        address: Some(address),
+                    let logs = query
+                        .logs
+                        .iter()
+                        .filter_map(|log_selection| {
+                            let address = match &log_selection.address {
+                                Some(address) => address,
+                                None => {
+                                    return Some(MiniLogSelection {
+                                        address: log_selection.address.clone(),
                                         topics: log_selection.topics.clone(),
-                                    })
-                                } else {
-                                    None
+                                    });
                                 }
-                            })
-                            .collect::<Vec<_>>();
+                            };
 
-                        let transactions = query
-                            .transactions
-                            .iter()
-                            .filter_map(|tx_selection| {
-                                let address = match &tx_selection.address {
-                                    Some(address) => address,
-                                    None => {
-                                        return Some(MiniTransactionSelection {
-                                            address: tx_selection.address.clone(),
-                                            sighash: tx_selection.sighash.clone(),
-                                        });
-                                    }
-                                };
+                            let address = address
+                                .iter()
+                                .filter(|addr| parquet_idx.log_addr_filter.contains(addr))
+                                .cloned()
+                                .collect::<Vec<_>>();
 
-                                let address = address
-                                    .iter()
-                                    .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
-                                    .cloned()
-                                    .collect::<Vec<_>>();
+                            if !address.is_empty() {
+                                Some(MiniLogSelection {
+                                    address: Some(address),
+                                    topics: log_selection.topics.clone(),
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
-                                if !address.is_empty() {
-                                    Some(MiniTransactionSelection {
-                                        address: Some(address),
+                    let transactions = query
+                        .transactions
+                        .iter()
+                        .filter_map(|tx_selection| {
+                            let address = match &tx_selection.address {
+                                Some(address) => address,
+                                None => {
+                                    return Some(MiniTransactionSelection {
+                                        address: tx_selection.address.clone(),
                                         sighash: tx_selection.sighash.clone(),
-                                    })
-                                } else {
-                                    None
+                                    });
                                 }
-                            })
-                            .collect::<Vec<_>>();
+                            };
 
-                        let from_block = cmp::max(dir_name.range.from, query.from_block);
-                        let to_block = match to_block {
-                            Some(to_block) => cmp::min(dir_name.range.to, to_block),
-                            None => dir_name.range.to,
-                        };
+                            let address = address
+                                .iter()
+                                .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
+                                .cloned()
+                                .collect::<Vec<_>>();
 
-                        let mini_query = MiniQuery {
-                            from_block,
-                            to_block,
-                            logs,
-                            transactions,
-                            field_selection,
-                        };
+                            if !address.is_empty() {
+                                Some(MiniTransactionSelection {
+                                    address: Some(address),
+                                    sighash: tx_selection.sighash.clone(),
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
-                        let block_range = BlockRange {
-                            from: from_block,
-                            to: to_block,
-                        };
-
-                        if serialize_task.is_closed() {
-                            return Ok(serialize_task);
-                        }
-
-                        let res = self.query_parquet(dir_name, mini_query)?;
-
-                        if !serialize_task.send((res, block_range)) {
-                            return Ok(serialize_task);
-                        }
-                    }
-                }
-
-                let from_block = cmp::max(query.from_block, parquet_height);
-
-                if from_block < height {
+                    let from_block = cmp::max(dir_name.range.from, query.from_block);
                     let to_block = match to_block {
-                        Some(to_block) => cmp::min(height, to_block),
-                        None => height,
+                        Some(to_block) => cmp::min(dir_name.range.to, to_block),
+                        None => dir_name.range.to,
                     };
 
-                    for start in (from_block..to_block).step_by(self.config.db_query_batch_size) {
-                        let end = cmp::min(to_block, start + from_block);
+                    let mini_query = MiniQuery {
+                        from_block,
+                        to_block,
+                        logs,
+                        transactions,
+                        field_selection,
+                    };
 
-                        let mini_query = MiniQuery {
-                            from_block: start,
-                            to_block: end,
-                            logs: query.log_selection(),
-                            transactions: query.tx_selection(),
-                            field_selection,
-                        };
+                    let block_range = BlockRange {
+                        from: from_block,
+                        to: to_block,
+                    };
 
-                        if serialize_task.is_closed() {
-                            return Ok(serialize_task);
-                        }
+                    if serialize_task.is_closed() {
+                        return Ok(serialize_task);
+                    }
 
-                        let res = self.db.query(mini_query)?;
+                    let res = self.query_parquet(dir_name, mini_query)?;
 
-                        let block_range = BlockRange {
-                            from: start,
-                            to: end,
-                        };
+                    if !serialize_task.send((res, block_range)) {
+                        return Ok(serialize_task);
+                    }
+                }
+            }
 
-                        if !serialize_task.send((res, block_range)) {
-                            return Ok(serialize_task);
-                        }
+            let from_block = cmp::max(query.from_block, parquet_height);
+
+            if from_block < height {
+                let to_block = match to_block {
+                    Some(to_block) => cmp::min(height, to_block),
+                    None => height,
+                };
+
+                let step = usize::try_from(self.config.db_query_batch_size).unwrap();
+                for start in (from_block..to_block).step_by(step) {
+                    let end = cmp::min(to_block, start + self.config.db_query_batch_size);
+
+                    let mini_query = MiniQuery {
+                        from_block: start,
+                        to_block: end,
+                        logs: query.log_selection(),
+                        transactions: query.tx_selection(),
+                        field_selection,
+                    };
+
+                    if serialize_task.is_closed() {
+                        return Ok(serialize_task);
+                    }
+
+                    let res = self.db.query(mini_query)?;
+
+                    let block_range = BlockRange {
+                        from: start,
+                        to: end,
+                    };
+
+                    if !serialize_task.send((res, block_range)) {
+                        return Ok(serialize_task);
                     }
                 }
             }

@@ -33,13 +33,21 @@ impl DbHandle {
         let path = path.to_owned();
 
         let (inner, status) = tokio::task::spawn_blocking(move || {
+            let mut block_opts = rocksdb::BlockBasedOptions::default();
+
+            block_opts.set_ribbon_filter(10.0);
+            block_opts.set_index_type(rocksdb::BlockBasedIndexType::BinarySearch);
+
             let mut opts = rocksdb::Options::default();
 
             opts.create_if_missing(true);
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-
+            opts.set_enable_blob_files(true);
+            opts.set_min_blob_size(1000);
+            opts.set_blob_compression_type(rocksdb::DBCompressionType::Lz4);
             opts.set_max_open_files(10000);
+            opts.set_block_based_table_factory(&block_opts);
 
             let inner =
                 rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
@@ -126,8 +134,15 @@ impl DbHandle {
         let mut tx_keys = BTreeSet::new();
         let mut logs = BTreeMap::new();
 
-        for res in self.inner.iterator_cf(
+        let mut read_opts = rocksdb::ReadOptions::default();
+
+        read_opts.set_iterate_range(
+            query.from_block.to_be_bytes().as_slice()..query.to_block.to_be_bytes().as_slice(),
+        );
+
+        for res in self.inner.iterator_cf_opt(
             log_cf,
+            read_opts,
             rocksdb::IteratorMode::From(
                 &query.from_block.to_be_bytes(),
                 rocksdb::Direction::Forward,

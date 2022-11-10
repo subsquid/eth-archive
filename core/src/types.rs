@@ -176,7 +176,7 @@ pub struct ResponseRow {
 }
 
 #[derive(
-    Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign,
+    Debug, Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign,
 )]
 #[serde(rename_all = "camelCase")]
 pub struct QueryMetrics {
@@ -186,7 +186,7 @@ pub struct QueryMetrics {
     pub total: u128,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub data: Vec<ResponseRow>,

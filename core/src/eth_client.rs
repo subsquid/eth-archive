@@ -204,8 +204,8 @@ impl EthClient {
 
                 let mut best_block = self.clone().get_best_block().await?;
                 let mut to_block = match to {
-                    Some(to_block) => cmp::min(to_block, best_block),
-                    None => best_block,
+                    Some(to_block) => cmp::min(to_block, best_block+1),
+                    None => best_block+1,
                 };
 
                 let concurrency = self.cfg.http_req_concurrency;
@@ -218,8 +218,8 @@ impl EthClient {
 
                     best_block = self.clone().get_best_block().await?;
                     to_block = match to {
-                        Some(to_block) => cmp::min(to_block, best_block),
-                        None => best_block,
+                        Some(to_block) => cmp::min(to_block, best_block+1),
+                        None => best_block+1,
                     };
                 }
 

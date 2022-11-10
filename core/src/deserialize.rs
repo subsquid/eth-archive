@@ -106,7 +106,7 @@ impl<'de> Visitor<'de> for Bytes32Visitor {
     type Value = Bytes32;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 32 byte value")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -145,7 +145,7 @@ impl<'de> Visitor<'de> for AddressVisitor {
     type Value = Address;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 20 byte address")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -184,7 +184,7 @@ impl<'de> Visitor<'de> for SighashVisitor {
     type Value = Sighash;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 4 byte sighash")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -223,7 +223,7 @@ impl<'de> Visitor<'de> for NonceVisitor {
     type Value = Nonce;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 8 byte nonce")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -261,7 +261,7 @@ impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
     type Value = BloomFilterBytes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 256 byte bloom filter")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -300,7 +300,7 @@ impl<'de> Visitor<'de> for BytesVisitor {
     type Value = Bytes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("arbitrary length hex string")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -344,7 +344,7 @@ impl<'de> Visitor<'de> for BigIntVisitor {
     type Value = BigInt;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 8 byte value")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -382,7 +382,7 @@ impl<'de> Visitor<'de> for IndexVisitor {
     type Value = Index;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string or integer for 4 byte index")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -394,6 +394,24 @@ impl<'de> Visitor<'de> for IndexVisitor {
 
         Ok(Index(val))
     }
+
+    fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Index(value))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let val: u32 = value
+            .try_into()
+            .map_err(|_| E::custom("index value doesn't fit 4 bytes"))?;
+
+        Ok(Index(val))
+    }
 }
 
 impl<'de> Deserialize<'de> for Index {
@@ -401,7 +419,7 @@ impl<'de> Deserialize<'de> for Index {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_str(IndexVisitor)
+        deserializer.deserialize_any(IndexVisitor)
     }
 }
 

@@ -34,7 +34,7 @@ pub struct Config {
     /// Size of each database query.
     /// Database queries are batched because we don't want to query the entire db at once.
     #[clap(long, default_value_t = 200)]
-    pub db_query_batch_size: usize,
+    pub db_query_batch_size: u32,
 }
 
 fn default_server_addr() -> SocketAddr {
