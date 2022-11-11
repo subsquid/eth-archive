@@ -52,7 +52,7 @@ impl EthClient {
         })
     }
 
-    pub async fn send<R: EthRequest>(&self, req: R) -> Result<R::Resp> {
+    async fn send_impl<R: EthRequest>(&self, req: R) -> Result<R::Resp> {
         let resp = self
             .http_client
             .post(self.rpc_url.clone())
@@ -83,7 +83,17 @@ impl EthClient {
         Ok(rpc_result)
     }
 
-    pub async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>> {
+    pub async fn send<R: EthRequest + Copy>(self: Arc<Self>, req: R) -> Result<R::Resp> {
+        self.retry
+            .retry(|| {
+                let client = self.clone();
+                async move { client.send_impl(req).await }
+            })
+            .await
+            .map_err(Error::Retry)
+    }
+
+    async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>> {
         let req_body = requests
             .iter()
             .enumerate()
@@ -168,32 +178,21 @@ impl EthClient {
     ) -> Result<Vec<R::Resp>> {
         let group = reqs.iter().map(|&req| {
             let client = self.clone();
-            self.retry.retry(move || {
-                let client = client.clone();
-                async move { client.send(req).await }
-            })
+            client.send(req)
         });
         let group = futures::future::join_all(group).await;
-        group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
+        group.into_iter().collect()
     }
 
     pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
-        let client = self.clone();
         let offset = self.cfg.best_block_offset;
-        self.retry
-            .retry(move || {
-                let client = client.clone();
-                async move {
-                    let num = client.send(GetBestBlock {}).await?;
-                    let num = get_u32_from_hex(&num);
 
-                    let num = if num > offset { num - offset } else { 0 };
+        let num = self.send(GetBestBlock {}).await?;
+        let num = get_u32_from_hex(&num);
 
-                    Ok(num)
-                }
-            })
-            .await
-            .map_err(Error::GetBestBlock)
+        let num = if num > offset { num - offset } else { 0 };
+
+        Ok(num)
     }
 
     pub fn stream_batches(
@@ -224,7 +223,7 @@ impl EthClient {
                 while block_num > best_block {
                     let offset = self.cfg.best_block_offset;
                     log::info!("waiting for chain tip to reach {}, current value is {}. (offset is {})", block_num + offset, best_block + offset, offset);
-                    tokio::time::sleep(Duration::from_secs(3)).await;
+                    tokio::time::sleep(Duration::from_secs(10)).await;
 
                     best_block = self.clone().get_best_block().await?;
                     to_block = match to {
@@ -234,8 +233,8 @@ impl EthClient {
                 }
 
                 if block_num + batch_size > best_block {
-                    let block = self.send(GetBlockByNumber { block_number: block_num }).await?;
-                    let logs = self.send(GetLogs {
+                    let block = self.clone().send(GetBlockByNumber { block_number: block_num }).await?;
+                    let logs = self.clone().send(GetLogs {
                         from_block: block_num,
                         to_block: block_num,
                     }).await?;

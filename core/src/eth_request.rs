@@ -53,6 +53,7 @@ impl EthRequest for GetLogs {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct GetBestBlock {}
 
 impl EthRequest for GetBestBlock {
