@@ -26,7 +26,14 @@ impl EthClient {
 
         let rpc_url = match env::var(ETH_RPC_URL) {
             Ok(url) => url,
-            Err(_) => "https://rpc.ankr.com/eth".to_owned(),
+            Err(e) => match &cfg.default_rpc_url {
+                Some(url) => {
+                    log::info!("Using default rpc url: {}", url);
+
+                    url.clone()
+                }
+                None => return Err(Error::ReadRpcUrlFromEnv(e)),
+            },
         };
         let rpc_url = url::Url::parse(&rpc_url).map_err(Error::ParseRpcUrl)?;
 

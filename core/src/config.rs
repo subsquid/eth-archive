@@ -26,4 +26,6 @@ pub struct IngestConfig {
     /// Offset from tip of the chain (to avoid rollbacks)
     #[clap(long, default_value_t = 10)]
     pub best_block_offset: u32,
+    #[clap(long)]
+    pub default_rpc_url: Option<String>,
 }
