@@ -1,3 +1,4 @@
+use actix_web::{HttpResponse, ResponseError};
 use arrow2::error::Error as ArrowError;
 use std::io;
 use std::result::Result as StdResult;
@@ -39,6 +40,22 @@ pub enum Error {
     CreateFileSink(ArrowError),
     #[error("failed to close file sink:\n{0}")]
     CloseFileSink(ArrowError),
+    #[error("failed to encode metrics:\n{0}")]
+    EncodeMetrics(eth_archive_core::Error),
+    #[error("failed to run http server:\n{0}")]
+    RunHttpServer(io::Error),
+    #[error("failed to bind http server:\n{0}")]
+    BindHttpServer(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
+
+impl ResponseError for Error {
+    fn error_response(&self) -> HttpResponse {
+        log::debug!("error while serving request:\n{}", self);
+
+        HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": self.to_string(),
+        }))
+    }
+}

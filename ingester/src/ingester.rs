@@ -4,6 +4,7 @@ use crate::schema::{
     block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
     Transactions,
 };
+use crate::server::Server;
 use crate::{Error, Result};
 use arrow2::datatypes::{DataType, Schema};
 use arrow2::io::parquet::write::transverse;
@@ -21,8 +22,9 @@ use futures::SinkExt;
 use itertools::Itertools;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{cmp, mem};
+use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
@@ -40,6 +42,20 @@ impl Ingester {
         let eth_client = EthClient::new(cfg.ingest.clone(), retry, metrics.clone())
             .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
+
+        let ingest_metrics = metrics.clone();
+        std::thread::spawn(move || {
+            let ingest_metrics = ingest_metrics.clone();
+            let runtime = Runtime::new().unwrap();
+            runtime.block_on(async move {
+                loop {
+                    if let Err(e) = Server::run(cfg.metrics_addr, ingest_metrics.clone()).await {
+                        log::error!("failed to run server to serve metrics:\n{}", e);
+                    }
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                }
+            });
+        });
 
         Ok(Self {
             eth_client,

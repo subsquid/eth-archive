@@ -1066,6 +1066,7 @@ dependencies = [
 name = "eth-archive-ingester"
 version = "0.0.1"
 dependencies = [
+ "actix-web",
  "arrow2",
  "clap",
  "env_logger",

@@ -1,5 +1,6 @@
 use clap::Parser;
 use eth_archive_core::config::{IngestConfig, RetryConfig};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
 #[derive(Clone, Parser, Debug)]
@@ -25,6 +26,13 @@ pub struct Config {
     /// This effects maximum memory consumption.
     #[clap(long, default_value_t = 8)]
     pub max_pending_folder_writes: usize,
+    /// Address to serve prometheus metrics from
+    #[clap(long, default_value_t = default_metrics_addr())]
+    pub metrics_addr: SocketAddr,
+}
+
+fn default_metrics_addr() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8181)
 }
 
 impl Config {
