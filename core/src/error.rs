@@ -1,5 +1,6 @@
 use std::io;
 use std::result::Result as StdResult;
+use std::string::FromUtf8Error;
 
 use thiserror::Error as ThisError;
 
@@ -35,6 +36,10 @@ pub enum Error {
     ReadRpcUrlFromEnv(std::env::VarError),
     #[error("failed to parse ETH_RPC_URL:\n{0}")]
     ParseRpcUrl(url::ParseError),
+    #[error("failed to encode metrics:\n{0}")]
+    EncodeMetrics(io::Error),
+    #[error("encoded metrics have invalid utf8:\n{0}")]
+    MetricsUtf8(FromUtf8Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

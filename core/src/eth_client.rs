@@ -1,6 +1,7 @@
 use crate::config::IngestConfig;
 use crate::error::{Error, Result};
 use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetLogs};
+use crate::ingest_metrics::IngestMetrics;
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
 use futures::stream::Stream;
@@ -17,10 +18,11 @@ pub struct EthClient {
     rpc_url: url::Url,
     cfg: IngestConfig,
     retry: Retry,
+    metrics: Arc<IngestMetrics>,
 }
 
 impl EthClient {
-    pub fn new(cfg: IngestConfig, retry: Retry) -> Result<EthClient> {
+    pub fn new(cfg: IngestConfig, retry: Retry, metrics: Arc<IngestMetrics>) -> Result<EthClient> {
         let request_timeout = Duration::from_secs(cfg.request_timeout_secs.get());
         let connect_timeout = Duration::from_millis(cfg.connect_timeout_ms.get());
 
@@ -49,6 +51,7 @@ impl EthClient {
             rpc_url,
             cfg,
             retry,
+            metrics,
         })
     }
 
@@ -83,7 +86,7 @@ impl EthClient {
         Ok(rpc_result)
     }
 
-    pub async fn send<R: EthRequest + Copy>(self: Arc<Self>, req: R) -> Result<R::Resp> {
+    async fn send<R: EthRequest + Copy>(self: Arc<Self>, req: R) -> Result<R::Resp> {
         self.retry
             .retry(|| {
                 let client = self.clone();
@@ -157,7 +160,7 @@ impl EthClient {
         Ok(rpc_results)
     }
 
-    pub async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
+    async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
         self: Arc<Self>,
         batches: &[B],
     ) -> Result<Vec<Vec<R::Resp>>> {
@@ -172,7 +175,7 @@ impl EthClient {
         group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
-    pub async fn send_concurrent<R: EthRequest + Copy>(
+    async fn send_concurrent<R: EthRequest + Copy>(
         self: Arc<Self>,
         reqs: &[R],
     ) -> Result<Vec<R::Resp>> {
@@ -187,8 +190,10 @@ impl EthClient {
     pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
         let offset = self.cfg.best_block_offset;
 
-        let num = self.send(GetBestBlock {}).await?;
+        let num = self.clone().send(GetBestBlock {}).await?;
         let num = get_u32_from_hex(&num);
+
+        self.metrics.record_chain_height(num);
 
         let num = if num > offset { num - offset } else { 0 };
 
@@ -221,10 +226,7 @@ impl EthClient {
                 let batch_size = self.cfg.block_batch_size;
 
                 while block_num > best_block {
-                    let offset = self.cfg.best_block_offset;
-                    log::info!("waiting for chain tip to reach {}, current value is {}. (offset is {})", block_num + offset, best_block + offset, offset);
                     tokio::time::sleep(Duration::from_secs(10)).await;
-
                     best_block = self.clone().get_best_block().await?;
                     to_block = match to {
                         Some(to_block) => cmp::min(to_block, best_block+1),
@@ -233,18 +235,30 @@ impl EthClient {
                 }
 
                 if block_num + batch_size > best_block {
+                    let start_time = Instant::now();
+
                     let block = self.clone().send(GetBlockByNumber { block_number: block_num }).await?;
                     let logs = self.clone().send(GetLogs {
                         from_block: block_num,
                         to_block: block_num,
                     }).await?;
 
+                    self.metrics.record_download_height(block_num);
+
+                    let elapsed = start_time.elapsed().as_millis();
+                    if elapsed > 0 {
+                        self.metrics.record_download_speed(1. / elapsed as f64 * 1000.);
+                    }
+
+                    let block_range = BlockRange {
+                        from: block_num,
+                        to: block_num+1,
+                    };
+
                     block_num += 1;
 
-                    log::info!("downloaded block {}", block_num);
-
                     yield (
-                        vec![BlockRange{from: block_num, to: block_num}],
+                        vec![block_range],
                         vec![vec![block]],
                         vec![logs],
                     );
@@ -289,12 +303,6 @@ impl EthClient {
 
                 let ended_block = cmp::min(block_num + step, to_block);
 
-                log::info!(
-                    "starting to download blocks {}-{}",
-                    block_num,
-                    ended_block,
-                );
-
                 let block_batches = self
                     .clone()
                     .send_batches(&block_batches)
@@ -304,12 +312,13 @@ impl EthClient {
                     .send_concurrent(&log_batches)
                     .await?;
 
-                log::info!(
-                    "downloaded blocks {}-{} in {}ms",
-                    block_num,
-                    ended_block,
-                    start_time.elapsed().as_millis()
-                );
+                if ended_block > 0 {
+                    self.metrics.record_download_height(ended_block-1);
+                }
+                let elapsed = start_time.elapsed().as_millis();
+                if elapsed > 0 {
+                    self.metrics.record_download_speed((ended_block-block_num) as f64 / elapsed as f64 * 1000.);
+                }
 
                 let num_batches = u32::try_from(block_batches.len()).unwrap();
 

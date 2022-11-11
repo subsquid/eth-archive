@@ -11,6 +11,7 @@ use arrow2::io::parquet::write::Encoding;
 use arrow2::io::parquet::write::FileSink;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
+use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::BlockRange;
@@ -28,16 +29,23 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 pub struct Ingester {
     eth_client: Arc<EthClient>,
     cfg: Config,
+    metrics: Arc<IngestMetrics>,
 }
 
 impl Ingester {
     pub async fn new(cfg: Config) -> Result<Self> {
         let retry = Retry::new(cfg.retry);
-        let eth_client =
-            EthClient::new(cfg.ingest.clone(), retry).map_err(Error::CreateEthClient)?;
+        let metrics = IngestMetrics::new();
+        let metrics = Arc::new(metrics);
+        let eth_client = EthClient::new(cfg.ingest.clone(), retry, metrics.clone())
+            .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
-        Ok(Self { eth_client, cfg })
+        Ok(Self {
+            eth_client,
+            cfg,
+            metrics,
+        })
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -66,10 +74,12 @@ impl Ingester {
             mpsc::channel(self.cfg.max_pending_folder_writes);
 
         let config = self.cfg.clone();
+        let ingest_metrics = self.metrics.clone();
         let writer_thread = tokio::spawn(async move {
             let config = config;
+            let ingest_metrics = ingest_metrics;
             while let Some(data) = receiver.recv().await {
-                if let Err(e) = data.write_parquet_folder(&config).await {
+                if let Err(e) = data.write_parquet_folder(&config, &ingest_metrics).await {
                     log::error!(
                         "failed to write parquet folder:\n{}\n quitting writer thread.",
                         e
@@ -158,16 +168,8 @@ pub struct Data {
 }
 
 impl Data {
-    async fn write_parquet_folder(self, cfg: &Config) -> Result<()> {
+    async fn write_parquet_folder(self, cfg: &Config, metrics: &IngestMetrics) -> Result<()> {
         let range = self.range.unwrap();
-
-        log::info!(
-            "writing {}...",
-            &DirName {
-                range,
-                is_temp: false,
-            }
-        );
 
         let start_time = Instant::now();
 
@@ -234,14 +236,15 @@ impl Data {
             .await
             .map_err(Error::RenameDir)?;
 
-        log::info!(
-            "wrote {} in {}ms",
-            &DirName {
-                range,
-                is_temp: false,
-            },
-            start_time.elapsed().as_millis()
-        );
+        let elapsed = start_time.elapsed().as_millis();
+        if elapsed > 0 {
+            let range = range.to - range.from;
+            metrics.record_write_speed(range as f64 / elapsed as f64 * 1000.);
+        }
+
+        if range.to > 0 {
+            metrics.record_write_height(range.to);
+        }
 
         Ok(())
     }
