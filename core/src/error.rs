@@ -31,8 +31,6 @@ pub enum Error {
     GetBestBlock(Vec<Error>),
     #[error("failed to delete temporary directory:\n{0}")]
     RemoveTempDir(io::Error),
-    #[error("failed to read ETH_RPC_URL from env:\n{0}")]
-    ReadRpcUrlFromEnv(std::env::VarError),
     #[error("failed to parse ETH_RPC_URL:\n{0}")]
     ParseRpcUrl(url::ParseError),
 }

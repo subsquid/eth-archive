@@ -24,7 +24,10 @@ impl EthClient {
         let request_timeout = Duration::from_secs(cfg.request_timeout_secs.get());
         let connect_timeout = Duration::from_millis(cfg.connect_timeout_ms.get());
 
-        let rpc_url = env::var(ETH_RPC_URL).map_err(Error::ReadRpcUrlFromEnv)?;
+        let rpc_url = match env::var(ETH_RPC_URL) {
+            Ok(url) => url,
+            Err(_) => "https://rpc.ankr.com/eth".to_owned(),
+        };
         let rpc_url = url::Url::parse(&rpc_url).map_err(Error::ParseRpcUrl)?;
 
         let http_client = reqwest::ClientBuilder::new()
