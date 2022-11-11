@@ -27,10 +27,7 @@ pub struct DataCtx {
 }
 
 impl DataCtx {
-    pub async fn new(config: Config) -> Result<Self> {
-        let ingest_metrics = IngestMetrics::new();
-        let ingest_metrics = Arc::new(ingest_metrics);
-
+    pub async fn new(config: Config, ingest_metrics: Arc<IngestMetrics>) -> Result<Self> {
         let db = DbHandle::new(&config.db_path, ingest_metrics.clone()).await?;
         let db = Arc::new(db);
 

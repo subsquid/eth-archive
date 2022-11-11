@@ -322,6 +322,11 @@ impl DbHandle {
             .parquet_height
             .store(dir_name.range.to, Ordering::Relaxed);
 
+        let height = self.height();
+        if height > 0 {
+            self.metrics.record_write_height(height - 1);
+        }
+
         Ok(())
     }
 
@@ -388,7 +393,7 @@ impl DbHandle {
 
             let height = self.height();
             if height > 0 {
-                self.metrics.record_write_height(height);
+                self.metrics.record_write_height(height - 1);
             }
         }
 

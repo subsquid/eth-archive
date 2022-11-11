@@ -63,6 +63,8 @@ pub enum Error {
     Db(rocksdb::Error),
     #[error("failed to build ethereum rpc client:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
+    #[error("failed to encode metrics:\n{0}")]
+    EncodeMetrics(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
