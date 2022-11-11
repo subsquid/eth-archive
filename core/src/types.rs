@@ -1,5 +1,6 @@
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce};
 use serde::{Deserialize, Serialize};
+use std::cmp;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,7 +43,7 @@ pub struct Transaction {
     pub value: Bytes,
     #[serde(rename = "type")]
     pub kind: Index,
-    pub chain_id: Index,
+    pub chain_id: Option<Index>,
     pub v: BigInt,
     pub r: Bytes,
     pub s: Bytes,
@@ -174,7 +175,9 @@ pub struct ResponseRow {
     pub log: Option<ResponseLog>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(
+    Debug, Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign,
+)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryMetrics {
     pub build_query: u128,
@@ -183,35 +186,33 @@ pub struct QueryMetrics {
     pub total: u128,
 }
 
-impl std::ops::AddAssign for QueryMetrics {
-    fn add_assign(&mut self, other: Self) {
-        self.build_query += other.build_query;
-        self.run_query += other.run_query;
-        self.serialize_result += other.serialize_result;
-        self.total += other.total;
-    }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub data: Vec<ResponseRow>,
     pub metrics: QueryMetrics,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct BlockRange {
-    pub from: usize,
-    pub to: usize,
+    pub from: u32,
+    pub to: u32,
 }
 
-impl BlockRange {
-    pub fn merge(&self, other: Self) -> Self {
-        use std::cmp;
+impl std::ops::Add for BlockRange {
+    type Output = Self;
 
+    fn add(self, other: Self) -> Self::Output {
         Self {
             from: cmp::min(self.from, other.from),
             to: cmp::max(self.to, other.to),
         }
+    }
+}
+
+impl std::ops::AddAssign for BlockRange {
+    fn add_assign(&mut self, other: Self) {
+        self.from = cmp::min(self.from, other.from);
+        self.to = cmp::max(self.to, other.to);
     }
 }

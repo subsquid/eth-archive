@@ -1,20 +1,43 @@
 use crate::config::IngestConfig;
 use crate::error::{Error, Result};
-use crate::eth_request::{EthRequest, GetBestBlock};
+use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetLogs};
+use crate::ingest_metrics::IngestMetrics;
 use crate::retry::Retry;
+use crate::types::{Block, BlockRange, Log};
+use futures::stream::Stream;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
+use std::{cmp, env};
+
+const ETH_RPC_URL: &str = "ETH_RPC_URL";
 
 pub struct EthClient {
     http_client: reqwest::Client,
     rpc_url: url::Url,
+    cfg: IngestConfig,
+    retry: Retry,
+    metrics: Arc<IngestMetrics>,
 }
 
 impl EthClient {
-    pub fn new(config: &IngestConfig) -> Result<EthClient> {
-        let request_timeout = Duration::from_secs(config.request_timeout_secs.get());
-        let connect_timeout = Duration::from_millis(config.connect_timeout_ms.get());
+    pub fn new(cfg: IngestConfig, retry: Retry, metrics: Arc<IngestMetrics>) -> Result<EthClient> {
+        let request_timeout = Duration::from_secs(cfg.request_timeout_secs.get());
+        let connect_timeout = Duration::from_millis(cfg.connect_timeout_ms.get());
+
+        let rpc_url = match env::var(ETH_RPC_URL) {
+            Ok(url) => url,
+            Err(e) => match &cfg.default_rpc_url {
+                Some(url) => {
+                    log::info!("Using default rpc url: {}", url);
+
+                    url.clone()
+                }
+                None => return Err(Error::ReadRpcUrlFromEnv(e)),
+            },
+        };
+        let rpc_url = url::Url::parse(&rpc_url).map_err(Error::ParseRpcUrl)?;
 
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -25,11 +48,14 @@ impl EthClient {
 
         Ok(EthClient {
             http_client,
-            rpc_url: config.eth_rpc_url.clone(),
+            rpc_url,
+            cfg,
+            retry,
+            metrics,
         })
     }
 
-    pub async fn send<R: EthRequest>(&self, req: R) -> Result<R::Resp> {
+    async fn send_impl<R: EthRequest>(&self, req: R) -> Result<R::Resp> {
         let resp = self
             .http_client
             .post(self.rpc_url.clone())
@@ -60,7 +86,17 @@ impl EthClient {
         Ok(rpc_result)
     }
 
-    pub async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>> {
+    async fn send<R: EthRequest + Copy>(self: Arc<Self>, req: R) -> Result<R::Resp> {
+        self.retry
+            .retry(|| {
+                let client = self.clone();
+                async move { client.send_impl(req).await }
+            })
+            .await
+            .map_err(Error::Retry)
+    }
+
+    async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>> {
         let req_body = requests
             .iter()
             .enumerate()
@@ -124,14 +160,13 @@ impl EthClient {
         Ok(rpc_results)
     }
 
-    pub async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
+    async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
         self: Arc<Self>,
         batches: &[B],
-        retry: Retry,
     ) -> Result<Vec<Vec<R::Resp>>> {
         let group = batches.iter().map(|batch| {
             let client = self.clone();
-            retry.retry(move || {
+            self.retry.retry(move || {
                 let client = client.clone();
                 async move { client.send_batch(batch.as_ref()).await }
             })
@@ -140,31 +175,176 @@ impl EthClient {
         group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
-    pub async fn send_concurrent<R: EthRequest + Copy>(
+    async fn send_concurrent<R: EthRequest + Copy>(
         self: Arc<Self>,
         reqs: &[R],
-        retry: Retry,
     ) -> Result<Vec<R::Resp>> {
         let group = reqs.iter().map(|&req| {
             let client = self.clone();
-            retry.retry(move || {
-                let client = client.clone();
-                async move { client.send(req).await }
-            })
+            client.send(req)
         });
         let group = futures::future::join_all(group).await;
-        group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
+        group.into_iter().collect()
     }
 
-    pub async fn get_best_block(&self) -> Result<usize> {
-        let num = self.send(GetBestBlock {}).await?;
-        let best_block = get_usize_from_hex(&num);
-        log::debug!("best block is {}", best_block);
-        Ok(best_block)
+    pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
+        let offset = self.cfg.best_block_offset;
+
+        let num = self.clone().send(GetBestBlock {}).await?;
+        let num = get_u32_from_hex(&num);
+
+        self.metrics.record_chain_height(num);
+
+        let num = if num > offset { num - offset } else { 0 };
+
+        Ok(num)
+    }
+
+    pub fn stream_batches(
+        self: Arc<Self>,
+        from: Option<u32>,
+        to: Option<u32>,
+    ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
+        let from_block = from.unwrap_or(0);
+
+        let step = self.cfg.http_req_concurrency * self.cfg.block_batch_size;
+        async_stream::try_stream! {
+            let mut block_num = from_block;
+            loop {
+                match to {
+                    Some(to_block) if block_num >= to_block => break,
+                    _ => (),
+                }
+
+                let mut best_block = self.clone().get_best_block().await?;
+                let mut to_block = match to {
+                    Some(to_block) => cmp::min(to_block, best_block+1),
+                    None => best_block+1,
+                };
+
+                let concurrency = self.cfg.http_req_concurrency;
+                let batch_size = self.cfg.block_batch_size;
+
+                while block_num > best_block {
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                    best_block = self.clone().get_best_block().await?;
+                    to_block = match to {
+                        Some(to_block) => cmp::min(to_block, best_block+1),
+                        None => best_block+1,
+                    };
+                }
+
+                if block_num + batch_size > best_block {
+                    let start_time = Instant::now();
+
+                    let block = self.clone().send(GetBlockByNumber { block_number: block_num }).await?;
+                    let logs = self.clone().send(GetLogs {
+                        from_block: block_num,
+                        to_block: block_num,
+                    }).await?;
+
+                    self.metrics.record_download_height(block_num);
+
+                    let elapsed = start_time.elapsed().as_millis();
+                    if elapsed > 0 {
+                        self.metrics.record_download_speed(1. / elapsed as f64 * 1000.);
+                    }
+
+                    let block_range = BlockRange {
+                        from: block_num,
+                        to: block_num+1,
+                    };
+
+                    block_num += 1;
+
+                    yield (
+                        vec![block_range],
+                        vec![vec![block]],
+                        vec![logs],
+                    );
+
+                    continue;
+                }
+
+                let block_batches = (0..concurrency)
+                    .filter_map(|step_no: u32| {
+                        let start = block_num + step_no * batch_size;
+                        let end = cmp::min(start + batch_size, to_block);
+
+                        let batch = (start..end)
+                            .map(|i| GetBlockByNumber { block_number: i })
+                            .collect::<Vec<_>>();
+
+                        if batch.is_empty() {
+                            None
+                        } else {
+                            Some(batch)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let log_batches = (0..concurrency)
+                    .filter_map(|step_no| {
+                        let start = block_num + step_no * batch_size;
+                        let end = cmp::min(start + batch_size, to_block);
+
+                        if start < end {
+                            Some(GetLogs {
+                                from_block: start,
+                                to_block: end - 1,
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let start_time = Instant::now();
+
+                let ended_block = cmp::min(block_num + step, to_block);
+
+                let block_batches = self
+                    .clone()
+                    .send_batches(&block_batches)
+                    .await?;
+                let log_batches = self
+                    .clone()
+                    .send_concurrent(&log_batches)
+                    .await?;
+
+                if ended_block > 0 {
+                    self.metrics.record_download_height(ended_block-1);
+                }
+                let elapsed = start_time.elapsed().as_millis();
+                if elapsed > 0 {
+                    self.metrics.record_download_speed((ended_block-block_num) as f64 / elapsed as f64 * 1000.);
+                }
+
+                let num_batches = u32::try_from(block_batches.len()).unwrap();
+
+                let block_ranges = (0..num_batches).map(|i| {
+                    let start = block_num + i * batch_size;
+                    let end = cmp::min(start + batch_size, to_block);
+                    let block_range = BlockRange {
+                        from: start,
+                        to: end,
+                    };
+                    block_range
+                }).collect();
+
+                block_num = ended_block;
+
+                yield (
+                    block_ranges,
+                    block_batches,
+                    log_batches,
+                );
+            }
+        }
     }
 }
 
-fn get_usize_from_hex(hex: &str) -> usize {
+fn get_u32_from_hex(hex: &str) -> u32 {
     let without_prefix = hex.trim_start_matches("0x");
-    usize::from_str_radix(without_prefix, 16).unwrap()
+    u32::from_str_radix(without_prefix, 16).unwrap()
 }

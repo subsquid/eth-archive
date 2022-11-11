@@ -2,14 +2,9 @@ use prefix_hex::ToHexPrefixed;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
-use std::error::Error as StdError;
 use std::fmt;
-use tokio_postgres::types::private::BytesMut;
-use tokio_postgres::types::IsNull;
-use tokio_postgres::types::ToSql;
-use tokio_postgres::types::Type;
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
 impl Bytes32 {
@@ -24,38 +19,24 @@ impl Bytes32 {
     }
 }
 
-impl ToSql for Bytes32 {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        <&[u8]>::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql_checked(ty, out)
-    }
-}
-
 impl ToHexPrefixed for &Bytes32 {
     fn to_hex_prefixed(self) -> String {
         ToHexPrefixed::to_hex_prefixed(&*self.0)
     }
 }
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Address(pub Box<[u8; 20]>);
 
 impl Address {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
+    }
+}
+
+impl AsRef<[u8]> for Address {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
     }
 }
 
@@ -65,52 +46,12 @@ impl ToHexPrefixed for &Address {
     }
 }
 
-impl ToSql for Address {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        <&[u8]>::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql_checked(ty, out)
-    }
-}
-
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct Sighash(pub Box<[u8; 4]>);
 
 impl Sighash {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
-    }
-}
-
-impl ToSql for Sighash {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        <&[u8]>::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql_checked(ty, out)
     }
 }
 
@@ -129,26 +70,6 @@ impl Nonce {
     }
 }
 
-impl ToSql for Nonce {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.to_be_bytes().as_slice().to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        <&[u8]>::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.to_be_bytes().as_slice().to_sql_checked(ty, out)
-    }
-}
-
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
@@ -158,48 +79,8 @@ impl BloomFilterBytes {
     }
 }
 
-impl ToSql for BloomFilterBytes {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        <&[u8]>::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql_checked(ty, out)
-    }
-}
-
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct BigInt(pub i64);
-
-impl ToSql for BigInt {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        i64::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.to_sql_checked(ty, out)
-    }
-}
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
 pub struct Index(pub u32);
@@ -207,26 +88,6 @@ pub struct Index(pub u32);
 impl Index {
     pub fn new(val: i64) -> Self {
         Self(val.try_into().unwrap())
-    }
-}
-
-impl ToSql for Index {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        i64::from(self.0).to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        i64::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        i64::from(self.0).to_sql_checked(ty, out)
     }
 }
 
@@ -239,33 +100,13 @@ impl Bytes {
     }
 }
 
-impl ToSql for Bytes {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql(ty, out)
-    }
-    fn accepts(ty: &Type) -> bool {
-        <&[u8]>::accepts(ty)
-    }
-    fn to_sql_checked(
-        &self,
-        ty: &Type,
-        out: &mut BytesMut,
-    ) -> Result<IsNull, Box<dyn StdError + Sync + Send + 'static>> {
-        self.0.as_slice().to_sql_checked(ty, out)
-    }
-}
-
 struct Bytes32Visitor;
 
 impl<'de> Visitor<'de> for Bytes32Visitor {
     type Value = Bytes32;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 32 byte value")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -304,7 +145,7 @@ impl<'de> Visitor<'de> for AddressVisitor {
     type Value = Address;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 20 byte address")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -343,7 +184,7 @@ impl<'de> Visitor<'de> for SighashVisitor {
     type Value = Sighash;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 4 byte sighash")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -382,7 +223,7 @@ impl<'de> Visitor<'de> for NonceVisitor {
     type Value = Nonce;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 8 byte nonce")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -420,7 +261,7 @@ impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
     type Value = BloomFilterBytes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 256 byte bloom filter")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -459,7 +300,7 @@ impl<'de> Visitor<'de> for BytesVisitor {
     type Value = Bytes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("arbitrary length hex string")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -503,7 +344,7 @@ impl<'de> Visitor<'de> for BigIntVisitor {
     type Value = BigInt;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string for 8 byte value")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -541,7 +382,7 @@ impl<'de> Visitor<'de> for IndexVisitor {
     type Value = Index;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string")
+        formatter.write_str("hex string or integer for 4 byte index")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -553,6 +394,24 @@ impl<'de> Visitor<'de> for IndexVisitor {
 
         Ok(Index(val))
     }
+
+    fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Index(value))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let val: u32 = value
+            .try_into()
+            .map_err(|_| E::custom("index value doesn't fit 4 bytes"))?;
+
+        Ok(Index(val))
+    }
 }
 
 impl<'de> Deserialize<'de> for Index {
@@ -560,7 +419,7 @@ impl<'de> Deserialize<'de> for Index {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_str(IndexVisitor)
+        deserializer.deserialize_any(IndexVisitor)
     }
 }
 

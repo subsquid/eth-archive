@@ -1,25 +1,38 @@
 use clap::Parser;
-use eth_archive_core::config::{DbConfig, IngestConfig, RetryConfig};
+use eth_archive_core::config::{IngestConfig, RetryConfig};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 
-#[derive(Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
-    #[command(flatten)]
-    pub db: DbConfig,
-
+    /// Path to store parquet files
+    #[clap(long)]
+    pub data_path: PathBuf,
     #[command(flatten)]
     pub ingest: IngestConfig,
-
     #[command(flatten)]
     pub retry: RetryConfig,
-
-    /// Block window size
+    /// Maximum number of blocks per parquet file
     #[clap(long)]
-    pub block_window_size: usize,
+    pub max_blocks_per_file: usize,
+    /// Maximum number of transactions per file
+    #[clap(long)]
+    pub max_txs_per_file: usize,
+    /// Maximum number of logs per parquet file
+    #[clap(long)]
+    pub max_logs_per_file: usize,
+    /// Maximum number of pending folder writes.
+    /// This effects maximum memory consumption.
+    #[clap(long, default_value_t = 8)]
+    pub max_pending_folder_writes: usize,
+    /// Address to serve prometheus metrics from
+    #[clap(long, default_value_t = default_metrics_addr())]
+    pub metrics_addr: SocketAddr,
+}
 
-    /// Delete indexed data from a database
-    #[clap(short, long)]
-    pub reset_data: bool,
+fn default_metrics_addr() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8181)
 }
 
 impl Config {

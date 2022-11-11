@@ -1,292 +1,304 @@
 use crate::config::Config;
+use crate::consts::MAX_ROW_GROUPS_PER_FILE;
+use crate::schema::{
+    block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
+    Transactions,
+};
+use crate::server::Server;
 use crate::{Error, Result};
-use eth_archive_core::db::DbHandle;
+use arrow2::datatypes::{DataType, Schema};
+use arrow2::io::parquet::write::transverse;
+use arrow2::io::parquet::write::Encoding;
+use arrow2::io::parquet::write::FileSink;
+use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
-use eth_archive_core::eth_request::{GetBlockByNumber, GetLogs};
+use eth_archive_core::ingest_metrics::IngestMetrics;
+use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::types::{Block, Log};
+use eth_archive_core::types::BlockRange;
+use futures::pin_mut;
+use futures::stream::StreamExt;
+use futures::SinkExt;
+use itertools::Itertools;
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{cmp, mem};
+use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
-use tokio::time::{sleep, Duration};
+use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
-    db: Arc<DbHandle>,
-    cfg: Config,
     eth_client: Arc<EthClient>,
-    retry: Retry,
+    cfg: Config,
+    metrics: Arc<IngestMetrics>,
 }
 
 impl Ingester {
-    pub async fn new(config: Config) -> Result<Self> {
-        let db = DbHandle::new(config.reset_data, &config.db)
-            .await
-            .map_err(|e| Error::CreateDbHandle(Box::new(e)))?;
-        let db = Arc::new(db);
-
-        let eth_client = EthClient::new(&config.ingest).map_err(Error::CreateEthClient)?;
+    pub async fn new(cfg: Config) -> Result<Self> {
+        let retry = Retry::new(cfg.retry);
+        let metrics = IngestMetrics::new();
+        let metrics = Arc::new(metrics);
+        let eth_client = EthClient::new(cfg.ingest.clone(), retry, metrics.clone())
+            .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
-        let retry = Retry::new(config.retry);
+        let ingest_metrics = metrics.clone();
+        std::thread::spawn(move || {
+            let ingest_metrics = ingest_metrics.clone();
+            let runtime = Runtime::new().unwrap();
+            runtime.block_on(async move {
+                loop {
+                    if let Err(e) = Server::run(cfg.metrics_addr, ingest_metrics.clone()).await {
+                        log::error!("failed to run server to serve metrics:\n{}", e);
+                    }
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                }
+            });
+        });
 
         Ok(Self {
-            db,
-            cfg: config,
             eth_client,
-            retry,
+            cfg,
+            metrics,
         })
     }
 
-    async fn get_best_block(&self) -> Result<usize> {
-        let num = self
-            .eth_client
-            .get_best_block()
+    pub async fn run(&self) -> Result<()> {
+        log::info!("creating missing directories...");
+        let data_path = &self.cfg.data_path;
+
+        tokio::fs::create_dir_all(data_path)
             .await
-            .map_err(Error::GetBestBlock)?;
+            .map_err(Error::CreateMissingDirectories)?;
 
-        let offset = 20;
+        let dir_names = DirName::delete_temp_and_list_sorted(data_path)
+            .await
+            .map_err(Error::ListFolderNames)?;
 
-        Ok(if num < offset { 0 } else { num - offset })
-    }
+        let block_num = Self::get_start_block(&dir_names)?;
 
-    async fn wait_for_next_block(&self, waiting_for: usize) -> Result<(Block, Vec<Log>)> {
-        log::info!("waiting for block {}", waiting_for);
+        let batches = self
+            .eth_client
+            .clone()
+            .stream_batches(Some(block_num), None);
+        pin_mut!(batches);
 
-        loop {
-            let block_number = self.get_best_block().await?;
+        let mut data = Data::default();
 
-            if waiting_for < block_number {
-                let block = self
-                    .eth_client
-                    .send(GetBlockByNumber {
-                        block_number: waiting_for,
-                    })
-                    .await
-                    .map_err(Error::EthClient)?;
+        let (sender, mut receiver): (mpsc::Sender<Data>, _) =
+            mpsc::channel(self.cfg.max_pending_folder_writes);
 
-                let logs = self
-                    .eth_client
-                    .send(GetLogs {
-                        from_block: waiting_for,
-                        to_block: waiting_for,
-                    })
-                    .await
-                    .map_err(Error::EthClient)?;
-
-                return Ok((block, logs));
-            } else {
-                sleep(Duration::from_secs(1)).await;
-            }
-        }
-    }
-
-    async fn wait_and_insert_block(&self, block: Block, logs: Vec<Log>) -> Result<()> {
-        log::info!("waiting for parquet writer to delete tail...");
-
-        let block_number = usize::try_from(block.number.0).unwrap();
-
-        loop {
-            let min_block_number = self
-                .db
-                .get_min_block_number()
-                .await
-                .map_err(Error::GetMinBlockNumber)?;
-            if min_block_number.is_none()
-                || block_number - min_block_number.unwrap() <= self.cfg.block_window_size
-            {
-                self.db
-                    .insert_blocks_data(&[block], &logs)
-                    .await
-                    .map_err(Error::InsertBlocks)?;
-
-                log::info!("wrote block {}", block_number);
-
-                return Ok(());
-            } else {
-                sleep(Duration::from_secs(1)).await;
-            }
-        }
-    }
-
-    async fn fast_sync(&self, from_block: usize, to_block: usize) -> Result<()> {
-        log::info!("starting fast sync up to: {}.", to_block);
-
-        let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
-
-        let (tx, mut rx) = mpsc::channel::<(Vec<Vec<Block>>, Vec<Vec<Log>>, _, _)>(2);
-
-        let write_task = tokio::spawn({
-            let db = self.db.clone();
-            let retry = self.retry;
-            async move {
-                while let Some((block_batches, log_batches, from, to)) = rx.recv().await {
-                    let start_time = Instant::now();
-
-                    for (blocks, logs) in block_batches.iter().zip(log_batches.iter()) {
-                        let db = db.clone();
-                        retry
-                            .retry(move || {
-                                let db = db.clone();
-                                async move {
-                                    db.insert_blocks_data(blocks, logs)
-                                        .await
-                                        .map_err(Error::InsertBlocks)
-                                }
-                            })
-                            .await
-                            .map_err(Error::Retry)?;
-                    }
-
-                    log::info!(
-                        "inserted blocks {}-{} in {}ms",
-                        from,
-                        to,
-                        start_time.elapsed().as_millis()
+        let config = self.cfg.clone();
+        let ingest_metrics = self.metrics.clone();
+        let writer_thread = tokio::spawn(async move {
+            let config = config;
+            let ingest_metrics = ingest_metrics;
+            while let Some(data) = receiver.recv().await {
+                if let Err(e) = data.write_parquet_folder(&config, &ingest_metrics).await {
+                    log::error!(
+                        "failed to write parquet folder:\n{}\n quitting writer thread.",
+                        e
                     );
+                    break;
                 }
-
-                Ok(())
             }
         });
 
-        let best_block = self.get_best_block().await?;
+        'ingest: while let Some(batches) = batches.next().await {
+            let (block_ranges, block_batches, log_batches) = batches.map_err(Error::GetBatch)?;
 
-        for block_num in (from_block..to_block).step_by(step) {
-            let concurrency = self.cfg.ingest.http_req_concurrency;
-            let batch_size = self.cfg.ingest.block_batch_size;
-
-            let block_batches = (0..concurrency)
-                .filter_map(|step_no| {
-                    let start = block_num + step_no * batch_size;
-                    let end = cmp::min(start + batch_size, best_block);
-
-                    let batch = (start..end)
-                        .map(|i| GetBlockByNumber { block_number: i })
-                        .collect::<Vec<_>>();
-
-                    if batch.is_empty() {
-                        None
-                    } else {
-                        Some(batch)
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let log_batches = (0..concurrency)
-                .filter_map(|step_no| {
-                    let start = block_num + step_no * batch_size;
-                    let end = cmp::min(start + batch_size, best_block);
-
-                    if start < end {
-                        Some(GetLogs {
-                            from_block: start,
-                            to_block: end - 1,
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let start_time = Instant::now();
-
-            let block_batches = self
-                .eth_client
-                .clone()
-                .send_batches(&block_batches, self.retry)
-                .await
-                .map_err(Error::EthClient)?;
-            let log_batches = self
-                .eth_client
-                .clone()
-                .send_concurrent(&log_batches, self.retry)
-                .await
-                .map_err(Error::EthClient)?;
-
-            log::info!(
-                "downloaded blocks {}-{} in {}ms",
-                block_num,
-                block_num + step,
-                start_time.elapsed().as_millis()
-            );
-
-            if tx
-                .send((block_batches, log_batches, block_num, block_num + step))
-                .await
-                .is_err()
+            for ((block_range, block_batch), log_batch) in block_ranges
+                .into_iter()
+                .zip(block_batches.into_iter())
+                .zip(log_batches.into_iter())
             {
-                panic!("fast_sync: write_task stopped prematurely.");
+                data.range = match data.range {
+                    Some(mut range) => {
+                        range += block_range;
+                        Some(range)
+                    }
+                    None => Some(block_range),
+                };
+
+                for mut block in block_batch.into_iter() {
+                    for tx in mem::take(&mut block.transactions).into_iter() {
+                        data.txs.push(tx);
+                    }
+                    data.blocks.push(block);
+                }
+                for log in log_batch.into_iter() {
+                    data.logs.push(log);
+                }
+
+                #[allow(clippy::collapsible_if)]
+                if data.blocks.len >= self.cfg.max_blocks_per_file
+                    || data.txs.len >= self.cfg.max_txs_per_file
+                    || data.logs.len >= self.cfg.max_logs_per_file
+                {
+                    if sender.send(mem::take(&mut data)).await.is_err() {
+                        log::info!("writer thread crashed. exiting ingest loop...");
+                        break 'ingest;
+                    }
+                }
             }
         }
 
-        mem::drop(tx);
-
-        log::info!("fast_sync: finished downloading, waiting for writing to end...");
-
-        write_task.await.map_err(Error::JoinError)??;
-
-        log::info!("finished fast sync up to block {}", to_block);
+        if !writer_thread.is_finished() {
+            log::info!("waiting for writer thread to finish...");
+        }
+        writer_thread.await.map_err(Error::RunWriterThread)?;
 
         Ok(())
     }
 
-    async fn get_start_block(&self) -> Result<usize> {
-        let max_block_number = self
-            .db
-            .get_max_block_number()
+    fn get_start_block(dir_names: &[DirName]) -> Result<u32> {
+        if dir_names.is_empty() {
+            return Ok(0);
+        }
+        let first_range = dir_names[0].range;
+
+        if first_range.from != 0 {
+            return Err(Error::FolderRangeMismatch(0, 0));
+        }
+
+        let mut max = first_range.to;
+        for (a, b) in dir_names.iter().tuple_windows() {
+            max = cmp::max(max, b.range.to);
+
+            if a.range.to != b.range.from {
+                return Err(Error::FolderRangeMismatch(a.range.to, b.range.from));
+            }
+        }
+
+        Ok(max)
+    }
+}
+
+#[derive(Default)]
+pub struct Data {
+    blocks: Blocks,
+    txs: Transactions,
+    logs: Logs,
+    range: Option<BlockRange>,
+}
+
+impl Data {
+    async fn write_parquet_folder(self, cfg: &Config, metrics: &IngestMetrics) -> Result<()> {
+        let range = self.range.unwrap();
+
+        let start_time = Instant::now();
+
+        let mut temp_path = cfg.data_path.to_owned();
+        temp_path.push(
+            &DirName {
+                range,
+                is_temp: true,
+            }
+            .to_string(),
+        );
+        tokio::fs::create_dir(&temp_path)
             .await
-            .map_err(Error::GetMaxBlockNumber)?;
-        match max_block_number {
-            Some(block_number) => Ok(block_number + 1),
-            None => {
-                let block_number = self.get_best_block().await?;
-                if block_number <= self.cfg.block_window_size {
-                    return Err(Error::BlockWindowBiggerThanBestblock);
-                }
+            .map_err(Error::CreateDir)?;
 
-                Ok(block_number - self.cfg.block_window_size)
+        let block_fut = {
+            let mut temp_path = temp_path.clone();
+            temp_path.push("block.parquet");
+
+            write_file(
+                temp_path,
+                Box::new(self.blocks),
+                block_schema(),
+                cfg.max_blocks_per_file / MAX_ROW_GROUPS_PER_FILE,
+            )
+        };
+
+        let tx_fut = {
+            let mut temp_path = temp_path.clone();
+            temp_path.push("tx.parquet");
+
+            write_file(
+                temp_path,
+                Box::new(self.txs),
+                tx_schema(),
+                cfg.max_txs_per_file / MAX_ROW_GROUPS_PER_FILE,
+            )
+        };
+
+        let log_fut = {
+            let mut temp_path = temp_path.clone();
+            temp_path.push("log.parquet");
+
+            write_file(
+                temp_path,
+                Box::new(self.logs),
+                log_schema(),
+                cfg.max_logs_per_file / MAX_ROW_GROUPS_PER_FILE,
+            )
+        };
+
+        futures::future::try_join3(block_fut, tx_fut, log_fut).await?;
+
+        let mut final_path = cfg.data_path.to_owned();
+        final_path.push(
+            &DirName {
+                range,
+                is_temp: false,
             }
+            .to_string(),
+        );
+
+        tokio::fs::rename(&temp_path, &final_path)
+            .await
+            .map_err(Error::RenameDir)?;
+
+        let elapsed = start_time.elapsed().as_millis();
+        let blk_count = range.to - range.from;
+        if elapsed > 0 && blk_count > 0 {
+            metrics.record_write_speed(blk_count as f64 / elapsed as f64 * 1000.);
         }
-    }
 
-    pub async fn run(&self) -> Result<()> {
-        let mut block_number = self.get_start_block().await?;
-
-        log::info!("starting to ingest from block {}", block_number);
-
-        loop {
-            let min_block_number = self
-                .db
-                .get_min_block_number()
-                .await
-                .map_err(Error::GetMinBlockNumber)?
-                .unwrap_or(block_number);
-            let max_block_number = block_number - 1;
-
-            let best_block = self.get_best_block().await?;
-
-            let step = self.cfg.ingest.http_req_concurrency * self.cfg.ingest.block_batch_size;
-            if max_block_number + step
-                < cmp::min(min_block_number + self.cfg.block_window_size, best_block)
-            {
-                self.fast_sync(block_number, min_block_number + self.cfg.block_window_size)
-                    .await?;
-
-                block_number = self
-                    .db
-                    .get_max_block_number()
-                    .await
-                    .map_err(Error::GetMaxBlockNumber)?
-                    .unwrap()
-                    + 1;
-            }
-
-            let (block, logs) = self.wait_for_next_block(block_number).await?;
-
-            self.wait_and_insert_block(block, logs).await?;
-
-            block_number += 1;
+        if range.to > 0 {
+            metrics.record_write_height(range.to);
         }
+
+        Ok(())
     }
+}
+
+fn encodings(schema: &Schema) -> Vec<Vec<Encoding>> {
+    let encoding_map = |data_type: &DataType| match data_type {
+        DataType::Binary | DataType::LargeBinary => Encoding::DeltaLengthByteArray,
+        _ => Encoding::Plain,
+    };
+
+    schema
+        .fields
+        .iter()
+        .map(|f| transverse(&f.data_type, encoding_map))
+        .collect::<Vec<_>>()
+}
+
+async fn write_file<T: IntoChunks + Send + 'static>(
+    temp_path: PathBuf,
+    chunks: Box<T>,
+    schema: Schema,
+    items_per_chunk: usize,
+) -> Result<()> {
+    let chunks = rayon_async::spawn(move || chunks.into_chunks(items_per_chunk)).await;
+    let file = tokio::fs::File::create(&temp_path)
+        .await
+        .map_err(Error::CreateFile)?
+        .compat();
+    let encodings = encodings(&schema);
+    let mut writer = FileSink::try_new(file, schema, encodings, parquet_write_options())
+        .map_err(Error::CreateFileSink)?;
+    let mut chunk_stream = futures::stream::iter(chunks);
+    writer
+        .send_all(&mut chunk_stream)
+        .await
+        .map_err(Error::WriteFileData)?;
+    writer.close().await.map_err(Error::CloseFileSink)?;
+
+    Ok(())
 }

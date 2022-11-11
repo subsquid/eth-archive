@@ -1,9 +1,6 @@
 [workspace]
 members = [
     "ingester",
-    "parquet-writer",
     "core",
-    "gateway",
-    "scripts/generate-parquets",
-    "libs/parquet-writer",
+    "worker",
 ]
