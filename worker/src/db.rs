@@ -2,6 +2,7 @@ use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
+use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
     Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseRow, Transaction,
 };
@@ -11,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, iter, mem};
 
@@ -20,6 +22,7 @@ pub type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetId
 pub struct DbHandle {
     inner: rocksdb::DB,
     status: Status,
+    metrics: Arc<IngestMetrics>,
 }
 
 struct Status {
@@ -29,7 +32,7 @@ struct Status {
 }
 
 impl DbHandle {
-    pub async fn new(path: &Path) -> Result<DbHandle> {
+    pub async fn new(path: &Path, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
         let path = path.to_owned();
 
         let (inner, status) = tokio::task::spawn_blocking(move || {
@@ -59,7 +62,11 @@ impl DbHandle {
         .await
         .map_err(Error::TaskJoinError)??;
 
-        Ok(Self { inner, status })
+        Ok(Self {
+            inner,
+            status,
+            metrics,
+        })
     }
 
     pub fn iter_parquet_idxs(&self, from: u32, to: Option<u32>) -> Result<ParquetIdxIter<'_>> {
@@ -320,7 +327,11 @@ impl DbHandle {
 
     pub fn insert_batches(
         &self,
-        (block_batches, log_batches): (Vec<Vec<Block>>, Vec<Vec<Log>>),
+        (block_ranges, block_batches, log_batches): (
+            Vec<BlockRange>,
+            Vec<Vec<Block>>,
+            Vec<Vec<Log>>,
+        ),
     ) -> Result<()> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
@@ -328,7 +339,10 @@ impl DbHandle {
 
         let tail_is_zero = self.status.db_tail.load(Ordering::Relaxed) == 0;
 
-        for (blocks, logs) in block_batches.into_iter().zip(log_batches.into_iter()) {
+        for (block_range, (blocks, logs)) in block_ranges
+            .into_iter()
+            .zip(block_batches.into_iter().zip(log_batches.into_iter()))
+        {
             let mut batch = rocksdb::WriteBatch::default();
 
             let mut db_height = self.status.db_height.load(Ordering::Relaxed);
@@ -356,13 +370,26 @@ impl DbHandle {
                 batch.put_cf(log_cf, &log_key, &val);
             }
 
+            let start_time = Instant::now();
+
             self.inner.write(batch).map_err(Error::Db)?;
+
+            let elapsed = start_time.elapsed().as_millis();
+            let range = block_range.to - block_range.from;
+            if elapsed > 0 && range > 0 {
+                self.metrics
+                    .record_write_speed(range as f64 / elapsed as f64 * 1000.);
+            }
 
             if db_tail != std::u32::MAX && tail_is_zero {
                 self.status.db_tail.store(db_tail, Ordering::Relaxed);
             }
-
             self.status.db_height.store(db_height, Ordering::Relaxed);
+
+            let height = self.height();
+            if height > 0 {
+                self.metrics.record_write_height(height);
+            }
         }
 
         Ok(())

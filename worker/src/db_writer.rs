@@ -2,7 +2,7 @@ use crate::db::{Bloom, DbHandle, ParquetIdx};
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::types::{Block, Log};
+use eth_archive_core::types::{Block, BlockRange, Log};
 use polars::export::arrow::array::BinaryArray;
 use polars::prelude::*;
 use std::path::Path;
@@ -35,7 +35,7 @@ impl DbWriter {
         Self { tx }
     }
 
-    pub async fn write_batches(&self, batches: (Vec<Vec<Block>>, Vec<Vec<Log>>)) {
+    pub async fn write_batches(&self, batches: (Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)) {
         self.tx.send(Job::WriteBatches(batches)).await.ok().unwrap();
     }
 
@@ -49,7 +49,7 @@ impl DbWriter {
 
     fn handle_write_batches(
         db: &DbHandle,
-        batches: (Vec<Vec<Block>>, Vec<Vec<Log>>),
+        batches: (Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>),
         min_hot_block_range: u32,
     ) -> Result<()> {
         db.insert_batches(batches)?;
@@ -149,6 +149,6 @@ impl DbWriter {
 }
 
 enum Job {
-    WriteBatches((Vec<Vec<Block>>, Vec<Vec<Log>>)),
+    WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
 }

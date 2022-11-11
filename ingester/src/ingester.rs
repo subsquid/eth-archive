@@ -237,9 +237,9 @@ impl Data {
             .map_err(Error::RenameDir)?;
 
         let elapsed = start_time.elapsed().as_millis();
-        if elapsed > 0 {
-            let range = range.to - range.from;
-            metrics.record_write_speed(range as f64 / elapsed as f64 * 1000.);
+        let blk_count = range.to - range.from;
+        if elapsed > 0 && blk_count > 0 {
+            metrics.record_write_speed(blk_count as f64 / elapsed as f64 * 1000.);
         }
 
         if range.to > 0 {

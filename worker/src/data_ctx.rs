@@ -7,6 +7,7 @@ use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query}
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
+use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{
@@ -27,15 +28,18 @@ pub struct DataCtx {
 
 impl DataCtx {
     pub async fn new(config: Config) -> Result<Self> {
-        let db = DbHandle::new(&config.db_path).await?;
+        let ingest_metrics = IngestMetrics::new();
+        let ingest_metrics = Arc::new(ingest_metrics);
+
+        let db = DbHandle::new(&config.db_path, ingest_metrics.clone()).await?;
         let db = Arc::new(db);
 
         let db_writer = DbWriter::new(db.clone(), &config.data_path, config.min_hot_block_range);
         let db_writer = Arc::new(db_writer);
 
         let retry = Retry::new(config.retry);
-        let eth_client =
-            EthClient::new(config.ingest.clone(), retry).map_err(Error::CreateEthClient)?;
+        let eth_client = EthClient::new(config.ingest.clone(), retry, ingest_metrics.clone())
+            .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
         tokio::spawn({
@@ -58,9 +62,8 @@ impl DataCtx {
                 pin_mut!(batches);
 
                 while let Some(res) = batches.next().await {
-                    let (_, blocks, logs) = res.unwrap();
-                    let batches = (blocks, logs);
-                    db_writer.write_batches(batches).await;
+                    let data = res.unwrap();
+                    db_writer.write_batches(data).await;
                 }
             }
         });
