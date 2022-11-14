@@ -2,7 +2,7 @@ name: docker-publish
 on:
   workflow_dispatch:
 env:
-  tag: 0.0.50
+  tag: 0.0.1
 jobs:
   publish:
     name: docker-publish
@@ -28,7 +28,7 @@ jobs:
       - name: env
         id: env
         run: |
-          echo "::set-output name=image::gcr.io/$PROJECT_ID/eth-${{ matrix.component }}:$tag"
+          echo "::set-output name=image::gcr.io/$PROJECT_ID/eth-stage1-${{ matrix.component }}:$tag"
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT }}
 
