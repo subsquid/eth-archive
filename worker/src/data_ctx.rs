@@ -17,9 +17,10 @@ use eth_archive_core::types::{
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use polars::prelude::*;
-use std::cmp;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::{cmp, io};
 
 pub struct DataCtx {
     config: Config,
@@ -83,6 +84,13 @@ impl DataCtx {
                     let dir_names = DirName::find_sorted(&data_path, next_start).await.unwrap();
 
                     for dir_name in dir_names {
+                        if !Self::parquet_folder_is_valid(&data_path, dir_name)
+                            .await
+                            .unwrap()
+                        {
+                            break;
+                        }
+
                         db_writer.register_parquet_folder(dir_name).await;
                         next_start = dir_name.range.to;
                     }
@@ -93,6 +101,25 @@ impl DataCtx {
         });
 
         Ok(Self { config, db })
+    }
+
+    async fn parquet_folder_is_valid(data_path: &Path, dir_name: DirName) -> Result<bool> {
+        let mut path = data_path.to_owned();
+        path.push(dir_name.to_string());
+
+        for name in ["block", "tx", "log"] {
+            let mut path = path.clone();
+            path.push(format!("{}.parquet", name));
+            match tokio::fs::File::open(&path).await {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    return Ok(false);
+                }
+                Err(e) => return Err(Error::ReadParquetDir(e)),
+                Ok(_) => (),
+            }
+        }
+
+        Ok(true)
     }
 
     pub fn inclusive_height(&self) -> Option<u32> {
