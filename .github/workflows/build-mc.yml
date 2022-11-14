@@ -1,0 +1,37 @@
+name: Build mc
+on:
+  workflow_dispatch:
+env:
+  tag: 0.0.1
+jobs:
+  publish:
+    name: docker-publish
+    runs-on: ubuntu-latest
+
+    steps:
+      # Setup gcloud CLI
+      - uses: google-github-actions/setup-gcloud@v0.2.0
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      # Configure Docker to use the gcloud command-line tool as a credential
+      # helper for authentication
+      - run: |-
+          gcloud --quiet auth configure-docker
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: env
+        id: env
+        run: |
+          echo "::set-output name=image::gcr.io/$PROJECT_ID/eth-stage1-mc:$tag"
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT }}
+
+      - name: Build
+        run: docker build -t ${{steps.env.outputs.image}} -f mc.dockerfile .
+
+      - name: Publish
+        run: docker push ${{steps.env.outputs.image}}
