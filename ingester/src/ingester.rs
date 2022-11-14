@@ -65,7 +65,6 @@ impl Ingester {
     }
 
     pub async fn run(&self) -> Result<()> {
-        log::info!("creating missing directories...");
         let data_path = &self.cfg.data_path;
 
         tokio::fs::create_dir_all(data_path)

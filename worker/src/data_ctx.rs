@@ -70,17 +70,24 @@ impl DataCtx {
             let data_path = config.data_path.clone();
 
             async move {
+                if let Err(e) = tokio::fs::create_dir_all(&data_path).await {
+                    eprintln!(
+                        "failed to create missing data directory:\n{}\nstopping parquet watcher",
+                        e
+                    );
+                    return;
+                }
+
                 let mut next_start = start;
-
                 loop {
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-
                     let dir_names = DirName::find_sorted(&data_path, next_start).await.unwrap();
 
                     for dir_name in dir_names {
                         db_writer.register_parquet_folder(dir_name).await;
                         next_start = dir_name.range.to;
                     }
+
+                    tokio::time::sleep(Duration::from_secs(5)).await;
                 }
             }
         });

@@ -63,8 +63,6 @@ impl fmt::Display for DirName {
 
 impl DirName {
     pub async fn delete_temp_and_list_sorted<P: AsRef<Path>>(path: P) -> Result<Vec<DirName>> {
-        log::info!("listing folder names...");
-
         let mut dir = tokio::fs::read_dir(&path)
             .await
             .map_err(Error::ReadParquetDir)?;
@@ -75,8 +73,6 @@ impl DirName {
             let folder_name = folder_name.to_str().ok_or(Error::InvalidFolderName)?;
             let dir_name = DirName::from_str(folder_name)?;
             if dir_name.is_temp {
-                log::info!("deleting temp dir {}...", dir_name);
-
                 tokio::fs::remove_dir_all(&entry.path())
                     .await
                     .map_err(Error::RemoveTempDir)?;
@@ -84,8 +80,6 @@ impl DirName {
                 names.push(dir_name);
             }
         }
-
-        log::info!("sorting folder names...");
 
         let sorted_names = rayon_async::spawn(move || {
             let mut names = names;
