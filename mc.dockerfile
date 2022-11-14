@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM ubuntu:latest
 RUN apt-get update && apt-get upgrade -y && apt-get -y install curl
 RUN curl https://dl.min.io/client/mc/release/linux-amd64/mc \
       --create-dirs \

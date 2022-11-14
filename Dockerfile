@@ -5,9 +5,9 @@ WORKDIR /eth
 COPY ./ .
 RUN cargo build --release --bin "eth-archive-${component}"
 
-FROM buildpack-deps:bullseye-curl
+FROM ubuntu:latest
 ARG component
 WORKDIR /eth
-RUN apt-get update && apt-get upgrade -y && apt-get -y install libatomic1
+RUN apt-get update && apt-get upgrade -y
 COPY --from=builder "/eth/target/release/eth-archive-${component}" "./eth-archive-${component}"
 CMD ["/eth/${component}"]
