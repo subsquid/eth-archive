@@ -2,14 +2,14 @@ name: docker-publish
 on:
   workflow_dispatch:
 env:
-  tag: 0.0.47
+  tag: 0.0.50
 jobs:
   publish:
     name: docker-publish
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [ ingester, parquet-writer, gateway ]
+        component: [ ingester, worker ]
     steps:
       # Setup gcloud CLI
       - uses: google-github-actions/setup-gcloud@v0.2.0
