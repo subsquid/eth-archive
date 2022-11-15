@@ -7,6 +7,7 @@ use polars::export::arrow::array::BinaryArray;
 use polars::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 pub struct DbWriter {
@@ -21,14 +22,24 @@ impl DbWriter {
 
         std::thread::spawn(move || {
             while let Some(job) = rx.blocking_recv() {
-                match job {
-                    Job::WriteBatches(batches) => {
-                        Self::handle_write_batches(&db, batches, min_hot_block_range).unwrap();
+                loop {
+                    let res = match job.clone() {
+                        Job::WriteBatches(batches) => {
+                            Self::handle_write_batches(&db, batches, min_hot_block_range)
+                        }
+                        Job::RegisterParquetFolder(dir_name) => {
+                            Self::handle_register_parquet_folder(&db, &data_path, dir_name)
+                        }
+                    };
+
+                    match res {
+                        Ok(_) => break,
+                        Err(e) => {
+                            eprintln!("failed to handle db write op:\n{}", e);
+                            std::thread::sleep(Duration::from_secs(1));
+                        }
                     }
-                    Job::RegisterParquetFolder(dir_name) => {
-                        Self::handle_register_parquet_folder(&db, &data_path, dir_name).unwrap();
-                    }
-                };
+                }
             }
         });
 
@@ -148,6 +159,7 @@ impl DbWriter {
     }
 }
 
+#[derive(Clone)]
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
