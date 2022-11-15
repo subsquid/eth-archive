@@ -34,6 +34,8 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
     let bucket = config.s3_bucket_name.clone();
     let data_path = data_path.to_owned();
 
+    let sync_interval = config.s3_sync_interval_secs;
+
     tokio::spawn(async move {
         let mut start_time = Instant::now();
 
@@ -51,9 +53,11 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
                 }
             }
 
+            log::info!("finished s3 sync.");
+
             let elapsed = start_time.elapsed().as_secs();
-            if elapsed < 300 {
-                tokio::time::sleep(Duration::from_secs(300 - elapsed)).await;
+            if elapsed < sync_interval {
+                tokio::time::sleep(Duration::from_secs(sync_interval - elapsed)).await;
                 start_time = Instant::now();
             }
         }
@@ -97,11 +101,7 @@ async fn sync_files_from_s3(
             Err(e) => return Err(Error::OpenFile(e))?,
         }
 
-        let file = tokio::fs::OpenOptions::new()
-            .write(true)
-            .open(&path)
-            .await
-            .map_err(Error::OpenFile)?;
+        let file = tokio::fs::File::create(&path).await.map_err(Error::OpenFile)?;
 
         client
             .get_object()
