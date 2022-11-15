@@ -14,6 +14,7 @@ impl Server {
                 .app_data(web::Data::new(metrics.clone()))
                 .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
         })
+        .disable_signals()
         .bind(addr)
         .map_err(Error::BindHttpServer)?
         .run()
