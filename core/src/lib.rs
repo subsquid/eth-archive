@@ -7,6 +7,7 @@ pub mod eth_request;
 pub mod ingest_metrics;
 pub mod rayon_async;
 pub mod retry;
+pub mod s3_sync;
 pub mod types;
 
 pub use error::{Error, Result};

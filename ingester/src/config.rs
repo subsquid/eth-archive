@@ -1,5 +1,5 @@
 use clap::Parser;
-use eth_archive_core::config::{IngestConfig, RetryConfig};
+use eth_archive_core::config::{IngestConfig, RetryConfig, S3Config};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
@@ -29,6 +29,8 @@ pub struct Config {
     /// Address to serve prometheus metrics from
     #[clap(long, default_value_t = default_metrics_addr())]
     pub metrics_addr: SocketAddr,
+    #[command(flatten)]
+    pub s3: S3Config,
 }
 
 fn default_metrics_addr() -> SocketAddr {

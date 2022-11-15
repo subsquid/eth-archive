@@ -46,6 +46,8 @@ pub enum Error {
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]
     BindHttpServer(io::Error),
+    #[error("failed to start s3 sync:\n{0}")]
+    StartS3Sync(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

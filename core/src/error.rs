@@ -1,8 +1,12 @@
+use aws_sdk_s3::types::SdkError as S3Err;
 use std::io;
 use std::result::Result as StdResult;
 use std::string::FromUtf8Error;
-
 use thiserror::Error as ThisError;
+
+type S3Put = S3Err<aws_sdk_s3::error::PutObjectError>;
+type S3List = S3Err<aws_sdk_s3::error::ListObjectsV2Error>;
+type S3Get = S3Err<aws_sdk_s3::error::GetObjectError>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -40,6 +44,20 @@ pub enum Error {
     EncodeMetrics(io::Error),
     #[error("encoded metrics have invalid utf8:\n{0}")]
     MetricsUtf8(FromUtf8Error),
+    #[error("failed to put object to s3:\n{0}")]
+    S3Put(S3Put),
+    #[error("failed to list objects in s3:\n{0}")]
+    S3List(S3List),
+    #[error("failed get object from s3:\n{0}")]
+    S3Get(S3Get),
+    #[error("failed to create missing directories:\n{0}")]
+    CreateMissingDirectories(io::Error),
+    #[error("failed to open file:\n{0}")]
+    OpenFile(io::Error),
+    #[error("failed to get object chunk when downloading from s3.")]
+    S3GetObjChunk,
+    #[error("failed to write file:\n{0}")]
+    WriteFile(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

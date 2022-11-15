@@ -1,8 +1,7 @@
-use std::result::Result as StdResult;
-
 use actix_web::{HttpResponse, ResponseError};
 use polars::error::PolarsError;
 use std::io;
+use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
@@ -65,6 +64,8 @@ pub enum Error {
     CreateEthClient(eth_archive_core::Error),
     #[error("failed to encode metrics:\n{0}")]
     EncodeMetrics(eth_archive_core::Error),
+    #[error("failed to start s3 sync:\n{0}")]
+    StartS3Sync(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

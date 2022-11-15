@@ -62,7 +62,30 @@ impl fmt::Display for DirName {
 }
 
 impl DirName {
-    pub async fn delete_temp_and_list_sorted<P: AsRef<Path>>(path: P) -> Result<Vec<DirName>> {
+    pub async fn list_sorted(path: &Path) -> Result<Vec<DirName>> {
+        let mut dir = tokio::fs::read_dir(&path)
+            .await
+            .map_err(Error::ReadParquetDir)?;
+
+        let mut names = Vec::new();
+        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
+            let folder_name = entry.file_name();
+            let folder_name = folder_name.to_str().ok_or(Error::InvalidFolderName)?;
+            let dir_name = DirName::from_str(folder_name)?;
+            names.push(dir_name);
+        }
+
+        let sorted_names = rayon_async::spawn(move || {
+            let mut names = names;
+            names.par_sort_by_key(|name| name.range.from);
+            names
+        })
+        .await;
+
+        Ok(sorted_names)
+    }
+
+    pub async fn delete_temp_and_list_sorted(path: &Path) -> Result<Vec<DirName>> {
         let mut dir = tokio::fs::read_dir(&path)
             .await
             .map_err(Error::ReadParquetDir)?;
@@ -91,7 +114,7 @@ impl DirName {
         Ok(sorted_names)
     }
 
-    pub async fn find_sorted<P: AsRef<Path>>(path: P, from: u32) -> Result<Vec<DirName>> {
+    pub async fn find_sorted(path: &Path, from: u32) -> Result<Vec<DirName>> {
         let mut dir = tokio::fs::read_dir(&path)
             .await
             .map_err(Error::ReadParquetDir)?;

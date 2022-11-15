@@ -1,5 +1,5 @@
 use clap::Parser;
-use eth_archive_core::config::{IngestConfig, RetryConfig};
+use eth_archive_core::config::{IngestConfig, RetryConfig, S3Config};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
@@ -35,6 +35,8 @@ pub struct Config {
     /// Database queries are batched because we don't want to query the entire db at once.
     #[clap(long, default_value_t = 200)]
     pub db_query_batch_size: u32,
+    #[command(flatten)]
+    pub s3: S3Config,
 }
 
 fn default_server_addr() -> SocketAddr {
