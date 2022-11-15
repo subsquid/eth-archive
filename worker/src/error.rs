@@ -1,8 +1,7 @@
-use std::result::Result as StdResult;
-
 use actix_web::{HttpResponse, ResponseError};
 use polars::error::PolarsError;
 use std::io;
+use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]

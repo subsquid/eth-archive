@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::consts::MAX_ROW_GROUPS_PER_FILE;
+use crate::s3_sync;
 use crate::schema::{
     block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
     Transactions,
@@ -78,6 +79,12 @@ impl Ingester {
         let block_num = Self::get_start_block(&dir_names)?;
 
         log::info!("starting to ingest from {}", block_num);
+
+        if let Some(s3_config) = self.cfg.s3.into_parsed() {
+            s3_sync::start(&self.cfg.data_path, &s3_config).await?;
+        } else {
+            log::info!("no s3 config, disabling s3 sync");
+        }
 
         let batches = self
             .eth_client

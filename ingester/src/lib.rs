@@ -2,6 +2,7 @@ mod config;
 mod consts;
 mod error;
 mod ingester;
+mod s3_sync;
 mod schema;
 mod server;
 

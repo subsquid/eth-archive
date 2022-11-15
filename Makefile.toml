@@ -1,6 +1,6 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
-RUST_LOG = "info"
+RUST_LOG = "info,aws_config=off"
 
 [tasks.ingester]
 workspace = false
@@ -16,6 +16,9 @@ args = [
 	"--max-blocks-per-file", "100000",
 	"--max-txs-per-file", "200000",
 	"--max-logs-per-file", "200000",
+	"--s3-endpoint", "https://s3.filebase.com",
+	"--s3-bucket-name", "eth0",
+	"--s3-bucket-region", "us-east-1",
 ]
 
 [tasks.worker]

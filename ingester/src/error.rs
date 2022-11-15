@@ -1,8 +1,12 @@
 use actix_web::{HttpResponse, ResponseError};
 use arrow2::error::Error as ArrowError;
+use aws_sdk_s3::types::SdkError as S3Err;
 use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
+
+type S3Put = S3Err<aws_sdk_s3::error::PutObjectError>;
+type S3List = S3Err<aws_sdk_s3::error::ListObjectsV2Error>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -46,6 +50,12 @@ pub enum Error {
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]
     BindHttpServer(io::Error),
+    #[error("failed to list parquet folder names:\n{0}")]
+    ListParquetFolderNames(eth_archive_core::Error),
+    #[error("failed to put object to s3:\n{0}")]
+    S3Put(S3Put),
+    #[error("failed to list objects in s3:\n{0}")]
+    S3List(S3List),
 }
 
 pub type Result<T> = StdResult<T, Error>;

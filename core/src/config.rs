@@ -29,3 +29,32 @@ pub struct IngestConfig {
     #[clap(long)]
     pub default_rpc_url: Option<String>,
 }
+
+#[derive(Parser, Clone, Debug)]
+pub struct S3Config {
+    #[clap(long)]
+    pub s3_endpoint: Option<String>,
+    #[clap(long)]
+    pub s3_bucket_name: Option<String>,
+    #[clap(long)]
+    pub s3_bucket_region: Option<String>,
+}
+
+pub struct ParsedS3Config {
+    pub s3_endpoint: String,
+    pub s3_bucket_name: String,
+    pub s3_bucket_region: String,
+}
+
+impl S3Config {
+    pub fn into_parsed(&self) -> Option<ParsedS3Config> {
+        match (self.s3_endpoint.clone(), self.s3_bucket_name.clone(), self.s3_bucket_region.clone()) {
+            (Some(s3_endpoint), Some(s3_bucket_name), Some(s3_bucket_region)) => Some(ParsedS3Config {
+                s3_endpoint,
+                s3_bucket_name,
+                s3_bucket_region,
+            }),
+            _ => None,
+        }
+    }
+}

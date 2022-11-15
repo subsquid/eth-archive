@@ -16,6 +16,10 @@ rayon = "1"
 itertools = "0.10"
 tokio-util = { version = "0.7", features = ["compat"] }
 actix-web = "4"
+aws-sdk-s3 = "0.21.0"
+aws-config = "0.51.0"
+aws-smithy-http = "0.51.0"
+aws-types = "0.51.0"
 
 eth-archive-core = { path = "../core" }
 
