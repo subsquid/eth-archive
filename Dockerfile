@@ -8,6 +8,6 @@ RUN cargo build --release --bin "eth-archive-${component}"
 FROM ubuntu:latest
 ARG component
 WORKDIR /eth
-RUN apt-get update && apt-get upgrade -y
+RUN apt-get update && apt-get upgrade -y && apt-get install ca-certificates -y
 COPY --from=builder "/eth/target/release/eth-archive-${component}" "./eth-archive-${component}"
 CMD ["/eth/${component}"]
