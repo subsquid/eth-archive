@@ -48,12 +48,18 @@ pub struct ParsedS3Config {
 
 impl S3Config {
     pub fn into_parsed(&self) -> Option<ParsedS3Config> {
-        match (self.s3_endpoint.clone(), self.s3_bucket_name.clone(), self.s3_bucket_region.clone()) {
-            (Some(s3_endpoint), Some(s3_bucket_name), Some(s3_bucket_region)) => Some(ParsedS3Config {
-                s3_endpoint,
-                s3_bucket_name,
-                s3_bucket_region,
-            }),
+        match (
+            self.s3_endpoint.clone(),
+            self.s3_bucket_name.clone(),
+            self.s3_bucket_region.clone(),
+        ) {
+            (Some(s3_endpoint), Some(s3_bucket_name), Some(s3_bucket_region)) => {
+                Some(ParsedS3Config {
+                    s3_endpoint,
+                    s3_bucket_name,
+                    s3_bucket_region,
+                })
+            }
             _ => None,
         }
     }

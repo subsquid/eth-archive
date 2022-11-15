@@ -1,6 +1,5 @@
 use crate::config::Config;
 use crate::consts::MAX_ROW_GROUPS_PER_FILE;
-use crate::s3_sync;
 use crate::schema::{
     block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
     Transactions,
@@ -16,6 +15,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
+use eth_archive_core::s3_sync;
 use eth_archive_core::types::BlockRange;
 use futures::pin_mut;
 use futures::stream::StreamExt;
@@ -82,7 +82,9 @@ impl Ingester {
         log::info!("starting to ingest from {}", block_num);
 
         if let Some(s3_config) = self.cfg.s3.into_parsed() {
-            s3_sync::start(&self.cfg.data_path, &s3_config).await?;
+            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
+                .await
+                .map_err(Error::StartS3Sync)?;
         } else {
             log::info!("no s3 config, disabling s3 sync");
         }

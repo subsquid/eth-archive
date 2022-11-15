@@ -64,6 +64,8 @@ pub enum Error {
     CreateEthClient(eth_archive_core::Error),
     #[error("failed to encode metrics:\n{0}")]
     EncodeMetrics(eth_archive_core::Error),
+    #[error("failed to start s3 sync:\n{0}")]
+    StartS3Sync(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
