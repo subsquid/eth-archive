@@ -1443,6 +1443,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "eth-archive-verifier"
+version = "0.1.0"
+
+[[package]]
 name = "eth-archive-worker"
 version = "0.1.0"
 dependencies = [

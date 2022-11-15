@@ -25,6 +25,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, mem};
+use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -294,12 +295,12 @@ async fn write_file<T: IntoChunks + Send + 'static>(
     items_per_chunk: usize,
 ) -> Result<()> {
     let chunks = rayon_async::spawn(move || chunks.into_chunks(items_per_chunk)).await;
-    let file = tokio::fs::File::create(&temp_path)
+    let mut file = tokio::fs::File::create(&temp_path)
         .await
         .map_err(Error::CreateFile)?
         .compat();
     let encodings = encodings(&schema);
-    let mut writer = FileSink::try_new(file, schema, encodings, parquet_write_options())
+    let mut writer = FileSink::try_new(&mut file, schema, encodings, parquet_write_options())
         .map_err(Error::CreateFileSink)?;
     let mut chunk_stream = futures::stream::iter(chunks);
     writer
@@ -307,6 +308,13 @@ async fn write_file<T: IntoChunks + Send + 'static>(
         .await
         .map_err(Error::WriteFileData)?;
     writer.close().await.map_err(Error::CloseFileSink)?;
+
+    mem::drop(writer);
+
+    let mut file = file.into_inner();
+
+    file.flush().await.map_err(Error::CreateFile)?;
+    file.sync_all().await.map_err(Error::CreateFile)?;
 
     Ok(())
 }
