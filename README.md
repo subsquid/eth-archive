@@ -14,6 +14,7 @@
 
 - `makers worker`
 
+#### Run with s3
 - configure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
 - `makers ingester-s3`
 - `makers worker-s3`
