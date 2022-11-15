@@ -101,7 +101,9 @@ async fn sync_files_from_s3(
             Err(e) => return Err(Error::OpenFile(e))?,
         }
 
-        let file = tokio::fs::File::create(&path).await.map_err(Error::OpenFile)?;
+        let file = tokio::fs::File::create(&path)
+            .await
+            .map_err(Error::OpenFile)?;
 
         client
             .get_object()
