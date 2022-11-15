@@ -14,14 +14,6 @@
 
 - `makers worker`
 
-#### Run MinIO Client to sync to s3 compatible storage
-
-- [Link to minio docs](https://min.io/docs/minio/linux/reference/minio-mc.html#quickstart) for installing and configuring `mc`
-
-- `makers sync-s3`
-
-NOTE: `Makefile.toml` config for this command needs to compatible with `mc` configuration. It assumes `subsquid-filebase/eth0` by default.
-
 ## Development
 
 Runtime arguments can be changed by editing `Makefile.toml` in project root.

@@ -34,13 +34,3 @@ args = [
 	"--max-resp-body-size", "30",
 	"--resp-time-limit", "5000",
 ]
-
-[tasks.sync-s3]
-workspace = false
-command = "mc"
-args = [
-	"mirror", "--watch",
-	"${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
-	"subsquid-filebase/eth0",
-	"--exclude", "*temp/*",
-]

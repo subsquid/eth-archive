@@ -78,6 +78,8 @@ impl Ingester {
 
         let block_num = Self::get_start_block(&dir_names)?;
 
+        log::info!("starting to ingest from {}", block_num);
+
         let batches = self
             .eth_client
             .clone()
