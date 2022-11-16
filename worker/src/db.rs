@@ -111,6 +111,17 @@ impl DbHandle {
         Ok(Box::new(iterator))
     }
 
+    pub fn check_parquet_idx(&self, dir_name: DirName) -> Result<bool> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
+
+        let idx = self
+            .inner
+            .get_cf(parquet_idx_cf, &key_from_dir_name(dir_name))
+            .map_err(Error::Db)?;
+
+        Ok(idx.is_some())
+    }
+
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
         let mut metrics = QueryMetrics::default();
         let mut data = vec![];

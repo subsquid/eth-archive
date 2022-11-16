@@ -5,7 +5,6 @@ use aws_smithy_http::endpoint::Endpoint;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::io;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -14,12 +13,16 @@ use std::time::Instant;
 use tokio::io::AsyncWriteExt;
 
 #[derive(Clone, Copy)]
-pub enum Direction {
+pub enum Direction<F: Fn(DirName) -> Option<bool>> {
     Up,
-    Down,
+    Down(F),
 }
 
-pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Config) -> Result<()> {
+pub async fn start<F: Fn(DirName) -> Option<bool> + Send + Sync + 'static>(
+    direction: Direction<F>,
+    data_path: &Path,
+    config: &ParsedS3Config,
+) -> Result<()> {
     let cfg = aws_config::from_env()
         .endpoint_resolver(Endpoint::immutable(
             config.s3_endpoint.clone().try_into().unwrap(),
@@ -46,8 +49,10 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
                         eprintln!("failed to sync files to s3:\n{}", e);
                     }
                 }
-                Direction::Down => {
-                    if let Err(e) = sync_files_from_s3(&data_path, &bucket, &client).await {
+                Direction::Down(ref check_dir) => {
+                    if let Err(e) =
+                        sync_files_from_s3(&data_path, &bucket, &client, check_dir).await
+                    {
                         eprintln!("failed to sync files from s3:\n{}", e);
                     }
                 }
@@ -66,10 +71,11 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
     Ok(())
 }
 
-async fn sync_files_from_s3(
+async fn sync_files_from_s3<F: Fn(DirName) -> Option<bool>>(
     data_path: &Path,
     bucket: &str,
     client: &aws_sdk_s3::Client,
+    check_dir: F,
 ) -> Result<()> {
     log::info!("starting s3 sync.");
 
@@ -84,6 +90,12 @@ async fn sync_files_from_s3(
         let dir_name = s3_name_parts.next().unwrap();
         let dir_name = DirName::from_str(dir_name)?;
 
+        match check_dir(dir_name) {
+            Some(true) => continue,
+            Some(false) => (),
+            None => return Err(Error::CheckParquetDir),
+        }
+
         let file_name = s3_name_parts.next().unwrap();
 
         let mut path = data_path.to_owned();
@@ -94,12 +106,6 @@ async fn sync_files_from_s3(
             .map_err(Error::CreateMissingDirectories)?;
 
         path.push(file_name);
-
-        match tokio::fs::File::open(&path).await {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => (),
-            Ok(_) => continue,
-            Err(e) => return Err(Error::OpenFile(e))?,
-        }
 
         let file = tokio::fs::File::create(&path)
             .await

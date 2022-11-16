@@ -58,6 +58,8 @@ pub enum Error {
     S3GetObjChunk,
     #[error("failed to write file:\n{0}")]
     WriteFile(io::Error),
+    #[error("failed to check if parquet directory is valid.")]
+    CheckParquetDir,
 }
 
 pub type Result<T> = StdResult<T, Error>;
