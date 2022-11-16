@@ -8,7 +8,6 @@ use std::convert::TryInto;
 use std::io;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::io::AsyncWriteExt;
@@ -178,56 +177,60 @@ async fn sync_files_to_s3(
     client: &aws_sdk_s3::Client,
 ) -> Result<()> {
     let dir_names = DirName::list_sorted(data_path).await?;
-
-    log::info!("starting s3 sync. {} folders to sync", dir_names.len());
-
     let s3_names = get_list(bucket, client).await?;
 
-    let mut start = Instant::now();
-    for (i, dir_name) in dir_names.iter().enumerate() {
+    let mut futs = Vec::new();
+
+    for dir_name in dir_names {
         if dir_name.is_temp {
             continue;
         }
 
-        let futs = ["block", "tx", "log"]
-            .into_iter()
-            .map(|kind| {
-                let mut path = data_path.to_owned();
-                path.push(dir_name.to_string());
-                path.push(format!("{}.parquet", kind));
-                let s3_path = format!("{}/{}.parquet", dir_name, kind);
-                let s3_names = s3_names.clone();
-                async move {
-                    if !s3_names.contains(s3_path.as_str()) {
-                        let file = aws_sdk_s3::types::ByteStream::read_from()
-                            .path(&path)
-                            .build()
-                            .await
-                            .unwrap();
+        for kind in ["block", "tx", "log"] {
+            let mut path = data_path.to_owned();
+            path.push(dir_name.to_string());
+            path.push(format!("{}.parquet", kind));
+            let s3_path = format!("{}/{}.parquet", dir_name, kind);
+            if s3_names.contains(s3_path.as_str()) {
+                continue;
+            }
+            let fut = async move {
+                let file = aws_sdk_s3::types::ByteStream::read_from()
+                    .path(&path)
+                    .build()
+                    .await
+                    .unwrap();
 
-                        client
-                            .put_object()
-                            .bucket(bucket)
-                            .key(&s3_path)
-                            .body(file)
-                            .send()
-                            .await
-                            .map_err(Error::S3Put)?;
-                    }
+                client
+                    .put_object()
+                    .bucket(bucket)
+                    .key(&s3_path)
+                    .body(file)
+                    .send()
+                    .await
+                    .map_err(Error::S3Put)?;
 
-                    Ok(())
-                }
-            })
-            .collect::<Vec<_>>();
+                Ok(())
+            };
 
-        futures::future::try_join_all(futs).await?;
+            futs.push(fut);
+        }
+    }
+
+    let num_files = futs.len();
+
+    log::info!("{} files to sync to s3", num_files);
+
+    let mut start = Instant::now();
+    for (i, fut) in futs.into_iter().enumerate() {
+        fut.await?;
 
         if start.elapsed().as_secs() > 15 {
-            let percentage = (i + 1) as f64 / dir_names.len() as f64 * 100.;
+            let percentage = (i + 1) as f64 / num_files as f64 * 100.;
             log::info!(
                 "s3 sync progress: {}/{} {:.2}%",
                 i + 1,
-                dir_names.len(),
+                num_files,
                 percentage
             );
             start = Instant::now();
@@ -237,7 +240,7 @@ async fn sync_files_to_s3(
     Ok(())
 }
 
-async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<Arc<BTreeSet<String>>> {
+async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<BTreeSet<String>> {
     let mut s3_names = BTreeSet::new();
     let mut stream = client
         .list_objects_v2()
@@ -254,7 +257,6 @@ async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<Arc<BTree
             }
         }
     }
-    let s3_names = Arc::new(s3_names);
 
     Ok(s3_names)
 }
