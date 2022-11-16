@@ -60,6 +60,8 @@ pub enum Error {
     WriteFile(io::Error),
     #[error("failed to check if parquet directory is valid.")]
     CheckParquetDir,
+    #[error("failed to rename file:\n{0}")]
+    RenameFile(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

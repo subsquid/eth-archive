@@ -102,23 +102,9 @@ impl DataCtx {
         });
 
         if let Some(s3_config) = config.s3.into_parsed() {
-            let db = db.clone();
-
-            let check_parquet_dir = move |dir_name| match db.check_parquet_idx(dir_name) {
-                Ok(b) => Some(b),
-                Err(e) => {
-                    log::error!("failed to check parquet idx in db:\n{}", e);
-                    None
-                }
-            };
-
-            s3_sync::start(
-                s3_sync::Direction::Down(Box::new(check_parquet_dir)),
-                &config.data_path,
-                &s3_config,
-            )
-            .await
-            .map_err(Error::StartS3Sync)?;
+            s3_sync::start(s3_sync::Direction::Down, &config.data_path, &s3_config)
+                .await
+                .map_err(Error::StartS3Sync)?;
         } else {
             log::info!("no s3 config, disabling s3 sync");
         }

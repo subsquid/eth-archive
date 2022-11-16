@@ -82,13 +82,9 @@ impl Ingester {
         log::info!("starting to ingest from {}", block_num);
 
         if let Some(s3_config) = self.cfg.s3.into_parsed() {
-            s3_sync::start(
-                s3_sync::Direction::<fn(DirName) -> Option<bool>>::Up,
-                &self.cfg.data_path,
-                &s3_config,
-            )
-            .await
-            .map_err(Error::StartS3Sync)?;
+            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
+                .await
+                .map_err(Error::StartS3Sync)?;
         } else {
             log::info!("no s3 config, disabling s3 sync");
         }
