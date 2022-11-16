@@ -58,8 +58,8 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
             let elapsed = start_time.elapsed().as_secs();
             if elapsed < sync_interval {
                 tokio::time::sleep(Duration::from_secs(sync_interval - elapsed)).await;
-                start_time = Instant::now();
             }
+            start_time = Instant::now();
         }
     });
 
