@@ -35,7 +35,7 @@ impl DbWriter {
                     match res {
                         Ok(_) => break,
                         Err(e) => {
-                            eprintln!("failed to handle db write op:\n{}", e);
+                            log::error!("failed to handle db write op:\n{}", e);
                             std::thread::sleep(Duration::from_secs(1));
                         }
                     }
