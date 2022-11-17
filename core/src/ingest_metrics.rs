@@ -33,13 +33,13 @@ impl IngestMetrics {
         let mut registry = <Registry>::default();
 
         registry.register(
-            "ingest_speed",
+            "sqd_archive_ingest_speed",
             "Blocks processed per second",
             Box::new(ingest.clone()),
         );
 
         registry.register(
-            "block_height",
+            "sqd_archive_block_height",
             "Number of the latest processed block",
             Box::new(height.clone()),
         );
