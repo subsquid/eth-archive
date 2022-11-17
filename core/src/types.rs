@@ -8,7 +8,7 @@ pub struct Block {
     pub number: Index,
     pub hash: Bytes32,
     pub parent_hash: Bytes32,
-    pub nonce: Nonce,
+    pub nonce: Option<Nonce>,
     pub sha3_uncles: Bytes32,
     pub logs_bloom: BloomFilterBytes,
     pub transactions_root: Bytes32,

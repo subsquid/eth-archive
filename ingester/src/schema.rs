@@ -20,7 +20,7 @@ pub fn block_schema() -> Schema {
         Field::new("number", DataType::UInt32, false),
         Field::new("hash", DataType::Binary, false),
         Field::new("parent_hash", DataType::Binary, false),
-        Field::new("nonce", DataType::UInt64, false),
+        Field::new("nonce", DataType::UInt64, true),
         Field::new("sha3_uncles", DataType::Binary, false),
         Field::new("logs_bloom", DataType::Binary, false),
         Field::new("transactions_root", DataType::Binary, false),
@@ -151,7 +151,7 @@ impl Blocks {
         self.number.push(Some(elem.number.0));
         self.hash.push(Some(elem.hash.0.as_slice()));
         self.parent_hash.push(Some(elem.parent_hash.0.as_slice()));
-        self.nonce.push(Some(elem.nonce.0));
+        self.nonce.push(elem.nonce.map(|n| n.0));
         self.sha3_uncles.push(Some(elem.sha3_uncles.0.as_slice()));
         self.logs_bloom.push(Some(elem.logs_bloom.0.as_slice()));
         self.transactions_root

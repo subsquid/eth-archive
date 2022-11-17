@@ -105,7 +105,7 @@ impl BlockFieldSelection {
             number: prune_col!(block, self, number),
             hash: prune_col!(block, self, hash),
             parent_hash: prune_col!(block, self, parent_hash),
-            nonce: prune_col!(block, self, nonce),
+            nonce: prune_col!(block, self, nonce).flatten(),
             sha3_uncles: prune_col!(block, self, sha3_uncles),
             logs_bloom: prune_col!(block, self, logs_bloom),
             transactions_root: prune_col!(block, self, transactions_root),

@@ -647,15 +647,12 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                                 .unwrap()
                         })
                         .map(Bytes32::new),
-                    nonce: block_nonce
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Nonce),
+                    nonce: match block_nonce
+                        .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().get(i))
+                    {
+                        Some(Some(nonce)) => Some(Nonce(nonce)),
+                        _ => None,
+                    },
                     sha3_uncles: block_sha3_uncles
                         .map(|arr| {
                             arr.as_any()
@@ -1106,15 +1103,12 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                                 .unwrap()
                         })
                         .map(Bytes32::new),
-                    nonce: block_nonce
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Nonce),
+                    nonce: match block_nonce
+                        .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().get(i))
+                    {
+                        Some(Some(nonce)) => Some(Nonce(nonce)),
+                        _ => None,
+                    },
                     sha3_uncles: block_sha3_uncles
                         .map(|arr| {
                             arr.as_any()

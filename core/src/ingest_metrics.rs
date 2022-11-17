@@ -9,28 +9,27 @@ type HeightGauge = GaugeImpl<u32, AtomicU32>;
 type IngestGauge = GaugeImpl<f64, AtomicU64>;
 
 pub struct IngestMetrics {
-    ingest: Family<IngestLabel, IngestGauge>,
-    height: Family<HeightLabel, HeightGauge>,
+    ingest: Family<Label, IngestGauge>,
+    height: Family<Label, HeightGauge>,
     registry: Registry,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Encode)]
-enum IngestLabel {
-    Download,
-    Write,
-}
-
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
-enum HeightLabel {
+enum LabelKind {
     Download,
     Write,
     Chain,
 }
 
+#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+struct Label {
+    kind: LabelKind,
+}
+
 impl IngestMetrics {
     pub fn new() -> Self {
-        let ingest = Family::<IngestLabel, IngestGauge>::default();
-        let height = Family::<HeightLabel, HeightGauge>::default();
+        let ingest = Family::<Label, IngestGauge>::default();
+        let height = Family::<Label, HeightGauge>::default();
         let mut registry = <Registry>::default();
 
         registry.register(
@@ -54,28 +53,42 @@ impl IngestMetrics {
 
     pub fn record_download_speed(&self, blocks_per_second: f64) {
         self.ingest
-            .get_or_create(&IngestLabel::Download)
+            .get_or_create(&Label {
+                kind: LabelKind::Download,
+            })
             .set(blocks_per_second);
     }
 
     pub fn record_write_speed(&self, blocks_per_second: f64) {
         self.ingest
-            .get_or_create(&IngestLabel::Write)
+            .get_or_create(&Label {
+                kind: LabelKind::Write,
+            })
             .set(blocks_per_second);
     }
 
     pub fn record_download_height(&self, height: u32) {
         self.height
-            .get_or_create(&HeightLabel::Download)
+            .get_or_create(&Label {
+                kind: LabelKind::Download,
+            })
             .set(height);
     }
 
     pub fn record_write_height(&self, height: u32) {
-        self.height.get_or_create(&HeightLabel::Write).set(height);
+        self.height
+            .get_or_create(&Label {
+                kind: LabelKind::Write,
+            })
+            .set(height);
     }
 
     pub fn record_chain_height(&self, height: u32) {
-        self.height.get_or_create(&HeightLabel::Chain).set(height);
+        self.height
+            .get_or_create(&Label {
+                kind: LabelKind::Chain,
+            })
+            .set(height);
     }
 
     pub fn encode(&self) -> Result<String> {
