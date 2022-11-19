@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::num::NonZeroU64;
+use std::num::{NonZeroU64, NonZeroUsize};
 
 #[derive(Parser, Clone, Copy, Debug)]
 pub struct RetryConfig {
@@ -40,6 +40,8 @@ pub struct S3Config {
     pub s3_bucket_region: Option<String>,
     #[clap(long)]
     pub s3_sync_interval_secs: Option<u64>,
+    #[clap(long)]
+    pub s3_concurrency: Option<NonZeroUsize>,
 }
 
 pub struct ParsedS3Config {
@@ -47,6 +49,7 @@ pub struct ParsedS3Config {
     pub s3_bucket_name: String,
     pub s3_bucket_region: String,
     pub s3_sync_interval_secs: u64,
+    pub s3_concurrency: NonZeroUsize,
 }
 
 impl S3Config {
@@ -67,6 +70,7 @@ impl S3Config {
                 s3_bucket_name,
                 s3_bucket_region,
                 s3_sync_interval_secs,
+                s3_concurrency: self.s3_concurrency.unwrap_or(NonZeroUsize::new(6).unwrap()),
             }),
             _ => None,
         }

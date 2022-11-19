@@ -62,6 +62,25 @@ impl fmt::Display for DirName {
 }
 
 impl DirName {
+    pub async fn delete_temp(path: &Path) -> Result<()> {
+        let mut dir = tokio::fs::read_dir(&path)
+            .await
+            .map_err(Error::ReadParquetDir)?;
+
+        while let Some(entry) = dir.next_entry().await.map_err(Error::ReadParquetDir)? {
+            let folder_name = entry.file_name();
+            let folder_name = folder_name.to_str().ok_or(Error::InvalidFolderName)?;
+            let dir_name = DirName::from_str(folder_name)?;
+            if dir_name.is_temp {
+                tokio::fs::remove_dir_all(&entry.path())
+                    .await
+                    .map_err(Error::RemoveTempDir)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn list_sorted(path: &Path) -> Result<Vec<DirName>> {
         let mut dir = tokio::fs::read_dir(&path)
             .await

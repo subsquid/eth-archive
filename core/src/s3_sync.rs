@@ -2,12 +2,15 @@ use crate::config::ParsedS3Config;
 use crate::dir_name::DirName;
 use crate::{Error, Result};
 use aws_smithy_http::endpoint::Endpoint;
+use futures::Future;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::BTreeSet;
 use std::convert::TryInto;
 use std::io;
 use std::path::Path;
+use std::pin::Pin;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::io::AsyncWriteExt;
@@ -29,29 +32,36 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
         .load()
         .await;
     let client = aws_sdk_s3::Client::new(&cfg);
+    let client = Arc::new(client);
 
     let bucket = config.s3_bucket_name.clone();
     let data_path = data_path.to_owned();
 
     let sync_interval = config.s3_sync_interval_secs;
 
+    let s3_concurrency = config.s3_concurrency.get();
+
     tokio::spawn(async move {
         let mut start_time = Instant::now();
 
         loop {
-            log::info!("starting s3 sync.");
+            log::info!("starting sync...");
 
-            let res = match direction {
-                Direction::Up => sync_files_to_s3(&data_path, &bucket, &client).await,
-                Direction::Down => sync_files_from_s3(&data_path, &bucket, &client).await,
-            };
+            let res = execute(
+                direction,
+                &data_path,
+                bucket.clone().into(),
+                client.clone(),
+                s3_concurrency,
+            )
+            .await;
 
             let elapsed = start_time.elapsed().as_secs();
 
             if let Err(e) = res {
-                log::error!("failed to execute s3 sync:\n{}", e);
+                log::error!("failed to execute sync:\n{}", e);
             } else {
-                log::info!("finished s3 sync in {} seconds.", elapsed);
+                log::info!("finished sync in {} seconds.", elapsed);
             }
 
             if elapsed < sync_interval {
@@ -64,14 +74,63 @@ pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Conf
     Ok(())
 }
 
+async fn execute(
+    direction: Direction,
+    data_path: &Path,
+    bucket: Arc<str>,
+    client: Arc<aws_sdk_s3::Client>,
+    concurrency: usize,
+) -> Result<()> {
+    let futs = match direction {
+        Direction::Up => sync_files_to_s3(data_path, bucket, client).await?,
+        Direction::Down => sync_files_from_s3(data_path, bucket, client).await?,
+    };
+
+    let num_files = futs.len();
+
+    log::info!("{} files to sync.", num_files);
+
+    let stream = futures::stream::iter(futs).buffer_unordered(concurrency);
+    futures::pin_mut!(stream);
+
+    let mut start_time = Instant::now();
+    let mut i = 0;
+
+    while let Some(res) = stream.next().await {
+        res?;
+
+        if start_time.elapsed().as_secs() > 15 {
+            let percentage = (i + 1) as f64 / num_files as f64 * 100.;
+            log::info!(
+                "s3 sync progress: {}/{} {:.2}%",
+                i + 1,
+                num_files,
+                percentage
+            );
+            start_time = Instant::now();
+        }
+
+        i += 1;
+    }
+
+    // delete temp directories if we are syncing down, since we own them
+    if let Direction::Down = direction {
+        DirName::delete_temp(data_path).await?;
+    }
+
+    Ok(())
+}
+
+type FileFutures = Vec<Pin<Box<dyn Future<Output = Result<()>> + Send>>>;
+
 async fn sync_files_from_s3(
     data_path: &Path,
-    bucket: &str,
-    client: &aws_sdk_s3::Client,
-) -> Result<()> {
-    let mut s3_names = Vec::new();
+    bucket: Arc<str>,
+    client: Arc<aws_sdk_s3::Client>,
+) -> Result<FileFutures> {
+    let mut futs: FileFutures = Vec::new();
 
-    for s3_name in get_list(bucket, client).await?.iter() {
+    for s3_name in get_list(&bucket, &client).await?.iter() {
         let mut s3_name_parts = s3_name.split('/');
         let dir_name = s3_name_parts.next().unwrap();
         let dir_name = DirName::from_str(dir_name).unwrap();
@@ -87,99 +146,82 @@ async fn sync_files_from_s3(
             Err(e) => return Err(Error::OpenFile(e))?,
         }
 
-        s3_names.push((dir_name, file_name));
+        let client = client.clone();
+        let data_path = data_path.to_owned();
+        let bucket = bucket.clone();
+
+        futs.push(Box::pin(async move {
+            let temp_path = {
+                let mut path = data_path.clone();
+                path.push(
+                    DirName {
+                        is_temp: true,
+                        ..dir_name
+                    }
+                    .to_string(),
+                );
+
+                tokio::fs::create_dir_all(&path)
+                    .await
+                    .map_err(Error::CreateMissingDirectories)?;
+
+                path.push(&file_name);
+
+                path
+            };
+
+            let file = tokio::fs::File::create(&temp_path)
+                .await
+                .map_err(Error::OpenFile)?;
+
+            client
+                .get_object()
+                .bucket(&*bucket)
+                .key(&format!("{}/{}", dir_name, &file_name))
+                .send()
+                .await
+                .map_err(Error::S3Get)?
+                .body
+                .map_err(|_| Error::S3GetObjChunk)
+                .try_fold(file, |mut file, chunk| async move {
+                    file.write_all(&chunk).await.map_err(Error::WriteFile)?;
+                    Ok(file)
+                })
+                .await?;
+
+            let final_path = {
+                let mut path = data_path;
+                path.push(dir_name.to_string());
+
+                tokio::fs::create_dir_all(&path)
+                    .await
+                    .map_err(Error::CreateMissingDirectories)?;
+
+                path.push(&file_name);
+
+                path
+            };
+
+            tokio::fs::rename(&temp_path, &final_path)
+                .await
+                .map_err(Error::RenameFile)?;
+
+            Ok(())
+        }));
     }
 
-    log::info!("{} files to sync from s3", s3_names.len());
-
-    let mut start_time = Instant::now();
-
-    for (i, (dir_name, file_name)) in s3_names.iter().enumerate() {
-        let temp_path = {
-            let mut path = data_path.to_owned();
-            path.push(
-                DirName {
-                    is_temp: true,
-                    ..*dir_name
-                }
-                .to_string(),
-            );
-
-            tokio::fs::create_dir_all(&path)
-                .await
-                .map_err(Error::CreateMissingDirectories)?;
-
-            path.push(&file_name);
-
-            path
-        };
-
-        let file = tokio::fs::File::create(&temp_path)
-            .await
-            .map_err(Error::OpenFile)?;
-
-        client
-            .get_object()
-            .bucket(bucket)
-            .key(&format!("{}/{}", dir_name, &file_name))
-            .send()
-            .await
-            .map_err(Error::S3Get)?
-            .body
-            .map_err(|_| Error::S3GetObjChunk)
-            .try_fold(file, |mut file, chunk| async move {
-                file.write_all(&chunk).await.map_err(Error::WriteFile)?;
-                Ok(file)
-            })
-            .await?;
-
-        let final_path = {
-            let mut path = data_path.to_owned();
-            path.push(dir_name.to_string());
-
-            tokio::fs::create_dir_all(&path)
-                .await
-                .map_err(Error::CreateMissingDirectories)?;
-
-            path.push(&file_name);
-
-            path
-        };
-
-        tokio::fs::rename(&temp_path, &final_path)
-            .await
-            .map_err(Error::RenameFile)?;
-
-        let mut temp_path = temp_path;
-        assert!(temp_path.pop());
-        tokio::fs::remove_dir_all(&temp_path)
-            .await
-            .map_err(Error::RemoveTempDir)?;
-
-        if start_time.elapsed().as_secs() > 15 {
-            let percentage = (i + 1) as f64 / s3_names.len() as f64 * 100.;
-            log::info!(
-                "s3 sync progress: {}/{} {:.2}%",
-                i + 1,
-                s3_names.len(),
-                percentage
-            );
-            start_time = Instant::now();
-        }
-    }
-
-    Ok(())
+    Ok(futs)
 }
 
 async fn sync_files_to_s3(
     data_path: &Path,
-    bucket: &str,
-    client: &aws_sdk_s3::Client,
-) -> Result<()> {
+    bucket: Arc<str>,
+    client: Arc<aws_sdk_s3::Client>,
+) -> Result<FileFutures> {
     let dir_names = DirName::list_sorted(data_path).await?;
-    let s3_names = get_list(bucket, client).await?;
+    let s3_names = get_list(&bucket, &client).await?;
 
-    let mut futs = Vec::new();
+    let mut futs: FileFutures = Vec::new();
 
     for dir_name in dir_names {
         if dir_name.is_temp {
@@ -194,6 +236,8 @@ async fn sync_files_to_s3(
             if s3_names.contains(s3_path.as_str()) {
                 continue;
             }
+            let client = client.clone();
+            let bucket = bucket.clone();
             let fut = async move {
                 let file = aws_sdk_s3::types::ByteStream::read_from()
                     .path(&path)
@@ -203,7 +247,7 @@ async fn sync_files_to_s3(
 
                 client
                     .put_object()
-                    .bucket(bucket)
+                    .bucket(&*bucket)
                     .key(&s3_path)
                     .body(file)
                     .send()
@@ -213,31 +257,11 @@ async fn sync_files_to_s3(
                 Ok(())
             };
 
-            futs.push(fut);
+            futs.push(Box::pin(fut));
         }
     }
 
-    let num_files = futs.len();
-
-    log::info!("{} files to sync to s3", num_files);
-
-    let mut start = Instant::now();
-    for (i, fut) in futs.into_iter().enumerate() {
-        fut.await?;
-
-        if start.elapsed().as_secs() > 15 {
-            let percentage = (i + 1) as f64 / num_files as f64 * 100.;
-            log::info!(
-                "s3 sync progress: {}/{} {:.2}%",
-                i + 1,
-                num_files,
-                percentage
-            );
-            start = Instant::now();
-        }
-    }
-
-    Ok(())
+    Ok(futs)
 }
 
 async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<BTreeSet<String>> {

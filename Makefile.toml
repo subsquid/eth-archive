@@ -71,7 +71,7 @@ args = [
 	"--max-resp-body-size", "30",
 	"--resp-time-limit", "5000",
 	"--s3-endpoint", "https://s3.filebase.com",
-	"--s3-bucket-name", "eth0",
+	"--s3-bucket-name", "eth-archive-stage-1-sia",
 	"--s3-bucket-region", "us-east-1",
 	"--s3-sync-interval-secs", "10",
 ]
