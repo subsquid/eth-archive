@@ -68,7 +68,7 @@ impl SerializeTask {
 
             write!(
                 &mut bytes,
-                r#"],"metrics":{},"archive_height":{},"nextBlock":{},"totalTime":{}}}"#,
+                r#"],"metrics":{},"archiveHeight":{},"nextBlock":{},"totalTime":{}}}"#,
                 metrics,
                 archive_height,
                 next_block,
