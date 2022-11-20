@@ -182,7 +182,7 @@ impl DataCtx {
                         .filter_map(|log_selection| {
                             let address = match &log_selection.address {
                                 Some(address) if !address.is_empty() => address,
-                                None => {
+                                _ => {
                                     return Some(MiniLogSelection {
                                         address: log_selection.address.clone(),
                                         topics: log_selection.topics.clone(),
@@ -213,7 +213,7 @@ impl DataCtx {
                         .filter_map(|tx_selection| {
                             let address = match &tx_selection.address {
                                 Some(address) if !address.is_empty() => address,
-                                None => {
+                                _ => {
                                     return Some(MiniTransactionSelection {
                                         address: tx_selection.address.clone(),
                                         sighash: tx_selection.sighash.clone(),
