@@ -72,9 +72,17 @@ impl DbHandle {
     pub fn iter_parquet_idxs(&self, from: u32, to: Option<u32>) -> Result<ParquetIdxIter<'_>> {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
+        let key = key_from_dir_name(DirName {
+            range: BlockRange {
+                from,
+                to: std::u32::MAX,
+            },
+            is_temp: false,
+        });
+
         let mut iter = self.inner.iterator_cf(
             parquet_idx_cf,
-            rocksdb::IteratorMode::From(&from.to_be_bytes(), rocksdb::Direction::Reverse),
+            rocksdb::IteratorMode::From(&key, rocksdb::Direction::Reverse),
         );
 
         let start_key = match iter.next() {
