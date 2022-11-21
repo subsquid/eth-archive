@@ -31,3 +31,6 @@ features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 version = "0.19"
 default-features = false
 features = ["lz4"]
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.5"

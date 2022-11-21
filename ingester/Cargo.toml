@@ -22,3 +22,6 @@ eth-archive-core = { path = "../core" }
 [dependencies.arrow2]
 version = "0.14"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.5"
