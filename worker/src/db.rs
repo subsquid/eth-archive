@@ -140,8 +140,8 @@ impl DbHandle {
 
     fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
-        let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
+        let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
 
         let start = Instant::now();
 
@@ -173,11 +173,7 @@ impl DbHandle {
             }
 
             block_nums.insert(log.block_number.0);
-            tx_keys.insert(tx_key_from_parts(
-                log.block_number.0,
-                log.transaction_index.0,
-                log.address.0.as_slice(),
-            ));
+            tx_keys.insert(log_tx_key(log.block_number.0, log.transaction_index.0));
 
             let log_idx = log.log_index.0;
 
@@ -204,7 +200,7 @@ impl DbHandle {
         for key in tx_keys {
             let tx = self
                 .inner
-                .get_pinned_cf(tx_cf, &key)
+                .get_pinned_cf(log_tx_cf, &key)
                 .map_err(Error::Db)?
                 .unwrap();
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
@@ -219,10 +215,9 @@ impl DbHandle {
             .map(|log| ResponseRow {
                 block: blocks.get(&log.block_number.unwrap().0).unwrap().clone(),
                 transaction: txs
-                    .get(&tx_key_from_parts(
+                    .get(&log_tx_key(
                         log.block_number.unwrap().0,
                         log.transaction_index.unwrap().0,
-                        log.address.as_ref().unwrap().0.as_slice(),
                     ))
                     .unwrap()
                     .clone(),
@@ -349,6 +344,7 @@ impl DbHandle {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
+        let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
 
         let tail_is_zero = self.status.db_tail.load(Ordering::Relaxed) == 0;
 
@@ -368,6 +364,11 @@ impl DbHandle {
                     let val = rmp_serde::encode::to_vec(&tx).unwrap();
                     let tx_key = tx_key(&tx);
                     batch.put_cf(tx_cf, &tx_key, &val);
+                    batch.put_cf(
+                        log_tx_cf,
+                        &log_tx_key(tx.block_number.0, tx.transaction_index.0),
+                        &val,
+                    );
                 }
 
                 let val = rmp_serde::encode::to_vec(&block).unwrap();
@@ -418,6 +419,7 @@ impl DbHandle {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
+        let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
 
         let db_tail = self.status.db_tail.load(Ordering::Relaxed);
         for block_num in db_tail..to {
@@ -430,6 +432,7 @@ impl DbHandle {
 
             batch.delete_range_cf(tx_cf, &from, &to);
             batch.delete_range_cf(log_cf, &from, &to);
+            batch.delete_range_cf(log_tx_cf, &from, &to);
 
             self.inner.write(batch).map_err(Error::Db)?;
 
@@ -501,15 +504,25 @@ mod cf_name {
     pub const BLOCK: &str = "BLOCK";
     pub const TX: &str = "TX";
     pub const LOG: &str = "LOG";
+    pub const LOG_TX: &str = "LOG_TX";
     pub const PARQUET_IDX: &str = "PARQUET_FOLDERS";
 
-    pub const ALL_CF_NAMES: [&str; 4] = [BLOCK, TX, LOG, PARQUET_IDX];
+    pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ParquetIdx {
     pub log_addr_filter: Bloom,
     pub tx_addr_filter: Bloom,
+}
+
+fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
+    let mut key = [0; 8];
+
+    key[..4].copy_from_slice(&block_number.to_be_bytes());
+    key[4..8].copy_from_slice(&transaction_index.to_be_bytes());
+
+    key
 }
 
 fn tx_key(tx: &Transaction) -> [u8; 28] {
