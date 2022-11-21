@@ -1445,6 +1445,18 @@ dependencies = [
 [[package]]
 name = "eth-archive-verifier"
 version = "0.1.0"
+dependencies = [
+ "clap",
+ "env_logger",
+ "eth-archive-core",
+ "log",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
+]
 
 [[package]]
 name = "eth-archive-worker"
