@@ -408,7 +408,7 @@ impl<'de> Visitor<'de> for IndexVisitor {
     {
         let val: u32 = value
             .try_into()
-            .map_err(|_| E::custom("index value doesn't fit 4 bytes"))?;
+            .map_err(|_| E::custom("index value doesn't fit in 4 bytes"))?;
 
         Ok(Index(val))
     }
