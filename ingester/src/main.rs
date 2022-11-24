@@ -1,11 +1,9 @@
 use eth_archive_ingester::{Config, Ingester};
 
-#[cfg(not(target_env = "msvc"))]
-use jemallocator::Jemalloc;
+use mimalloc::MiMalloc;
 
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() {
