@@ -20,6 +20,7 @@ solana-bloom = "1"
 rmp-serde = "1.1.1"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 futures = "0.3"
+mimalloc = "0.1.32"
 
 eth-archive-core = { path = "../core" }
 
@@ -31,6 +32,3 @@ features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 version = "0.19"
 default-features = false
 features = ["lz4"]
-
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemallocator = "0.5"

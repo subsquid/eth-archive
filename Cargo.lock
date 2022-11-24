@@ -1433,8 +1433,8 @@ dependencies = [
  "eth-archive-core",
  "futures",
  "itertools",
- "jemallocator",
  "log",
+ "mimalloc",
  "rayon",
  "serde",
  "serde_json",
@@ -1462,8 +1462,8 @@ dependencies = [
  "eth-archive-core",
  "futures",
  "itertools",
- "jemallocator",
  "log",
+ "mimalloc",
  "polars",
  "prefix-hex",
  "rayon",
@@ -2084,6 +2084,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "292a948cd991e376cf75541fe5b97a1081d713c618b4f1b9500f8844e49eb565"
 
 [[package]]
+name = "libmimalloc-sys"
+version = "0.1.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d1c67deb83e6b75fa4fe3309e09cfeade12e7721d95322af500d3814ea60c9"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
 name = "librocksdb-sys"
 version = "0.8.0+7.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2244,6 +2254,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "mimalloc"
+version = "0.1.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b2374e2999959a7b583e1811a1ddbf1d3a4b9496eceb9746f1192a59d871eca"
+dependencies = [
+ "libmimalloc-sys",
 ]
 
 [[package]]
