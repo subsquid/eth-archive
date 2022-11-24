@@ -90,7 +90,7 @@ impl MiniLogSelection {
 
     pub fn matches_addr(&self, filter_addr: &Address) -> bool {
         if let Some(address) = &self.address {
-            if !address.iter().any(|addr| addr == filter_addr) {
+            if !address.is_empty() && !address.iter().any(|addr| addr == filter_addr) {
                 return false;
             }
         }
@@ -139,7 +139,7 @@ impl MiniTransactionSelection {
                 None => return false,
             };
 
-            if !address.iter().any(|addr| addr == tx_addr) {
+            if !address.is_empty() && !address.iter().any(|addr| addr == tx_addr) {
                 return false;
             }
         }
