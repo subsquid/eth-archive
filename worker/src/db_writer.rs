@@ -1,3 +1,4 @@
+use crate::data_ctx::scan_parquet_args;
 use crate::db::{Bloom, DbHandle, ParquetIdx};
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
@@ -84,7 +85,7 @@ impl DbWriter {
             path.push("log.parquet");
 
             let lazy_frame =
-                LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?;
+                LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
             let data_frame = lazy_frame
                 .select(vec![col("address")])
                 .unique(None, UniqueKeepStrategy::First)
@@ -119,7 +120,7 @@ impl DbWriter {
             path.push("tx.parquet");
 
             let lazy_frame =
-                LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?;
+                LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
             let data_frame = lazy_frame
                 .select(vec![col("dest")])
                 .unique(None, UniqueKeepStrategy::First)

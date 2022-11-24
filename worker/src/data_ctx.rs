@@ -466,21 +466,21 @@ impl DataCtx {
             let mut path = path.clone();
             path.push("block.parquet");
 
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+            LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
         let transactions = {
             let mut path = path.clone();
             path.push("tx.parquet");
 
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+            LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
         let logs = {
             let mut path = path.clone();
             path.push("log.parquet");
 
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+            LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());
@@ -516,14 +516,14 @@ impl DataCtx {
             let mut path = path.clone();
             path.push("block.parquet");
 
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+            LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
         let transactions = {
             let mut path = path.clone();
             path.push("tx.parquet");
 
-            LazyFrame::scan_parquet(&path, Default::default()).map_err(Error::ScanParquet)?
+            LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
         let blocks = blocks.select(field_selection.block.unwrap().to_cols());
@@ -1375,4 +1375,15 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
     }
 
     Ok(data)
+}
+
+pub fn scan_parquet_args() -> ScanArgsParquet {
+    ScanArgsParquet {
+        n_rows: None,
+        cache: false,
+        parallel: Default::default(),
+        rechunk: true,
+        row_count: None,
+        low_memory: true,
+    }
 }
