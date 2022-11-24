@@ -175,10 +175,8 @@ impl DbHandle {
             block_nums.insert(log.block_number.0);
             tx_keys.insert(log_tx_key(log.block_number.0, log.transaction_index.0));
 
-            let log_idx = log.log_index.0;
-
             let log = query.field_selection.log.unwrap().prune(log);
-            logs.insert(log_idx, log);
+            logs.insert(log_key, log);
         }
 
         let mut blocks = BTreeMap::new();
