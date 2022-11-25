@@ -1434,11 +1434,11 @@ dependencies = [
  "futures",
  "itertools",
  "log",
- "mimalloc",
  "rayon",
  "serde",
  "serde_json",
  "thiserror",
+ "tikv-jemallocator",
  "tokio",
  "tokio-util",
 ]
@@ -1447,7 +1447,7 @@ dependencies = [
 name = "eth-archive-verifier"
 version = "0.1.0"
 dependencies = [
- "jemallocator",
+ "tikv-jemallocator",
 ]
 
 [[package]]
@@ -1463,7 +1463,6 @@ dependencies = [
  "futures",
  "itertools",
  "log",
- "mimalloc",
  "polars",
  "prefix-hex",
  "rayon",
@@ -1473,6 +1472,7 @@ dependencies = [
  "serde_json",
  "solana-bloom",
  "thiserror",
+ "tikv-jemallocator",
  "tokio",
 ]
 
@@ -1926,27 +1926,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c8af84674fe1f223a982c933a0ee1086ac4d4052aa0fb8060c12c6ad838e754"
 
 [[package]]
-name = "jemalloc-sys"
-version = "0.5.2+5.3.0-patched"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134163979b6eed9564c98637b710b40979939ba351f59952708234ea11b5f3f8"
-dependencies = [
- "cc",
- "fs_extra",
- "libc",
-]
-
-[[package]]
-name = "jemallocator"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16c2514137880c52b0b4822b563fadd38257c1f380858addb74a400889696ea6"
-dependencies = [
- "jemalloc-sys",
- "libc",
-]
-
-[[package]]
 name = "jobserver"
 version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2084,16 +2063,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "292a948cd991e376cf75541fe5b97a1081d713c618b4f1b9500f8844e49eb565"
 
 [[package]]
-name = "libmimalloc-sys"
-version = "0.1.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04d1c67deb83e6b75fa4fe3309e09cfeade12e7721d95322af500d3814ea60c9"
-dependencies = [
- "cc",
- "libc",
-]
-
-[[package]]
 name = "librocksdb-sys"
 version = "0.8.0+7.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2105,6 +2074,8 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
+ "tikv-jemalloc-sys",
+ "zstd-sys",
 ]
 
 [[package]]
@@ -2254,15 +2225,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "mimalloc"
-version = "0.1.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b2374e2999959a7b583e1811a1ddbf1d3a4b9496eceb9746f1192a59d871eca"
-dependencies = [
- "libmimalloc-sys",
 ]
 
 [[package]]
@@ -3714,6 +3676,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tikv-jemalloc-sys"
+version = "0.5.2+5.3.0-patched"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec45c14da997d0925c7835883e4d5c181f196fa142f8c19d7643d1e9af2592c3"
+dependencies = [
+ "cc",
+ "fs_extra",
+ "libc",
+]
+
+[[package]]
+name = "tikv-jemallocator"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20612db8a13a6c06d57ec83953694185a367e16945f66565e8028d2c0bd76979"
+dependencies = [
+ "libc",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]

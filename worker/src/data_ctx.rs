@@ -1384,6 +1384,6 @@ pub fn scan_parquet_args() -> ScanArgsParquet {
         parallel: ParallelStrategy::RowGroups,
         rechunk: true,
         row_count: None,
-        low_memory: true,
+        low_memory: false,
     }
 }
