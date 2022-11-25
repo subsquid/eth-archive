@@ -16,10 +16,12 @@ rayon = "1"
 itertools = "0.10"
 tokio-util = { version = "0.7", features = ["compat"] }
 actix-web = "4"
-mimalloc = { version = "0.1.32", default-features = false }
 
 eth-archive-core = { path = "../core" }
 
 [dependencies.arrow2]
 version = "0.14"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.5"

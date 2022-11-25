@@ -53,6 +53,7 @@ args = [
 	"--s3-bucket-name", "eth0",
 	"--s3-bucket-region", "us-east-1",
 	"--s3-sync-interval-secs", "10",
+	"--s3-concurrency", "32",
 ]
 
 [tasks.worker-s3]
@@ -74,4 +75,5 @@ args = [
 	"--s3-bucket-name", "eth-archive-stage-1-sia",
 	"--s3-bucket-region", "us-east-1",
 	"--s3-sync-interval-secs", "10",
+	"--s3-concurrency", "32",
 ]

@@ -81,6 +81,11 @@ async fn execute(
     client: Arc<aws_sdk_s3::Client>,
     concurrency: usize,
 ) -> Result<()> {
+    // delete temp directories if we are syncing down, since we own them
+    if let Direction::Down = direction {
+        DirName::delete_temp(data_path).await?;
+    }
+
     let futs = match direction {
         Direction::Up => sync_files_to_s3(data_path, bucket, client).await?,
         Direction::Down => sync_files_from_s3(data_path, bucket, client).await?,

@@ -20,7 +20,6 @@ solana-bloom = "1"
 rmp-serde = "1.1.1"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 futures = "0.3"
-mimalloc = { version = "0.1.32", default-features = false }
 
 eth-archive-core = { path = "../core" }
 
@@ -31,4 +30,7 @@ features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 [dependencies.rocksdb]
 version = "0.19"
 default-features = false
-features = ["lz4"]
+features = ["lz4", "zstd", "jemalloc"]
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.5"
