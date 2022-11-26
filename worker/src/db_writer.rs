@@ -16,7 +16,7 @@ pub struct DbWriter {
 }
 
 impl DbWriter {
-    pub fn new(db: Arc<DbHandle>, data_path: &Path, min_hot_block_range: u32) -> Self {
+    pub fn new(db: Arc<DbHandle>, data_path: &Path) -> Self {
         let (tx, mut rx) = mpsc::channel::<Job>(4);
 
         let data_path = data_path.to_owned();
@@ -25,9 +25,7 @@ impl DbWriter {
             while let Some(job) = rx.blocking_recv() {
                 loop {
                     let res = match job.clone() {
-                        Job::WriteBatches(batches) => {
-                            Self::handle_write_batches(&db, batches, min_hot_block_range)
-                        }
+                        Job::WriteBatches(batches) => db.insert_batches(batches),
                         Job::RegisterParquetFolder(dir_name) => {
                             Self::handle_register_parquet_folder(&db, &data_path, dir_name)
                         }
@@ -59,20 +57,6 @@ impl DbWriter {
             .unwrap();
     }
 
-    fn handle_write_batches(
-        db: &DbHandle,
-        batches: (Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>),
-        min_hot_block_range: u32,
-    ) -> Result<()> {
-        db.insert_batches(batches)?;
-        let height = db.height();
-        if height > min_hot_block_range {
-            db.delete_up_to(height - min_hot_block_range)?;
-        }
-
-        Ok(())
-    }
-
     #[allow(clippy::manual_flatten)]
     fn handle_register_parquet_folder(
         db: &DbHandle,
@@ -92,26 +76,7 @@ impl DbWriter {
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            let mut addrs = Vec::new();
-
-            for chunk in data_frame.iter_chunks() {
-                for addr in chunk.columns()[0]
-                    .as_any()
-                    .downcast_ref::<BinaryArray<i64>>()
-                    .unwrap()
-                    .iter()
-                {
-                    addrs.push(Address::new(addr.unwrap()));
-                }
-            }
-
-            let mut bloom = Bloom::random(addrs.len(), 0.000_001, 1000000);
-
-            for addr in addrs {
-                bloom.add(&addr);
-            }
-
-            bloom
+            bloom_filter_from_frame(data_frame)
         };
 
         let tx_addr_filter = {
@@ -127,28 +92,7 @@ impl DbWriter {
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            let mut addrs = Vec::new();
-
-            for chunk in data_frame.iter_chunks() {
-                for addr in chunk.columns()[0]
-                    .as_any()
-                    .downcast_ref::<BinaryArray<i64>>()
-                    .unwrap()
-                    .iter()
-                {
-                    if let Some(addr) = addr {
-                        addrs.push(Address::new(addr));
-                    }
-                }
-            }
-
-            let mut bloom = Bloom::random(addrs.len(), 0.000_001, 1000000);
-
-            for addr in addrs {
-                bloom.add(&addr);
-            }
-
-            bloom
+            bloom_filter_from_frame(data_frame)
         };
 
         let parquet_idx = ParquetIdx {
@@ -171,4 +115,32 @@ impl DbWriter {
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
+}
+
+fn bloom_filter_from_frame(data_frame: DataFrame) -> Bloom {
+    let mut addrs = Vec::new();
+
+    for chunk in data_frame.iter_chunks() {
+        for addr in chunk.columns()[0]
+            .as_any()
+            .downcast_ref::<BinaryArray<i64>>()
+            .unwrap()
+            .iter()
+            .flatten()
+        {
+            addrs.push(Address::new(addr));
+        }
+    }
+
+    let mut bloom = Bloom::random(
+        addrs.len(),
+        0.000_001,
+        128_000, // 16KB max size
+    );
+
+    for addr in addrs {
+        bloom.add(&addr);
+    }
+
+    bloom
 }

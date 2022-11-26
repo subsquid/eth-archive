@@ -14,8 +14,9 @@ args = [
 	"--http-req-concurrency", "200",
 	"--default-rpc-url", "https://rpc.ankr.com/eth",
 	"--max-blocks-per-file", "100000",
-	"--max-txs-per-file", "200000",
-	"--max-logs-per-file", "200000",
+	"--max-txs-per-file", "100000",
+	"--max-logs-per-file", "100000",
+	"--max-row-groups-per-file", "16",
 ]
 
 [tasks.worker]
@@ -30,7 +31,7 @@ args = [
 	"--block-batch-size", "10",
 	"--http-req-concurrency", "200",
 	"--default-rpc-url", "https://rpc.ankr.com/eth",
-	"--min-hot-block-range", "100500",
+	"--initial-hot-block-range", "10000",
 	"--max-resp-body-size", "30",
 	"--resp-time-limit", "5000",
 ]
@@ -68,7 +69,7 @@ args = [
 	"--block-batch-size", "10",
 	"--http-req-concurrency", "200",
 	"--default-rpc-url", "https://rpc.ankr.com/eth",
-	"--min-hot-block-range", "100500",
+	"--initial-hot-block-range", "10000",
 	"--max-resp-body-size", "30",
 	"--resp-time-limit", "5000",
 	"--s3-endpoint", "https://s3.filebase.com",

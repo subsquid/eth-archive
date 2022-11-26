@@ -38,17 +38,19 @@ impl DbHandle {
         let (inner, status) = tokio::task::spawn_blocking(move || {
             let mut block_opts = rocksdb::BlockBasedOptions::default();
 
+            block_opts.set_block_size(32 * 1024);
+            block_opts.set_format_version(5);
             block_opts.set_ribbon_filter(10.0);
-            block_opts.set_index_type(rocksdb::BlockBasedIndexType::BinarySearch);
 
             let mut opts = rocksdb::Options::default();
 
             opts.create_if_missing(true);
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-            opts.set_enable_blob_files(true);
-            opts.set_min_blob_size(16000);
-            opts.set_blob_compression_type(rocksdb::DBCompressionType::Lz4);
+            opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Lz4);
+            opts.set_level_compaction_dynamic_level_bytes(true);
+            opts.set_max_background_jobs(6);
+            opts.set_bytes_per_sync(1048576);
             opts.set_max_open_files(10000);
             opts.set_block_based_table_factory(&block_opts);
 
@@ -185,7 +187,7 @@ impl DbHandle {
         for num in block_nums {
             let block = self
                 .inner
-                .get_pinned_cf(block_cf, &num.to_be_bytes())
+                .get_pinned_cf(block_cf, num.to_be_bytes())
                 .map_err(Error::Db)?
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
@@ -198,7 +200,7 @@ impl DbHandle {
         for key in tx_keys {
             let tx = self
                 .inner
-                .get_pinned_cf(log_tx_cf, &key)
+                .get_pinned_cf(log_tx_cf, key)
                 .map_err(Error::Db)?
                 .unwrap();
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
@@ -278,7 +280,7 @@ impl DbHandle {
         for num in block_nums {
             let block = self
                 .inner
-                .get_pinned_cf(block_cf, &num.to_be_bytes())
+                .get_pinned_cf(block_cf, num.to_be_bytes())
                 .map_err(Error::Db)?
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
@@ -316,7 +318,7 @@ impl DbHandle {
         let val = rmp_serde::encode::to_vec(idx).unwrap();
 
         self.inner
-            .put_cf(parquet_idx_cf, &key, &val)
+            .put_cf(parquet_idx_cf, key, &val)
             .map_err(Error::Db)?;
 
         self.status
@@ -361,16 +363,16 @@ impl DbHandle {
                 for tx in txs {
                     let val = rmp_serde::encode::to_vec(&tx).unwrap();
                     let tx_key = tx_key(&tx);
-                    batch.put_cf(tx_cf, &tx_key, &val);
+                    batch.put_cf(tx_cf, tx_key, &val);
                     batch.put_cf(
                         log_tx_cf,
-                        &log_tx_key(tx.block_number.0, tx.transaction_index.0),
+                        log_tx_key(tx.block_number.0, tx.transaction_index.0),
                         &val,
                     );
                 }
 
                 let val = rmp_serde::encode::to_vec(&block).unwrap();
-                batch.put_cf(block_cf, &block.number.to_be_bytes(), &val);
+                batch.put_cf(block_cf, block.number.to_be_bytes(), &val);
 
                 db_height = cmp::max(db_height, block.number.0 + 1);
                 db_tail = cmp::min(db_tail, block.number.0);
@@ -379,7 +381,7 @@ impl DbHandle {
             for log in logs {
                 let val = rmp_serde::encode::to_vec(&log).unwrap();
                 let log_key = log_key(&log);
-                batch.put_cf(log_cf, &log_key, &val);
+                batch.put_cf(log_cf, log_key, &val);
             }
 
             let start_time = Instant::now();
@@ -426,7 +428,7 @@ impl DbHandle {
             let from = block_num.to_be_bytes();
             let to = (block_num + 1).to_be_bytes();
 
-            batch.delete_cf(block_cf, &from);
+            batch.delete_cf(block_cf, from);
 
             batch.delete_range_cf(tx_cf, &from, &to);
             batch.delete_range_cf(log_cf, &from, &to);

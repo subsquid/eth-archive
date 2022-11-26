@@ -18,10 +18,9 @@ pub struct Config {
     /// Address to be used for running server
     #[clap(long, default_value_t = default_server_addr())]
     pub server_addr: SocketAddr,
-    /// Minimum hot block range.
-    /// Blocks that fall out of this range will be periodically deleted.
+    /// Initial hot block range
     #[clap(long)]
-    pub min_hot_block_range: u32,
+    pub initial_hot_block_range: u32,
     /// Query stops as soon as the response body size in megabytes reaches this number.
     /// Response body might be bigger than this amount of MBs.
     #[clap(long)]

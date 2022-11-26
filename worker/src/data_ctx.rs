@@ -33,7 +33,7 @@ impl DataCtx {
         let db = DbHandle::new(&config.db_path, ingest_metrics.clone()).await?;
         let db = Arc::new(db);
 
-        let db_writer = DbWriter::new(db.clone(), &config.data_path, config.min_hot_block_range);
+        let db_writer = DbWriter::new(db.clone(), &config.data_path);
         let db_writer = Arc::new(db_writer);
 
         let retry = Retry::new(config.retry);
@@ -47,8 +47,8 @@ impl DataCtx {
 
             async move {
                 let best_block = eth_client.clone().get_best_block().await.unwrap();
-                let mut start = if best_block > config.min_hot_block_range {
-                    best_block - config.min_hot_block_range
+                let mut start = if best_block > config.initial_hot_block_range {
+                    best_block - config.initial_hot_block_range
                 } else {
                     0
                 };

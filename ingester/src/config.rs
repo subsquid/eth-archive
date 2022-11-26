@@ -22,6 +22,9 @@ pub struct Config {
     /// Maximum number of logs per parquet file
     #[clap(long)]
     pub max_logs_per_file: usize,
+    /// Maximum number of row groups per parquet file
+    #[clap(long)]
+    pub max_row_groups_per_file: usize,
     /// Maximum number of pending folder writes.
     /// This effects maximum memory consumption.
     #[clap(long, default_value_t = 8)]
