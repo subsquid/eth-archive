@@ -107,6 +107,7 @@ pub struct ResponseTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_number: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "index")]
     pub transaction_index: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_price: Option<BigInt>,
