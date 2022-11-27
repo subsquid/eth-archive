@@ -5,48 +5,53 @@ use std::cmp;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
-    pub number: Index,
-    pub hash: Bytes32,
     pub parent_hash: Bytes32,
-    pub nonce: Option<Nonce>,
     pub sha3_uncles: Bytes32,
-    pub logs_bloom: BloomFilterBytes,
-    pub transactions_root: Bytes32,
-    pub state_root: Bytes32,
-    pub receipts_root: Bytes32,
     pub miner: Address,
-    pub difficulty: Bytes,
-    pub total_difficulty: Bytes,
-    pub extra_data: Bytes,
-    pub size: BigInt,
+    pub state_root: Bytes32,
+    pub transactions_root: Bytes32,
+    pub receipts_root: Bytes32,
+    pub logs_bloom: BloomFilterBytes,
+    pub difficulty: Option<Bytes>,
+    pub number: Index,
     pub gas_limit: Bytes,
     pub gas_used: Bytes,
     pub timestamp: BigInt,
+    pub extra_data: Bytes,
+    pub mix_hash: Bytes32,
+    pub nonce: Option<Nonce>,
+    pub total_difficulty: Option<Bytes>,
+    pub base_fee_per_gas: Option<Bytes>,
+    pub size: BigInt,
     pub transactions: Vec<Transaction>,
+    pub hash: Option<Bytes32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
-    pub block_hash: Bytes32,
-    pub block_number: Index,
-    #[serde(rename = "from")]
-    pub source: Address,
-    pub gas: BigInt,
-    pub gas_price: BigInt,
-    pub hash: Bytes32,
-    pub input: Bytes,
+    #[serde(rename = "type")]
+    pub kind: Index,
     pub nonce: Nonce,
     #[serde(rename = "to")]
     pub dest: Option<Address>,
-    pub transaction_index: Index,
+    pub gas: BigInt,
     pub value: Bytes,
-    #[serde(rename = "type")]
-    pub kind: Index,
+    pub input: Bytes,
+    pub max_priority_fee_per_gas: Option<BigInt>,
+    pub max_fee_per_gas: Option<BigInt>,
+    pub y_parity: Option<Index>,
     pub chain_id: Option<Index>,
-    pub v: BigInt,
+    pub v: Option<BigInt>,
     pub r: Bytes,
     pub s: Bytes,
+    #[serde(rename = "from")]
+    pub source: Option<Address>,
+    pub block_hash: Bytes32,
+    pub block_number: Index,
+    pub transaction_index: Index,
+    pub gas_price: Option<BigInt>,
+    pub hash: Bytes32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
