@@ -58,8 +58,8 @@ pub fn tx_schema() -> Schema {
         Field::new("block_hash", DataType::Binary, false),
         Field::new("block_number", DataType::UInt32, false),
         Field::new("transaction_index", DataType::UInt32, false),
-        Field::new("hash", DataType::Binary, false),
         Field::new("gas_price", DataType::Int64, true),
+        Field::new("hash", DataType::Binary, false),
         Field::new("sighash", DataType::Binary, true),
     ])
 }
