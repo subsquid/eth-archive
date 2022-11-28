@@ -2,8 +2,7 @@ FROM ubuntu:latest AS builder
 ARG component
 RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake liburing2 liburing-dev curl
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-RUN echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
-RUN source $HOME/.cargo/env
+ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /eth
 COPY ./ .
 RUN cargo build --release --bin "eth-archive-${component}"
