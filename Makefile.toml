@@ -7,7 +7,7 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release","--bin", "eth-archive-ingester", "--",
-	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
+	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data/parquet",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
 	"--block-batch-size", "10",
@@ -24,8 +24,8 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release", "--bin", "eth-archive-worker", "--",
-	"--db-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/db",
-	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data",
+	"--db-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data/db",
+	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data/parquet",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
 	"--block-batch-size", "10",
@@ -41,7 +41,7 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release","--bin", "eth-archive-ingester", "--",
-	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data-ingester-s3",
+	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data/s3/ingester",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
 	"--block-batch-size", "10",
@@ -62,8 +62,8 @@ workspace = false
 command = "cargo"
 args = [
 	"run", "--release", "--bin", "eth-archive-worker", "--",
-	"--db-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/db-worker-s3",
-	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data-worker-s3",
+	"--db-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data/s3/worker/db",
+	"--data-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/data/s3/worker/parquet",
 	"--request-timeout-secs", "300",
 	"--connect-timeout-ms", "1000",
 	"--block-batch-size", "10",
