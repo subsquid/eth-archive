@@ -83,23 +83,25 @@ pub fn log_schema() -> Schema {
 
 #[derive(Debug, Default)]
 pub struct Blocks {
-    pub number: UInt32Vec,
-    pub hash: MutableBinaryArray,
     pub parent_hash: MutableBinaryArray,
-    pub nonce: UInt64Vec,
     pub sha3_uncles: MutableBinaryArray,
-    pub logs_bloom: MutableBinaryArray,
-    pub transactions_root: MutableBinaryArray,
-    pub state_root: MutableBinaryArray,
-    pub receipts_root: MutableBinaryArray,
     pub miner: MutableBinaryArray,
+    pub state_root: MutableBinaryArray,
+    pub transactions_root: MutableBinaryArray,
+    pub receipts_root: MutableBinaryArray,
+    pub logs_bloom: MutableBinaryArray,
     pub difficulty: MutableBinaryArray,
-    pub total_difficulty: MutableBinaryArray,
-    pub extra_data: MutableBinaryArray,
-    pub size: Int64Vec,
+    pub number: UInt32Vec,
     pub gas_limit: MutableBinaryArray,
     pub gas_used: MutableBinaryArray,
     pub timestamp: Int64Vec,
+    pub extra_data: MutableBinaryArray,
+    pub mix_hash: MutableBinaryArray,
+    pub nonce: UInt64Vec,
+    pub total_difficulty: MutableBinaryArray,
+    pub base_fee_per_gas: MutableBinaryArray,
+    pub size: Int64Vec,
+    pub hash: MutableBinaryArray,
     pub len: usize,
 }
 
@@ -119,23 +121,25 @@ impl IntoChunks for Blocks {
         .unwrap();
 
         let chunk = Chunk::new(vec![
-            arrow_take(number.as_ref(), &indices).unwrap(),
-            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.parent_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.sha3_uncles.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.miner.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.state_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.transactions_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.receipts_root.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.logs_bloom.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.difficulty.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(number.as_ref(), &indices).unwrap(),
             arrow_take(self.gas_limit.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.gas_used.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.timestamp.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.extra_data.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.mix_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.total_difficulty.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.base_fee_per_gas.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.size.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
         ]);
 
         (0..self.len)
@@ -153,25 +157,28 @@ impl IntoChunks for Blocks {
 
 impl Blocks {
     pub fn push(&mut self, elem: Block) {
-        self.number.push(Some(elem.number.0));
-        self.hash.push(Some(elem.hash.0.as_slice()));
-        self.parent_hash.push(Some(elem.parent_hash.0.as_slice()));
-        self.nonce.push(elem.nonce.map(|n| n.0));
-        self.sha3_uncles.push(Some(elem.sha3_uncles.0.as_slice()));
-        self.logs_bloom.push(Some(elem.logs_bloom.0.as_slice()));
+        self.parent_hash.push(Some(elem.parent_hash.to_vec()));
+        self.sha3_uncles.push(Some(elem.sha3_uncles.to_vec()));
+        self.miner.push(Some(elem.miner.to_vec()));
+        self.state_root.push(Some(elem.state_root.to_vec()));
         self.transactions_root
-            .push(Some(elem.transactions_root.0.as_slice()));
-        self.state_root.push(Some(elem.state_root.0.as_slice()));
-        self.receipts_root
-            .push(Some(elem.receipts_root.0.as_slice()));
-        self.miner.push(Some(elem.miner.0.as_slice()));
-        self.difficulty.push(Some(elem.difficulty.0));
-        self.total_difficulty.push(Some(elem.total_difficulty.0));
-        self.extra_data.push(Some(elem.extra_data.0));
-        self.size.push(Some(elem.size.0));
+            .push(Some(elem.transactions_root.to_vec()));
+        self.receipts_root.push(Some(elem.receipts_root.to_vec()));
+        self.logs_bloom.push(Some(elem.logs_bloom.to_vec()));
+        self.difficulty.push(elem.difficulty.map(|n| n.to_vec()));
+        self.number.push(Some(elem.number.0));
         self.gas_limit.push(Some(elem.gas_limit.0));
         self.gas_used.push(Some(elem.gas_used.0));
         self.timestamp.push(Some(elem.timestamp.0));
+        self.extra_data.push(Some(elem.extra_data.0));
+        self.mix_hash.push(Some(elem.mix_hash.to_vec()));
+        self.nonce.push(elem.nonce.map(|n| n.0));
+        self.total_difficulty
+            .push(elem.total_difficulty.map(|n| n.to_vec()));
+        self.base_fee_per_gas
+            .push(elem.base_fee_per_gas.map(|n| n.to_vec()));
+        self.size.push(Some(elem.size.0));
+        self.hash.push(elem.hash.map(|n| n.to_vec()));
 
         self.len += 1;
     }
@@ -179,23 +186,26 @@ impl Blocks {
 
 #[derive(Debug, Default)]
 pub struct Transactions {
-    pub block_hash: MutableBinaryArray,
-    pub block_number: UInt32Vec,
-    pub source: MutableBinaryArray,
-    pub gas: Int64Vec,
-    pub gas_price: Int64Vec,
-    pub hash: MutableBinaryArray,
-    pub input: MutableBinaryArray,
-    pub sighash: MutableBinaryArray,
+    pub kind: UInt32Vec,
     pub nonce: UInt64Vec,
     pub dest: MutableBinaryArray,
-    pub transaction_index: UInt32Vec,
+    pub gas: Int64Vec,
     pub value: MutableBinaryArray,
-    pub kind: UInt32Vec,
+    pub input: MutableBinaryArray,
+    pub max_priority_fee_per_gas: Int64Vec,
+    pub max_fee_per_gas: Int64Vec,
+    pub y_parity: UInt32Vec,
     pub chain_id: UInt32Vec,
     pub v: Int64Vec,
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
+    pub source: MutableBinaryArray,
+    pub block_hash: MutableBinaryArray,
+    pub block_number: UInt32Vec,
+    pub transaction_index: UInt32Vec,
+    pub gas_price: Int64Vec,
+    pub hash: MutableBinaryArray,
+    pub sighash: MutableBinaryArray,
     pub len: usize,
 }
 
@@ -228,23 +238,26 @@ impl IntoChunks for Transactions {
         .unwrap();
 
         let chunk = Chunk::new(vec![
-            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(block_number.as_ref(), &indices).unwrap(),
-            arrow_take(source.as_ref(), &indices).unwrap(),
-            arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.sighash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.kind.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.nonce.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.dest.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+            arrow_take(self.gas.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.value.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.kind.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.input.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.max_priority_fee_per_gas.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.max_fee_per_gas.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.y_parity.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.chain_id.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.v.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.r.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.s.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(source.as_ref(), &indices).unwrap(),
+            arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(block_number.as_ref(), &indices).unwrap(),
+            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+            arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.sighash.as_box().as_ref(), &indices).unwrap(),
         ]);
 
         (0..self.len)
@@ -262,26 +275,30 @@ impl IntoChunks for Transactions {
 
 impl Transactions {
     pub fn push(&mut self, elem: Transaction) {
-        self.block_hash.push(Some(elem.block_hash.0.as_slice()));
-        self.block_number.push(Some(elem.block_number.0));
-        self.source.push(Some(elem.source.0.as_slice()));
-        self.gas.push(Some(elem.gas.0));
-        self.gas_price.push(Some(elem.gas_price.0));
-        self.hash.push(Some(elem.hash.0.as_slice()));
-        self.sighash.push(elem.input.get(..4));
-        self.input.push(Some(elem.input.0));
+        self.kind.push(Some(elem.kind.0));
         self.nonce.push(Some(elem.nonce.0));
         match elem.dest {
-            Some(dest) => self.dest.push(Some(dest.0.as_slice())),
+            Some(dest) => self.dest.push(Some(dest.to_vec())),
             None => self.dest.push::<&[u8]>(None),
         }
-        self.transaction_index.push(Some(elem.transaction_index.0));
+        self.gas.push(Some(elem.gas.0));
         self.value.push(Some(elem.value.0));
-        self.kind.push(Some(elem.kind.0));
-        self.chain_id.push(elem.chain_id.map(|c| c.0));
-        self.v.push(Some(elem.v.0));
+        self.input.push(Some(elem.input.0.clone()));
+        self.max_priority_fee_per_gas
+            .push(elem.max_priority_fee_per_gas.map(|n| n.0));
+        self.max_fee_per_gas.push(elem.max_fee_per_gas.map(|n| n.0));
+        self.y_parity.push(elem.y_parity.map(|n| n.0));
+        self.chain_id.push(elem.chain_id.map(|n| n.0));
+        self.v.push(elem.v.map(|n| n.0));
         self.r.push(Some(elem.r.0));
         self.s.push(Some(elem.s.0));
+        self.source.push(elem.source.map(|n| n.to_vec()));
+        self.block_hash.push(Some(elem.block_hash.to_vec()));
+        self.block_number.push(Some(elem.block_number.0));
+        self.transaction_index.push(Some(elem.transaction_index.0));
+        self.gas_price.push(elem.gas_price.map(|n| n.0));
+        self.hash.push(Some(elem.hash.to_vec()));
+        self.sighash.push(elem.input.get(..4));
 
         self.len += 1;
     }
@@ -362,18 +379,18 @@ impl IntoChunks for Logs {
 
 impl Logs {
     pub fn push(&mut self, elem: Log) {
-        self.address.push(Some(elem.address.0.as_slice()));
-        self.block_hash.push(Some(elem.block_hash.0.as_slice()));
+        self.address.push(Some(elem.address.to_vec()));
+        self.block_hash.push(Some(elem.block_hash.to_vec()));
         self.block_number.push(Some(elem.block_number.0));
         self.data.push(Some(elem.data.0));
         self.log_index.push(Some(elem.log_index.0));
         self.removed.push(Some(elem.removed));
-        self.topic0.push(elem.topics.get(0).map(|t| t.0.as_slice()));
-        self.topic1.push(elem.topics.get(1).map(|t| t.0.as_slice()));
-        self.topic2.push(elem.topics.get(2).map(|t| t.0.as_slice()));
-        self.topic3.push(elem.topics.get(3).map(|t| t.0.as_slice()));
+        self.topic0.push(elem.topics.get(0).map(|t| t.to_vec()));
+        self.topic1.push(elem.topics.get(1).map(|t| t.to_vec()));
+        self.topic2.push(elem.topics.get(2).map(|t| t.to_vec()));
+        self.topic3.push(elem.topics.get(3).map(|t| t.to_vec()));
         self.transaction_hash
-            .push(Some(elem.transaction_hash.0.as_slice()));
+            .push(Some(elem.transaction_hash.to_vec()));
         self.transaction_index.push(Some(elem.transaction_index.0));
 
         self.len += 1;

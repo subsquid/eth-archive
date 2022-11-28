@@ -70,6 +70,49 @@ pub struct Log {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct ResponseBlock {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_hash: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha3_uncles: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub miner: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state_root: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transactions_root: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receipts_root: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logs_bloom: Option<BloomFilterBytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub number: Option<Index>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_limit: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_used: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<BigInt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_data: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mix_hash: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<Nonce>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_difficulty: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_fee_per_gas: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<BigInt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hash: Option<Bytes32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ResponseTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "type")]
