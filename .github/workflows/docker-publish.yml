@@ -7,7 +7,7 @@ env:
 jobs:
   publish:
     name: docker-publish
-    runs-on: debian:bullseye
+    runs-on: debian-bullseye
     strategy:
       matrix:
         component: [ ingester, worker ]
