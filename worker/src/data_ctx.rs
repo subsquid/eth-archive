@@ -561,20 +561,13 @@ macro_rules! define_cols {
 
 macro_rules! map_from_arrow {
     ($src_field:ident, $map_type:expr, $idx:expr) => {
-        $src_field
-            .map(|arr| {
-                arr.get($idx)
-                    .unwrap()
-            })
-            .map($map_type)
+        $src_field.map(|arr| arr.get($idx).unwrap()).map($map_type)
     };
 }
 
 macro_rules! map_from_arrow_opt {
     ($src_field:ident, $map_type:expr, $idx:expr) => {
-        match $src_field
-            .map(|arr| arr.get($idx))
-        {
+        match $src_field.map(|arr| arr.get($idx)) {
             Some(Some(val)) => Some($map_type(val)),
             _ => None,
         }
@@ -594,6 +587,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
     let schema = result_frame.schema();
 
     for batch in result_frame.iter_chunks() {
+        #[rustfmt::skip]
         define_cols!(
             batch,
             schema,
@@ -750,6 +744,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
     let schema = result_frame.schema();
 
     for batch in result_frame.iter_chunks() {
+        #[rustfmt::skip]
         define_cols!(
             batch,
             schema,
