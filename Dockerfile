@@ -1,13 +1,13 @@
-FROM ubuntu:impish AS builder
+FROM debian:bullseye AS builder
 ARG component
-RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake liburing1 liburing-dev curl
+RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake liburing1 liburing-dev curl pkg-config
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /eth
 COPY ./ .
 RUN cargo build --release --bin "eth-archive-${component}"
 
-FROM ubuntu:impish
+FROM debian:bullseye
 ARG component
 WORKDIR /eth
 RUN apt-get update && apt-get upgrade -y && apt-get install liburing1 ca-certificates -y
