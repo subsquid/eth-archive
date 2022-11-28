@@ -7,7 +7,7 @@ env:
 jobs:
   publish:
     name: docker-publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-impish
     strategy:
       matrix:
         component: [ ingester, worker ]
