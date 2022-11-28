@@ -545,13 +545,39 @@ impl DataCtx {
 
 // defines columns using the result frame and a list of column names
 macro_rules! define_cols {
-    ($batch:expr, $schema:expr, $($name:ident),*) => {
+    ($batch:expr, $schema:expr, $($name:ident, $arrow_type:ident),*) => {
         let columns = $batch.columns();
         $(
             let $name = $schema.get_full(stringify!($name)).map(|(i, _, _)| {
                 columns.get(i).unwrap()
+            }).map(|arr| {
+                arr.as_any()
+                    .downcast_ref::<$arrow_type>()
+                    .unwrap()
             });
         )*
+    };
+}
+
+macro_rules! map_from_arrow {
+    ($src_field:ident, $map_type:expr, $idx:expr) => {
+        $src_field
+            .map(|arr| {
+                arr.get($idx)
+                    .unwrap()
+            })
+            .map($map_type)
+    };
+}
+
+macro_rules! map_from_arrow_opt {
+    ($src_field:ident, $map_type:expr, $idx:expr) => {
+        match $src_field
+            .map(|arr| arr.get($idx))
+        {
+            Some(Some(val)) => Some($map_type(val)),
+            _ => None,
+        }
     };
 }
 
@@ -571,48 +597,54 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
         define_cols!(
             batch,
             schema,
-            block_hash,
-            block_parent_hash,
-            block_nonce,
-            block_sha3_uncles,
-            block_logs_bloom,
-            block_transactions_root,
-            block_state_root,
-            block_receipts_root,
-            block_miner,
-            block_difficulty,
-            block_total_difficulty,
-            block_extra_data,
-            block_size,
-            block_gas_limit,
-            block_gas_used,
-            block_timestamp,
-            tx_block_hash,
-            tx_source,
-            tx_gas,
-            tx_gas_price,
-            tx_hash,
-            tx_input,
-            tx_nonce,
-            tx_dest,
-            tx_value,
-            tx_kind,
-            tx_chain_id,
-            tx_v,
-            tx_r,
-            tx_s,
-            log_address,
-            log_block_hash,
-            log_block_number,
-            log_data,
-            log_log_index,
-            log_removed,
-            log_topic0,
-            log_topic1,
-            log_topic2,
-            log_topic3,
-            log_transaction_hash,
-            log_transaction_index
+            block_parent_hash, BinaryArray,
+            block_sha3_uncles, BinaryArray,
+            block_miner, BinaryArray,
+            block_state_root, BinaryArray,
+            block_transactions_root, BinaryArray,
+            block_receipts_root, BinaryArray,
+            block_logs_bloom, BinaryArray,
+            block_difficulty, BinaryArray,
+            block_gas_limit, BinaryArray,
+            block_gas_used, BinaryArray,
+            block_timestamp, Int64Array,
+            block_extra_data, BinaryArray,
+            block_mix_hash, BinaryArray,
+            block_nonce, UInt64Array,
+            block_total_difficulty, BinaryArray,
+            block_base_fee_per_gas, BinaryArray,
+            block_size, Int64Array,
+            block_hash, BinaryArray,
+            tx_kind, UInt32Array,
+            tx_nonce, UInt64Array,
+            tx_dest, BinaryArray,
+            tx_gas, Int64Array,
+            tx_value, BinaryArray,
+            tx_input, BinaryArray,
+            tx_max_priority_fee_per_gas, Int64Array,
+            tx_max_fee_per_gas, Int64Array,
+            tx_y_parity, UInt32Array,
+            tx_chain_id, UInt32Array,
+            tx_v, Int64Array,
+            tx_r, BinaryArray,
+            tx_s, BinaryArray,
+            tx_source, BinaryArray,
+            tx_block_hash, BinaryArray,
+            tx_transaction_index, UInt32Array,
+            tx_gas_price, Int64Array,
+            tx_hash, BinaryArray,
+            log_address, BinaryArray,
+            log_block_hash, BinaryArray,
+            log_block_number, UInt32Array,
+            log_data, BinaryArray,
+            log_log_index, UInt32Array,
+            log_removed, BooleanArray,
+            log_topic0, BinaryArray,
+            log_topic1, BinaryArray,
+            log_topic2, BinaryArray,
+            log_topic3, BinaryArray,
+            log_transaction_hash, BinaryArray,
+            log_transaction_index, UInt32Array
         );
 
         let len = log_block_number.as_ref().unwrap().len();
@@ -620,397 +652,81 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
         for i in 0..len {
             let response_row = ResponseRow {
                 block: ResponseBlock {
-                    number: log_block_number
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    hash: block_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    parent_hash: block_parent_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    nonce: match block_nonce
-                        .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().get(i))
-                    {
-                        Some(Some(nonce)) => Some(Nonce(nonce)),
-                        _ => None,
-                    },
-                    sha3_uncles: block_sha3_uncles
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    logs_bloom: block_logs_bloom
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BloomFilterBytes::new),
-                    transactions_root: block_transactions_root
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    state_root: block_state_root
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    receipts_root: block_receipts_root
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    miner: block_miner
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Address::new),
-                    difficulty: block_difficulty
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    total_difficulty: block_total_difficulty
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    extra_data: block_extra_data
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    size: block_size
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    gas_limit: block_gas_limit
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    gas_used: block_gas_used
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    timestamp: block_timestamp
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
+                    parent_hash: map_from_arrow!(block_parent_hash, Bytes32::new, i),
+                    sha3_uncles: map_from_arrow!(block_sha3_uncles, Bytes32::new, i),
+                    miner: map_from_arrow!(block_miner, Address::new, i),
+                    state_root: map_from_arrow!(block_state_root, Bytes32::new, i),
+                    transactions_root: map_from_arrow!(block_transactions_root, Bytes32::new, i),
+                    receipts_root: map_from_arrow!(block_receipts_root, Bytes32::new, i),
+                    logs_bloom: map_from_arrow!(block_logs_bloom, BloomFilterBytes::new, i),
+                    difficulty: map_from_arrow_opt!(block_difficulty, Bytes::new, i),
+                    number: map_from_arrow!(log_block_number, Index, i),
+                    gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
+                    gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
+                    timestamp: map_from_arrow!(block_timestamp, BigInt, i),
+                    extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
+                    mix_hash: map_from_arrow!(block_mix_hash, Bytes32::new, i),
+                    nonce: map_from_arrow_opt!(block_nonce, Nonce, i),
+                    total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
+                    base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
+                    size: map_from_arrow!(block_size, BigInt, i),
+                    hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
                 transaction: ResponseTransaction {
-                    block_hash: tx_block_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    block_number: log_block_number
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    source: tx_source
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Address::new),
-                    gas: tx_gas
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    gas_price: tx_gas_price
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    hash: tx_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    input: tx_input
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    nonce: tx_nonce
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Nonce),
-                    dest: match tx_dest
-                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
-                    {
-                        Some(Some(addr)) => Some(Address::new(addr)),
-                        _ => None,
-                    },
-                    transaction_index: log_transaction_index
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    value: tx_value
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    kind: tx_kind
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    chain_id: match tx_chain_id
-                        .map(|arr| arr.as_any().downcast_ref::<UInt32Array>().unwrap().get(i))
-                    {
-                        Some(Some(chain_id)) => Some(Index(chain_id)),
-                        _ => None,
-                    },
-                    v: tx_v
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    r: tx_r
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    s: tx_s
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
+                    kind: map_from_arrow!(tx_kind, Index, i),
+                    nonce: map_from_arrow!(tx_nonce, Nonce, i),
+                    dest: map_from_arrow_opt!(tx_dest, Address::new, i),
+                    gas: map_from_arrow!(tx_gas, BigInt, i),
+                    value: map_from_arrow!(tx_value, Bytes::new, i),
+                    input: map_from_arrow!(tx_input, Bytes::new, i),
+                    max_priority_fee_per_gas: map_from_arrow_opt!(
+                        tx_max_priority_fee_per_gas,
+                        BigInt,
+                        i
+                    ),
+                    max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, BigInt, i),
+                    y_parity: map_from_arrow_opt!(tx_y_parity, Index, i),
+                    chain_id: map_from_arrow_opt!(tx_chain_id, Index, i),
+                    v: map_from_arrow_opt!(tx_v, BigInt, i),
+                    r: map_from_arrow!(tx_r, Bytes::new, i),
+                    s: map_from_arrow!(tx_s, Bytes::new, i),
+                    source: map_from_arrow_opt!(tx_source, Address::new, i),
+                    block_hash: map_from_arrow!(tx_block_hash, Bytes32::new, i),
+                    block_number: map_from_arrow!(log_block_number, Index, i),
+                    transaction_index: map_from_arrow!(tx_transaction_index, Index, i),
+                    gas_price: map_from_arrow!(tx_gas_price, BigInt, i),
+                    hash: map_from_arrow!(tx_hash, Bytes32::new, i),
                 },
                 log: Some(ResponseLog {
-                    address: log_address
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Address::new),
-                    block_hash: log_block_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    block_number: log_block_number
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    data: log_data
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    log_index: log_log_index
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    removed: log_removed.map(|arr| {
-                        arr.as_any()
-                            .downcast_ref::<BooleanArray>()
-                            .unwrap()
-                            .get(i)
-                            .unwrap()
-                    }),
+                    address: map_from_arrow!(log_address, Address::new, i),
+                    block_hash: map_from_arrow!(log_block_hash, Bytes32::new, i),
+                    block_number: map_from_arrow!(log_block_number, Index, i),
+                    data: map_from_arrow!(log_data, Bytes::new, i),
+                    log_index: map_from_arrow!(log_log_index, Index, i),
+                    removed: log_removed.map(|arr| arr.get(i).unwrap()),
                     topics: {
                         let mut topics = vec![];
 
-                        if let Some(Some(topic)) = log_topic0
-                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
-                        {
+                        if let Some(Some(topic)) = log_topic0.map(|arr| arr.get(i)) {
                             topics.push(Bytes32::new(topic));
                         }
 
-                        if let Some(Some(topic)) = log_topic1
-                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
-                        {
+                        if let Some(Some(topic)) = log_topic1.map(|arr| arr.get(i)) {
                             topics.push(Bytes32::new(topic));
                         }
 
-                        if let Some(Some(topic)) = log_topic2
-                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
-                        {
+                        if let Some(Some(topic)) = log_topic2.map(|arr| arr.get(i)) {
                             topics.push(Bytes32::new(topic));
                         }
 
-                        if let Some(Some(topic)) = log_topic3
-                            .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
-                        {
+                        if let Some(Some(topic)) = log_topic3.map(|arr| arr.get(i)) {
                             topics.push(Bytes32::new(topic));
                         }
 
                         Some(topics)
                     },
-                    transaction_hash: log_transaction_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    transaction_index: log_transaction_index
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
+                    transaction_hash: map_from_arrow!(log_transaction_hash, Bytes32::new, i),
+                    transaction_index: map_from_arrow!(log_transaction_index, Index, i),
                 }),
             };
 
@@ -1037,38 +753,43 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
         define_cols!(
             batch,
             schema,
-            block_hash,
-            block_parent_hash,
-            block_nonce,
-            block_sha3_uncles,
-            block_logs_bloom,
-            block_transactions_root,
-            block_state_root,
-            block_receipts_root,
-            block_miner,
-            block_difficulty,
-            block_total_difficulty,
-            block_extra_data,
-            block_size,
-            block_gas_limit,
-            block_gas_used,
-            block_timestamp,
-            tx_block_hash,
-            tx_block_number,
-            tx_source,
-            tx_gas,
-            tx_gas_price,
-            tx_hash,
-            tx_input,
-            tx_nonce,
-            tx_dest,
-            tx_transaction_index,
-            tx_value,
-            tx_kind,
-            tx_chain_id,
-            tx_v,
-            tx_r,
-            tx_s
+            block_parent_hash, BinaryArray,
+            block_sha3_uncles, BinaryArray,
+            block_miner, BinaryArray,
+            block_state_root, BinaryArray,
+            block_transactions_root, BinaryArray,
+            block_receipts_root, BinaryArray,
+            block_logs_bloom, BinaryArray,
+            block_difficulty, BinaryArray,
+            block_gas_limit, BinaryArray,
+            block_gas_used, BinaryArray,
+            block_timestamp, Int64Array,
+            block_extra_data, BinaryArray,
+            block_mix_hash, BinaryArray,
+            block_nonce, UInt64Array,
+            block_total_difficulty, BinaryArray,
+            block_base_fee_per_gas, BinaryArray,
+            block_size, Int64Array,
+            block_hash, BinaryArray,
+            tx_kind, UInt32Array,
+            tx_nonce, UInt64Array,
+            tx_dest, BinaryArray,
+            tx_gas, Int64Array,
+            tx_value, BinaryArray,
+            tx_input, BinaryArray,
+            tx_max_priority_fee_per_gas, Int64Array,
+            tx_max_fee_per_gas, Int64Array,
+            tx_y_parity, UInt32Array,
+            tx_chain_id, UInt32Array,
+            tx_v, Int64Array,
+            tx_r, BinaryArray,
+            tx_s, BinaryArray,
+            tx_source, BinaryArray,
+            tx_block_hash, BinaryArray,
+            tx_block_number, UInt32Array,
+            tx_transaction_index, UInt32Array,
+            tx_gas_price, Int64Array,
+            tx_hash, BinaryArray
         );
 
         let len = tx_block_number.as_ref().unwrap().len();
@@ -1076,296 +797,50 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
         for i in 0..len {
             let response_row = ResponseRow {
                 block: ResponseBlock {
-                    number: tx_block_number
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    hash: block_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    parent_hash: block_parent_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    nonce: match block_nonce
-                        .map(|arr| arr.as_any().downcast_ref::<UInt64Array>().unwrap().get(i))
-                    {
-                        Some(Some(nonce)) => Some(Nonce(nonce)),
-                        _ => None,
-                    },
-                    sha3_uncles: block_sha3_uncles
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    logs_bloom: block_logs_bloom
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BloomFilterBytes::new),
-                    transactions_root: block_transactions_root
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    state_root: block_state_root
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    receipts_root: block_receipts_root
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    miner: block_miner
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Address::new),
-                    difficulty: block_difficulty
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    total_difficulty: block_total_difficulty
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    extra_data: block_extra_data
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    size: block_size
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    gas_limit: block_gas_limit
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    gas_used: block_gas_used
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    timestamp: block_timestamp
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
+                    parent_hash: map_from_arrow!(block_parent_hash, Bytes32::new, i),
+                    sha3_uncles: map_from_arrow!(block_sha3_uncles, Bytes32::new, i),
+                    miner: map_from_arrow!(block_miner, Address::new, i),
+                    state_root: map_from_arrow!(block_state_root, Bytes32::new, i),
+                    transactions_root: map_from_arrow!(block_transactions_root, Bytes32::new, i),
+                    receipts_root: map_from_arrow!(block_receipts_root, Bytes32::new, i),
+                    logs_bloom: map_from_arrow!(block_logs_bloom, BloomFilterBytes::new, i),
+                    difficulty: map_from_arrow_opt!(block_difficulty, Bytes::new, i),
+                    number: map_from_arrow!(tx_block_number, Index, i),
+                    gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
+                    gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
+                    timestamp: map_from_arrow!(block_timestamp, BigInt, i),
+                    extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
+                    mix_hash: map_from_arrow!(block_mix_hash, Bytes32::new, i),
+                    nonce: map_from_arrow_opt!(block_nonce, Nonce, i),
+                    total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
+                    base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
+                    size: map_from_arrow!(block_size, BigInt, i),
+                    hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
                 transaction: ResponseTransaction {
-                    block_hash: tx_block_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    block_number: tx_block_number
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    source: tx_source
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Address::new),
-                    gas: tx_gas
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    gas_price: tx_gas_price
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    hash: tx_hash
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes32::new),
-                    input: tx_input
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    nonce: tx_nonce
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Nonce),
-                    dest: match tx_dest
-                        .map(|arr| arr.as_any().downcast_ref::<BinaryArray>().unwrap().get(i))
-                    {
-                        Some(Some(addr)) => Some(Address::new(addr)),
-                        _ => None,
-                    },
-                    transaction_index: tx_transaction_index
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    value: tx_value
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    kind: tx_kind
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<UInt32Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Index),
-                    chain_id: match tx_chain_id
-                        .map(|arr| arr.as_any().downcast_ref::<UInt32Array>().unwrap().get(i))
-                    {
-                        Some(Some(chain_id)) => Some(Index(chain_id)),
-                        _ => None,
-                    },
-                    v: tx_v
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<Int64Array>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(BigInt),
-                    r: tx_r
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
-                    s: tx_s
-                        .map(|arr| {
-                            arr.as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .unwrap()
-                                .get(i)
-                                .unwrap()
-                        })
-                        .map(Bytes::new),
+                    kind: map_from_arrow!(tx_kind, Index, i),
+                    nonce: map_from_arrow!(tx_nonce, Nonce, i),
+                    dest: map_from_arrow_opt!(tx_dest, Address::new, i),
+                    gas: map_from_arrow!(tx_gas, BigInt, i),
+                    value: map_from_arrow!(tx_value, Bytes::new, i),
+                    input: map_from_arrow!(tx_input, Bytes::new, i),
+                    max_priority_fee_per_gas: map_from_arrow_opt!(
+                        tx_max_priority_fee_per_gas,
+                        BigInt,
+                        i
+                    ),
+                    max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, BigInt, i),
+                    y_parity: map_from_arrow_opt!(tx_y_parity, Index, i),
+                    chain_id: map_from_arrow_opt!(tx_chain_id, Index, i),
+                    v: map_from_arrow_opt!(tx_v, BigInt, i),
+                    r: map_from_arrow!(tx_r, Bytes::new, i),
+                    s: map_from_arrow!(tx_s, Bytes::new, i),
+                    source: map_from_arrow_opt!(tx_source, Address::new, i),
+                    block_hash: map_from_arrow!(tx_block_hash, Bytes32::new, i),
+                    block_number: map_from_arrow!(tx_block_number, Index, i),
+                    transaction_index: map_from_arrow!(tx_transaction_index, Index, i),
+                    gas_price: map_from_arrow!(tx_gas_price, BigInt, i),
+                    hash: map_from_arrow!(tx_hash, Bytes32::new, i),
                 },
                 log: None,
             };
