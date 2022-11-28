@@ -1,5 +1,4 @@
 mod config;
-mod consts;
 mod error;
 mod ingester;
 mod schema;

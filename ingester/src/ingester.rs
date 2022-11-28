@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::consts::MAX_ROW_GROUPS_PER_FILE;
 use crate::schema::{
     block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
     Transactions,
@@ -220,7 +219,7 @@ impl Data {
                 temp_path,
                 Box::new(self.blocks),
                 block_schema(),
-                cfg.max_blocks_per_file / MAX_ROW_GROUPS_PER_FILE,
+                cfg.max_blocks_per_file / cfg.max_row_groups_per_file,
             )
         };
 
@@ -232,7 +231,7 @@ impl Data {
                 temp_path,
                 Box::new(self.txs),
                 tx_schema(),
-                cfg.max_txs_per_file / MAX_ROW_GROUPS_PER_FILE,
+                cfg.max_txs_per_file / cfg.max_row_groups_per_file,
             )
         };
 
@@ -244,7 +243,7 @@ impl Data {
                 temp_path,
                 Box::new(self.logs),
                 log_schema(),
-                cfg.max_logs_per_file / MAX_ROW_GROUPS_PER_FILE,
+                cfg.max_logs_per_file / cfg.max_row_groups_per_file,
             )
         };
 

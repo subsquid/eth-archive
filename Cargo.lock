@@ -762,9 +762,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "1.3.1"
+version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a08e53fc5a564bb15bfe6fae56bd71522205f1f91893f9c0116edad6496c183f"
+checksum = "42ae2468a89544a466886840aa467a25b766499f4f04bf7d9fcd10ecee9fccef"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -1070,9 +1070,9 @@ dependencies = [
 
 [[package]]
 name = "constant_time_eq"
-version = "0.1.5"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
+checksum = "f3ad85c1f65dc7b37604eb0e89748faf0b9653065f2a8ef69f96a687ec1e9279"
 
 [[package]]
 name = "convert_case"
@@ -1434,11 +1434,11 @@ dependencies = [
  "futures",
  "itertools",
  "log",
+ "mimalloc",
  "rayon",
  "serde",
  "serde_json",
  "thiserror",
- "tikv-jemallocator",
  "tokio",
  "tokio-util",
 ]
@@ -1447,7 +1447,7 @@ dependencies = [
 name = "eth-archive-verifier"
 version = "0.1.0"
 dependencies = [
- "tikv-jemallocator",
+ "mimalloc",
 ]
 
 [[package]]
@@ -1463,6 +1463,7 @@ dependencies = [
  "futures",
  "itertools",
  "log",
+ "mimalloc",
  "polars",
  "prefix-hex",
  "rayon",
@@ -1472,7 +1473,6 @@ dependencies = [
  "serde_json",
  "solana-bloom",
  "thiserror",
- "tikv-jemallocator",
  "tokio",
 ]
 
@@ -1945,9 +1945,12 @@ dependencies = [
 
 [[package]]
 name = "keccak"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9b7d56ba4a8344d6be9729995e6b06f928af29998cdf79fe390cbf6b1fee838"
+checksum = "3afef3b6eff9ce9d8ff9b3601125eec7f0c8cbac7abd14f355d053fa56c98768"
+dependencies = [
+ "cpufeatures",
+]
 
 [[package]]
 name = "language-tags"
@@ -2063,6 +2066,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "292a948cd991e376cf75541fe5b97a1081d713c618b4f1b9500f8844e49eb565"
 
 [[package]]
+name = "libmimalloc-sys"
+version = "0.1.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d1c67deb83e6b75fa4fe3309e09cfeade12e7721d95322af500d3814ea60c9"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
 name = "librocksdb-sys"
 version = "0.8.0+7.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2074,8 +2087,8 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
+ "pkg-config",
  "tikv-jemalloc-sys",
- "zstd-sys",
 ]
 
 [[package]]
@@ -2225,6 +2238,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "mimalloc"
+version = "0.1.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b2374e2999959a7b583e1811a1ddbf1d3a4b9496eceb9746f1192a59d871eca"
+dependencies = [
+ "libmimalloc-sys",
 ]
 
 [[package]]
@@ -3375,9 +3397,9 @@ dependencies = [
 
 [[package]]
 name = "solana-bloom"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e87f81f1d00d3d156cae89c5fa3d4d76e18703c8fcea9a74dc85ae99d3b54c9c"
+checksum = "9a0161c9a1e931b7721928edb4e1a6683d69729cfc41b396c730f7c390625dbf"
 dependencies = [
  "bv",
  "fnv",
@@ -3394,9 +3416,9 @@ dependencies = [
 
 [[package]]
 name = "solana-frozen-abi"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fae9453c906a52b00c6d668508214377163cf59776cfa8e09ef740a2a493f87d"
+checksum = "341bba362c91aedad2ad9fc0c28c2e39aaa606e6b9c049e8fbcc9f60675163ff"
 dependencies = [
  "ahash 0.7.6",
  "blake3",
@@ -3428,9 +3450,9 @@ dependencies = [
 
 [[package]]
 name = "solana-frozen-abi-macro"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e29cd0fef92aee046267cdd69d8aa8b31cd3549991ea6f2c6076b21064e235fb"
+checksum = "b6fae474ab37e2ccc4dfd33edd36a05d7df02b8531fa9870cb244f9491b64fe3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3440,9 +3462,9 @@ dependencies = [
 
 [[package]]
 name = "solana-logger"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d255b73f0c0e1eaa34280094f1304a783ea9394dbf2f8b749a3661e948ca5551"
+checksum = "1ec82f7dedfee58ff2ac102b20a033a195950e7355fb29f1713f46cee629ffda"
 dependencies = [
  "env_logger",
  "lazy_static",
@@ -3451,9 +3473,9 @@ dependencies = [
 
 [[package]]
 name = "solana-program"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0eeda17e271e11864d48b35eeaefed9591305b4d47266caf3f8b11b9271833d"
+checksum = "f480a0a440ea15d8436de1c9ac01501cb15979dae4a0a5fc8e33198949b38681"
 dependencies = [
  "base64 0.13.0",
  "bincode",
@@ -3500,9 +3522,9 @@ dependencies = [
 
 [[package]]
 name = "solana-sdk"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57fe62f7fe938607437ed29b0e95b4cffc7db186bf04fea6a98d92319da941b1"
+checksum = "65641c3c87a81fbbf7663360a2d8d5e145280021c444220257f9975ff6cddc80"
 dependencies = [
  "assert_matches",
  "base64 0.13.0",
@@ -3551,9 +3573,9 @@ dependencies = [
 
 [[package]]
 name = "solana-sdk-macro"
-version = "1.14.6"
+version = "1.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12f9abf0bdba679d93c5624043ae3dcbf529ed2251c281cc615fa55c8dc2f0bd"
+checksum = "768f16d1a7315fc66ba835eebf9e95a83365ac94222551bc5cdcc6a74cb4a137"
 dependencies = [
  "bs58",
  "proc-macro2",
@@ -3687,16 +3709,6 @@ dependencies = [
  "cc",
  "fs_extra",
  "libc",
-]
-
-[[package]]
-name = "tikv-jemallocator"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20612db8a13a6c06d57ec83953694185a367e16945f66565e8028d2c0bd76979"
-dependencies = [
- "libc",
- "tikv-jemalloc-sys",
 ]
 
 [[package]]

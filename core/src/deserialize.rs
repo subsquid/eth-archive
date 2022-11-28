@@ -21,7 +21,7 @@ impl Bytes32 {
 
 impl ToHexPrefixed for &Bytes32 {
     fn to_hex_prefixed(self) -> String {
-        ToHexPrefixed::to_hex_prefixed(&*self.0)
+        ToHexPrefixed::to_hex_prefixed(*self.0)
     }
 }
 
@@ -42,7 +42,7 @@ impl AsRef<[u8]> for Address {
 
 impl ToHexPrefixed for &Address {
     fn to_hex_prefixed(self) -> String {
-        ToHexPrefixed::to_hex_prefixed(&*self.0)
+        ToHexPrefixed::to_hex_prefixed(*self.0)
     }
 }
 
@@ -57,7 +57,7 @@ impl Sighash {
 
 impl ToHexPrefixed for &Sighash {
     fn to_hex_prefixed(self) -> String {
-        ToHexPrefixed::to_hex_prefixed(&*self.0)
+        ToHexPrefixed::to_hex_prefixed(*self.0)
     }
 }
 
@@ -133,7 +133,7 @@ impl Serialize for Bytes32 {
     where
         S: Serializer,
     {
-        let hex = prefix_hex::encode(&*self.0);
+        let hex = prefix_hex::encode(self);
 
         serializer.serialize_str(&hex)
     }
@@ -172,7 +172,7 @@ impl Serialize for Address {
     where
         S: Serializer,
     {
-        let hex = prefix_hex::encode(&*self.0);
+        let hex = prefix_hex::encode(self);
 
         serializer.serialize_str(&hex)
     }
@@ -211,7 +211,7 @@ impl Serialize for Sighash {
     where
         S: Serializer,
     {
-        let hex = prefix_hex::encode(&*self.0);
+        let hex = prefix_hex::encode(self);
 
         serializer.serialize_str(&hex)
     }
@@ -288,7 +288,7 @@ impl Serialize for BloomFilterBytes {
     where
         S: Serializer,
     {
-        let hex = prefix_hex::encode(&*self.0);
+        let hex = prefix_hex::encode(*self.0);
 
         serializer.serialize_str(&hex)
     }

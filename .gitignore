@@ -1,7 +1,3 @@
 /target
 /data/
 .idea
-/db/
-/data-worker-s3/
-/data-ingester-s3/
-/db-worker-s3/
