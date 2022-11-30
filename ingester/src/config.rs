@@ -29,6 +29,8 @@ pub struct Config {
     /// This effects maximum memory consumption.
     #[clap(long, default_value_t = 8)]
     pub max_pending_folder_writes: usize,
+    #[clap(long, default_value_t = 8)]
+    pub folder_write_concurrency: usize,
     /// Address to serve prometheus metrics from
     #[clap(long, default_value_t = default_metrics_addr())]
     pub metrics_addr: SocketAddr,
