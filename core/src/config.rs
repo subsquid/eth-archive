@@ -27,7 +27,7 @@ pub struct IngestConfig {
     #[clap(long, default_value_t = 10)]
     pub best_block_offset: u32,
     #[clap(long)]
-    pub default_rpc_url: Option<String>,
+    pub rpc_urls: Vec<url::Url>,
 }
 
 #[derive(Parser, Clone, Debug)]

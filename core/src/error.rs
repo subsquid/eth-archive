@@ -62,6 +62,8 @@ pub enum Error {
     CheckParquetDir,
     #[error("failed to rename file:\n{0}")]
     RenameFile(io::Error),
+    #[error("no healthy rpc url found.")]
+    NoHealthyUrl,
 }
 
 pub type Result<T> = StdResult<T, Error>;
