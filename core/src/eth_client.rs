@@ -5,39 +5,36 @@ use crate::ingest_metrics::IngestMetrics;
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
 use futures::stream::Stream;
+use rand::seq::SliceRandom;
 use serde_json::Value as JsonValue;
+use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use std::{cmp, env};
-
-const ETH_RPC_URL: &str = "ETH_RPC_URL";
+use url::Url;
 
 pub struct EthClient {
     http_client: reqwest::Client,
-    rpc_url: url::Url,
     cfg: IngestConfig,
     retry: Retry,
     metrics: Arc<IngestMetrics>,
+}
+
+struct UrlSet {
+    inner: Vec<Url>,
+    best_block: u32,
+}
+
+impl UrlSet {
+    fn get_random(&self) -> Url {
+        self.inner.choose(&mut rand::thread_rng()).unwrap().clone()
+    }
 }
 
 impl EthClient {
     pub fn new(cfg: IngestConfig, retry: Retry, metrics: Arc<IngestMetrics>) -> Result<EthClient> {
         let request_timeout = Duration::from_secs(cfg.request_timeout_secs.get());
         let connect_timeout = Duration::from_millis(cfg.connect_timeout_ms.get());
-
-        let rpc_url = match env::var(ETH_RPC_URL) {
-            Ok(url) => url,
-            Err(e) => match &cfg.default_rpc_url {
-                Some(url) => {
-                    log::info!("Using default rpc url: {}", url);
-
-                    url.clone()
-                }
-                None => return Err(Error::ReadRpcUrlFromEnv(e)),
-            },
-        };
-        let rpc_url = url::Url::parse(&rpc_url).map_err(Error::ParseRpcUrl)?;
 
         let http_client = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -48,17 +45,69 @@ impl EthClient {
 
         Ok(EthClient {
             http_client,
-            rpc_url,
             cfg,
             retry,
             metrics,
         })
     }
 
-    async fn send_impl<R: EthRequest>(&self, req: R) -> Result<R::Resp> {
+    async fn healthy_url_set_impl(&self) -> Result<Arc<UrlSet>> {
+        let mut best_blocks = Vec::new();
+        for url in self.cfg.rpc_urls.iter() {
+            match self.get_best_block_url(url.clone()).await {
+                Ok(best_block) => best_blocks.push((best_block, url.clone())),
+                Err(e) => {
+                    log::warn!(
+                        "excluding rpc url {} because couldn't get best block:\n{}",
+                        url,
+                        e
+                    );
+                }
+            }
+        }
+
+        let max = best_blocks
+            .iter()
+            .max_by_key(|bb| bb.0)
+            .ok_or(Error::NoHealthyUrl)?
+            .0;
+
+        let best_blocks = best_blocks
+            .into_iter()
+            .filter(|bb| {
+                if max - bb.0 > 5 {
+                    log::warn!("excluding rpc url {} because it is too behind.", bb.1);
+                    return false;
+                }
+
+                true
+            })
+            .collect::<Vec<_>>();
+
+        let best_block = best_blocks
+            .iter()
+            .min_by_key(|bb| bb.0)
+            .ok_or(Error::NoHealthyUrl)?
+            .0;
+        let inner = best_blocks.into_iter().map(|bb| bb.1).collect();
+
+        Ok(Arc::new(UrlSet { best_block, inner }))
+    }
+
+    async fn healthy_url_set(self: Arc<Self>) -> Result<Arc<UrlSet>> {
+        self.retry
+            .retry(|| {
+                let client = self.clone();
+                async move { client.healthy_url_set_impl().await }
+            })
+            .await
+            .map_err(Error::Retry)
+    }
+
+    async fn send_impl<R: EthRequest>(&self, url: Url, req: R) -> Result<R::Resp> {
         let resp = self
             .http_client
-            .post(self.rpc_url.clone())
+            .post(url)
             .json(&req.to_body(1))
             .send()
             .await
@@ -86,17 +135,22 @@ impl EthClient {
         Ok(rpc_result)
     }
 
-    async fn send<R: EthRequest + Copy>(self: Arc<Self>, req: R) -> Result<R::Resp> {
+    async fn send<R: EthRequest + Copy>(
+        self: Arc<Self>,
+        url_set: Arc<UrlSet>,
+        req: R,
+    ) -> Result<R::Resp> {
         self.retry
             .retry(|| {
                 let client = self.clone();
-                async move { client.send_impl(req).await }
+                let url = url_set.get_random();
+                async move { client.send_impl(url, req).await }
             })
             .await
             .map_err(Error::Retry)
     }
 
-    async fn send_batch<R: EthRequest>(&self, requests: &[R]) -> Result<Vec<R::Resp>> {
+    async fn send_batch<R: EthRequest>(&self, url: Url, requests: &[R]) -> Result<Vec<R::Resp>> {
         let req_body = requests
             .iter()
             .enumerate()
@@ -106,7 +160,7 @@ impl EthClient {
 
         let resp = self
             .http_client
-            .post(self.rpc_url.clone())
+            .post(url)
             .json(&req_body)
             .send()
             .await
@@ -162,13 +216,16 @@ impl EthClient {
 
     async fn send_batches<R: EthRequest, B: AsRef<[R]>>(
         self: Arc<Self>,
+        url_set: Arc<UrlSet>,
         batches: &[B],
     ) -> Result<Vec<Vec<R::Resp>>> {
         let group = batches.iter().map(|batch| {
             let client = self.clone();
+            let url_set = url_set.clone();
             self.retry.retry(move || {
                 let client = client.clone();
-                async move { client.send_batch(batch.as_ref()).await }
+                let url = url_set.get_random();
+                async move { client.send_batch(url, batch.as_ref()).await }
             })
         });
         let group = futures::future::join_all(group).await;
@@ -177,20 +234,27 @@ impl EthClient {
 
     async fn send_concurrent<R: EthRequest + Copy>(
         self: Arc<Self>,
+        url_set: Arc<UrlSet>,
         reqs: &[R],
     ) -> Result<Vec<R::Resp>> {
         let group = reqs.iter().map(|&req| {
             let client = self.clone();
-            client.send(req)
+            client.send(url_set.clone(), req)
         });
         let group = futures::future::join_all(group).await;
         group.into_iter().collect()
     }
 
     pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
+        let url_set = self.healthy_url_set().await?;
+
+        Ok(url_set.best_block)
+    }
+
+    async fn get_best_block_url(&self, url: Url) -> Result<u32> {
         let offset = self.cfg.best_block_offset;
 
-        let num = self.clone().send(GetBestBlock {}).await?;
+        let num = self.send_impl(url, GetBestBlock {}).await?;
         let num = get_u32_from_hex(&num);
 
         self.metrics.record_chain_height(num);
@@ -216,29 +280,30 @@ impl EthClient {
                     _ => (),
                 }
 
-                let mut best_block = self.clone().get_best_block().await?;
-                let mut to_block = match to {
-                    Some(to_block) => cmp::min(to_block, best_block+1),
-                    None => best_block+1,
-                };
-
                 let concurrency = self.cfg.http_req_concurrency;
                 let batch_size = self.cfg.block_batch_size;
 
-                while block_num > best_block {
-                    tokio::time::sleep(Duration::from_secs(10)).await;
-                    best_block = self.clone().get_best_block().await?;
-                    to_block = match to {
+                let (url_set, to_block) = loop {
+                    let url_set = self.clone().healthy_url_set().await?;
+
+                    let best_block = url_set.best_block;
+                    let to_block = match to {
                         Some(to_block) => cmp::min(to_block, best_block+1),
                         None => best_block+1,
                     };
-                }
 
-                if block_num + batch_size > best_block {
+                    if block_num < to_block {
+                        break (url_set, to_block);
+                    } else {
+                        tokio::time::sleep(Duration::from_secs(10)).await;
+                    }
+                };
+
+                if block_num + batch_size >= to_block {
                     let start_time = Instant::now();
 
-                    let block = self.clone().send(GetBlockByNumber { block_number: block_num }).await?;
-                    let logs = self.clone().send(GetLogs {
+                    let block = self.clone().send(url_set.clone(), GetBlockByNumber { block_number: block_num }).await?;
+                    let logs = self.clone().send(url_set, GetLogs {
                         from_block: block_num,
                         to_block: block_num,
                     }).await?;
@@ -305,11 +370,11 @@ impl EthClient {
 
                 let block_batches = self
                     .clone()
-                    .send_batches(&block_batches)
+                    .send_batches(url_set.clone(), &block_batches)
                     .await?;
                 let log_batches = self
                     .clone()
-                    .send_concurrent(&log_batches)
+                    .send_concurrent(url_set, &log_batches)
                     .await?;
 
                 if ended_block > 0 {

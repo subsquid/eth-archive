@@ -1412,6 +1412,7 @@ dependencies = [
  "log",
  "prefix-hex",
  "prometheus-client",
+ "rand 0.8.5",
  "rayon",
  "reqwest",
  "serde",
