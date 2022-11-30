@@ -16,6 +16,7 @@ use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_sync;
 use eth_archive_core::types::BlockRange;
+use futures::channel::mpsc;
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use futures::SinkExt;
@@ -26,7 +27,6 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
-use futures::channel::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
@@ -105,13 +105,11 @@ impl Ingester {
         let writer_thread = tokio::spawn(async move {
             let config = config;
             let ingest_metrics = ingest_metrics;
-            
+
             let stream = receiver.map(|data| {
                 let config = config.clone();
                 let ingest_metrics = ingest_metrics.clone();
-                async move {
-                    data.write_parquet_folder(&config, &ingest_metrics).await
-                }
+                async move { data.write_parquet_folder(&config, &ingest_metrics).await }
             });
 
             let mut stream = stream.buffer_unordered(write_concurrency);
@@ -119,7 +117,8 @@ impl Ingester {
             while let Some(res) = stream.next().await {
                 if let Err(e) = res {
                     log::error!(
-                        "failed to write parquet folder. quitting writer thread:\n{}", e
+                        "failed to write parquet folder. quitting writer thread:\n{}",
+                        e
                     );
                     break;
                 }
@@ -188,7 +187,7 @@ impl Ingester {
             max = cmp::max(max, b.range.to);
 
             if a.range.to != b.range.from {
-                return Err(Error::FolderRangeMismatch(a.range.to, b.range.from));
+                return Ok(a.range.to);
             }
         }
 
