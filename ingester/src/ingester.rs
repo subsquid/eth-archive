@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
+use futures::channel::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
@@ -96,19 +96,30 @@ impl Ingester {
 
         let mut data = Data::default();
 
-        let (sender, mut receiver): (mpsc::Sender<Data>, _) =
+        let (mut sender, receiver): (mpsc::Sender<Data>, _) =
             mpsc::channel(self.cfg.max_pending_folder_writes);
 
         let config = self.cfg.clone();
         let ingest_metrics = self.metrics.clone();
+        let write_concurrency = self.cfg.folder_write_concurrency;
         let writer_thread = tokio::spawn(async move {
             let config = config;
             let ingest_metrics = ingest_metrics;
-            while let Some(data) = receiver.recv().await {
-                if let Err(e) = data.write_parquet_folder(&config, &ingest_metrics).await {
+            
+            let stream = receiver.map(|data| {
+                let config = config.clone();
+                let ingest_metrics = ingest_metrics.clone();
+                async move {
+                    data.write_parquet_folder(&config, &ingest_metrics).await
+                }
+            });
+
+            let mut stream = stream.buffer_unordered(write_concurrency);
+
+            while let Some(res) = stream.next().await {
+                if let Err(e) = res {
                     log::error!(
-                        "failed to write parquet folder:\n{}\n quitting writer thread.",
-                        e
+                        "failed to write parquet folder. quitting writer thread:\n{}", e
                     );
                     break;
                 }
