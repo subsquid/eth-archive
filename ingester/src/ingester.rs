@@ -27,6 +27,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
+use futures::channel::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
@@ -105,7 +106,6 @@ impl Ingester {
         let writer_thread = tokio::spawn(async move {
             let config = config;
             let ingest_metrics = ingest_metrics;
-
             let stream = receiver.map(|data| {
                 let config = config.clone();
                 let ingest_metrics = ingest_metrics.clone();
