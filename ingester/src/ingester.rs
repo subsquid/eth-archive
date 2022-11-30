@@ -27,7 +27,6 @@ use std::time::{Duration, Instant};
 use std::{cmp, mem};
 use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
-use futures::channel::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
