@@ -119,7 +119,7 @@ impl BlockFieldSelection {
             gas_used: prune_col!(block, self, gas_used),
             timestamp: prune_col!(block, self, timestamp),
             extra_data: prune_col!(block, self, extra_data),
-            mix_hash: prune_col!(block, self, mix_hash),
+            mix_hash: prune_col!(block, self, mix_hash).flatten(),
             nonce: prune_col!(block, self, nonce).flatten(),
             total_difficulty: prune_col!(block, self, total_difficulty).flatten(),
             base_fee_per_gas: prune_col!(block, self, base_fee_per_gas).flatten(),

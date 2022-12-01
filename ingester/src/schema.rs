@@ -30,7 +30,7 @@ pub fn block_schema() -> Schema {
         Field::new("gas_used", DataType::Binary, false),
         Field::new("timestamp", DataType::Int64, false),
         Field::new("extra_data", DataType::Binary, false),
-        Field::new("mix_hash", DataType::Binary, false),
+        Field::new("mix_hash", DataType::Binary, true),
         Field::new("nonce", DataType::UInt64, true),
         Field::new("total_difficulty", DataType::Binary, true),
         Field::new("base_fee_per_gas", DataType::Binary, true),
@@ -171,7 +171,7 @@ impl Blocks {
         self.gas_used.push(Some(elem.gas_used.0));
         self.timestamp.push(Some(elem.timestamp.0));
         self.extra_data.push(Some(elem.extra_data.0));
-        self.mix_hash.push(Some(elem.mix_hash.to_vec()));
+        self.mix_hash.push(elem.mix_hash.map(|n| n.to_vec()));
         self.nonce.push(elem.nonce.map(|n| n.0));
         self.total_difficulty
             .push(elem.total_difficulty.map(|n| n.to_vec()));
