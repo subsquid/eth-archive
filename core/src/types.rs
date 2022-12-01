@@ -18,7 +18,7 @@ pub struct Block {
     pub gas_used: Bytes,
     pub timestamp: BigInt,
     pub extra_data: Bytes,
-    pub mix_hash: Bytes32,
+    pub mix_hash: Option<Bytes32>,
     pub nonce: Option<Nonce>,
     pub total_difficulty: Option<Bytes>,
     pub base_fee_per_gas: Option<Bytes>,
