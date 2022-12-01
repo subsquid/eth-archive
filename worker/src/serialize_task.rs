@@ -16,12 +16,7 @@ pub struct SerializeTask {
 }
 
 impl SerializeTask {
-    pub fn new(
-        from_block: u32,
-        size_limit: usize,
-        time_limit: u128,
-        archive_height: Option<u32>,
-    ) -> Self {
+    pub fn new(from_block: u32, size_limit: usize, archive_height: Option<u32>) -> Self {
         let (tx, mut rx): (Sender, _) = mpsc::channel(1);
 
         // convert size limit to bytes from megabytes
@@ -54,7 +49,7 @@ impl SerializeTask {
 
                 is_first = false;
 
-                if bytes.len() >= size_limit || query_start.elapsed().as_millis() >= time_limit {
+                if bytes.len() >= size_limit {
                     break;
                 }
             }
