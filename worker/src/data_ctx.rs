@@ -160,9 +160,10 @@ impl DataCtx {
         let serialize_task = SerializeTask::new(
             query.from_block,
             self.config.max_resp_body_size,
-            self.config.resp_time_limit,
             inclusive_height,
         );
+
+        let query_start = Instant::now();
 
         let query_task = rayon_async::spawn(move || {
             if query.from_block >= height {
@@ -180,6 +181,10 @@ impl DataCtx {
                     VecDeque::with_capacity(concurrency);
 
                 for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
+                    if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
+                        return Ok(serialize_task);
+                    }
+
                     let (dir_name, parquet_idx) = res?;
 
                     let logs = query
@@ -309,6 +314,10 @@ impl DataCtx {
 
                 let step = usize::try_from(self.config.db_query_batch_size).unwrap();
                 for start in (from_block..to_block).step_by(step) {
+                    if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
+                        return Ok(serialize_task);
+                    }
+
                     let end = cmp::min(to_block, start + self.config.db_query_batch_size);
 
                     let mini_query = MiniQuery {
