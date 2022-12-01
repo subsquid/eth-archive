@@ -18,6 +18,7 @@ use eth_archive_core::types::{
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use polars::prelude::*;
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -173,6 +174,11 @@ impl DataCtx {
             let field_selection = query.field_selection()?;
 
             if query.from_block < parquet_height {
+                let concurrency = self.config.query_concurrency.get();
+
+                let mut jobs: VecDeque<crossbeam_channel::Receiver<_>> =
+                    VecDeque::with_capacity(concurrency);
+
                 for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
                     let (dir_name, parquet_idx) = res?;
 
@@ -257,11 +263,35 @@ impl DataCtx {
                         to: to_block,
                     };
 
-                    if serialize_task.is_closed() {
-                        return Ok(serialize_task);
+                    if jobs.len() == concurrency {
+                        let job = jobs.pop_front().unwrap();
+
+                        let (res, block_range) = job.recv().unwrap();
+
+                        let res = res?;
+
+                        if !serialize_task.send((res, block_range)) {
+                            return Ok(serialize_task);
+                        }
                     }
 
-                    let res = self.query_parquet(dir_name, mini_query)?;
+                    let (tx, rx) = crossbeam_channel::bounded(1);
+
+                    rayon::spawn({
+                        let ctx = self.clone();
+                        move || {
+                            tx.send((ctx.query_parquet(dir_name, mini_query), block_range))
+                                .unwrap();
+                        }
+                    });
+
+                    jobs.push_back(rx);
+                }
+
+                while let Some(job) = jobs.pop_front() {
+                    let (res, block_range) = job.recv().unwrap();
+
+                    let res = res?;
 
                     if !serialize_task.send((res, block_range)) {
                         return Ok(serialize_task);

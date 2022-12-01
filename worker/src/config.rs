@@ -1,6 +1,7 @@
 use clap::Parser;
 use eth_archive_core::config::{IngestConfig, RetryConfig, S3Config};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -25,6 +26,8 @@ pub struct Config {
     /// Response body might be bigger than this amount of MBs.
     #[clap(long)]
     pub max_resp_body_size: usize,
+    #[clap(long, default_value_t = NonZeroUsize::new(1).unwrap())]
+    pub query_concurrency: NonZeroUsize,
     /// Response time limit in milliseconds.
     /// The query will stop and found data will be returned
     /// if the request takes more than this amount of time to handle.

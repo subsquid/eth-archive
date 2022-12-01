@@ -1459,6 +1459,7 @@ dependencies = [
  "arrayvec",
  "bytes",
  "clap",
+ "crossbeam-channel",
  "env_logger",
  "eth-archive-core",
  "futures",
