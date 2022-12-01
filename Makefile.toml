@@ -35,6 +35,7 @@ args = [
 	"--initial-hot-block-range", "10000",
 	"--max-resp-body-size", "30",
 	"--resp-time-limit", "5000",
+	"--query-concurrency", "4",
 ]
 
 [tasks.ingester-s3]
