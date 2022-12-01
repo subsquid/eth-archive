@@ -281,7 +281,7 @@ impl DataCtx {
                         let ctx = self.clone();
                         move || {
                             tx.send((ctx.query_parquet(dir_name, mini_query), block_range))
-                                .unwrap();
+                                .ok();
                         }
                     });
 
