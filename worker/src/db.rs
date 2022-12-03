@@ -57,8 +57,6 @@ impl DbHandle {
             let inner =
                 rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
 
-            Self::compact(&inner);
-
             let status = Self::get_status(&inner)?;
 
             Ok((inner, status))
@@ -516,13 +514,17 @@ impl DbHandle {
         })
     }
 
-    fn compact(inner: &rocksdb::DB) {
+    pub fn compact(&self) {
         let start = Instant::now();
 
         log::info!("starting compaction...");
 
         let compact = |name| {
-            inner.compact_range_cf(inner.cf_handle(name).unwrap(), None::<&[u8]>, None::<&[u8]>);
+            self.inner.compact_range_cf(
+                self.inner.cf_handle(name).unwrap(),
+                None::<&[u8]>,
+                None::<&[u8]>,
+            );
         };
 
         compact(cf_name::BLOCK);
