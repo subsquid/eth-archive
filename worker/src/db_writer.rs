@@ -102,10 +102,7 @@ impl DbWriter {
 
         db.insert_parquet_idx(dir_name, &parquet_idx)?;
 
-        let height = db.height();
-        if height > dir_name.range.to {
-            db.delete_up_to(height - dir_name.range.to)?;
-        }
+        db.delete_up_to(dir_name.range.to)?;
 
         Ok(())
     }
