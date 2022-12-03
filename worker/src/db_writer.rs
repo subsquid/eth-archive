@@ -22,6 +22,8 @@ impl DbWriter {
         let data_path = data_path.to_owned();
 
         std::thread::spawn(move || {
+            db.compact();
+
             while let Some(job) = rx.blocking_recv() {
                 loop {
                     let res = match job.clone() {
