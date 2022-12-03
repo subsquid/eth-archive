@@ -42,6 +42,7 @@ impl DataCtx {
             .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
+        // this task is responsible for downloading tip data from rpc node
         tokio::spawn({
             let db_writer = db_writer.clone();
             let db_height = db.db_height();
@@ -68,9 +69,11 @@ impl DataCtx {
             }
         });
 
+        // this taks check and registers new parquet files to database
         tokio::spawn({
             let start = db.parquet_height();
             let data_path = config.data_path.clone();
+            let db_writer = db_writer.clone();
 
             async move {
                 if let Err(e) = tokio::fs::create_dir_all(&data_path).await {
@@ -99,6 +102,14 @@ impl DataCtx {
 
                     tokio::time::sleep(Duration::from_secs(5)).await;
                 }
+            }
+        });
+
+        // this task runs periodical compactions on the database
+        tokio::spawn(async move {
+            loop {
+                db_writer.run_compaction().await;
+                tokio::time::sleep(Duration::from_secs(config.db_compaction_interval)).await;
             }
         });
 

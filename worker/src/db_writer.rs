@@ -22,14 +22,16 @@ impl DbWriter {
         let data_path = data_path.to_owned();
 
         std::thread::spawn(move || {
-            db.compact();
-
             while let Some(job) = rx.blocking_recv() {
                 loop {
                     let res = match job.clone() {
                         Job::WriteBatches(batches) => db.insert_batches(batches),
                         Job::RegisterParquetFolder(dir_name) => {
                             Self::handle_register_parquet_folder(&db, &data_path, dir_name)
+                        }
+                        Job::RunCompaction => {
+                            db.compact();
+                            break;
                         }
                     };
 
@@ -57,6 +59,10 @@ impl DbWriter {
             .await
             .ok()
             .unwrap();
+    }
+
+    pub async fn run_compaction(&self) {
+        self.tx.send(Job::RunCompaction).await.ok().unwrap();
     }
 
     #[allow(clippy::manual_flatten)]
@@ -114,6 +120,7 @@ impl DbWriter {
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
+    RunCompaction,
 }
 
 fn bloom_filter_from_frame(data_frame: DataFrame) -> Bloom {
