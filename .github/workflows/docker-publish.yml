@@ -2,7 +2,7 @@ name: docker-publish
 on:
   workflow_dispatch:
 env:
-  tag: 0.0.34
+  tag: 0.0.35
  
 jobs:
   publish:

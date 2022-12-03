@@ -57,6 +57,8 @@ impl DbHandle {
             let inner =
                 rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
 
+            Self::compact(&inner);
+
             let status = Self::get_status(&inner)?;
 
             Ok((inner, status))
@@ -413,7 +415,7 @@ impl DbHandle {
         let db_height = self.status.db_height.load(Ordering::Relaxed);
 
         if to >= db_height {
-            panic!("invalid 'to' argument passed to delete_up_to: {}", to);
+            return Ok(());
         }
 
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
@@ -422,21 +424,37 @@ impl DbHandle {
         let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
 
         let db_tail = self.status.db_tail.load(Ordering::Relaxed);
-        for block_num in db_tail..to {
+
+        for start in (db_tail..to).step_by(500) {
+            let end = cmp::min(to, start + 500);
+
             let mut batch = rocksdb::WriteBatch::default();
 
-            let from = block_num.to_be_bytes();
-            let to = (block_num + 1).to_be_bytes();
+            let mut delete_range = |cf| {
+                for res in self.inner.iterator_cf(
+                    cf,
+                    rocksdb::IteratorMode::From(&start.to_be_bytes(), rocksdb::Direction::Forward),
+                ) {
+                    let (key, _) = res.map_err(Error::Db)?;
 
-            batch.delete_cf(block_cf, from);
+                    if key.as_ref() >= end.to_be_bytes().as_slice() {
+                        break;
+                    }
 
-            batch.delete_range_cf(tx_cf, &from, &to);
-            batch.delete_range_cf(log_cf, &from, &to);
-            batch.delete_range_cf(log_tx_cf, &from, &to);
+                    batch.delete_cf(cf, key);
+                }
+
+                Ok(())
+            };
+
+            delete_range(block_cf)?;
+            delete_range(tx_cf)?;
+            delete_range(log_cf)?;
+            delete_range(log_tx_cf)?;
 
             self.inner.write(batch).map_err(Error::Db)?;
 
-            self.status.db_tail.store(block_num + 1, Ordering::Relaxed);
+            self.status.db_tail.store(end, Ordering::Relaxed);
         }
 
         Ok(())
@@ -496,6 +514,24 @@ impl DbHandle {
             db_tail: AtomicU32::new(db_tail),
             db_height: AtomicU32::new(db_height),
         })
+    }
+
+    fn compact(inner: &rocksdb::DB) {
+        let start = Instant::now();
+
+        log::info!("starting compaction...");
+
+        let compact = |name| {
+            inner.compact_range_cf(inner.cf_handle(name).unwrap(), None::<&[u8]>, None::<&[u8]>);
+        };
+
+        compact(cf_name::BLOCK);
+        compact(cf_name::TX);
+        compact(cf_name::LOG);
+        compact(cf_name::LOG_TX);
+        compact(cf_name::PARQUET_IDX);
+
+        log::info!("finished compaction in {}ms", start.elapsed().as_millis());
     }
 }
 
