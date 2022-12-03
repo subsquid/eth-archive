@@ -415,7 +415,7 @@ impl DbHandle {
         let db_height = self.status.db_height.load(Ordering::Relaxed);
 
         if to >= db_height {
-            panic!("invalid 'to' argument passed to delete_up_to: {}", to);
+            return Ok(());
         }
 
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
