@@ -39,6 +39,9 @@ pub struct Config {
     pub db_query_batch_size: u32,
     #[command(flatten)]
     pub s3: S3Config,
+    #[clap(long, default_value_t = 1800)]
+    /// Period in seconds to run manual compaction on the database
+    pub db_compaction_interval: u64,
 }
 
 fn default_server_addr() -> SocketAddr {
