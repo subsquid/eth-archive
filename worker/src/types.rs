@@ -2,7 +2,7 @@ use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Sighash};
-use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
+use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -37,10 +37,10 @@ impl MiniQuery {
             .any(|selection| selection.matches_addr(addr))
     }
 
-    pub fn matches_log_topics(&self, topics: &[Bytes32]) -> bool {
-        self.logs
-            .iter()
-            .any(|selection| selection.matches_topics(topics))
+    pub fn matches_log(&self, log: &Log) -> bool {
+        self.logs.iter().any(|selection| {
+            selection.matches_addr(&log.address) && selection.matches_topics(&log.topics)
+        })
     }
 
     pub fn matches_tx_dest(&self, dest: &Option<Address>) -> bool {
@@ -49,10 +49,10 @@ impl MiniQuery {
             .any(|selection| selection.matches_dest(dest))
     }
 
-    pub fn matches_tx_sighash(&self, input: &Bytes) -> bool {
-        self.transactions
-            .iter()
-            .any(|selection| selection.matches_sighash(input))
+    pub fn matches_tx(&self, tx: &Transaction) -> bool {
+        self.transactions.iter().any(|selection| {
+            selection.matches_dest(&tx.dest) && selection.matches_sighash(&tx.input)
+        })
     }
 }
 
