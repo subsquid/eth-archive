@@ -170,7 +170,7 @@ impl DbHandle {
 
             let log: Log = rmp_serde::decode::from_slice(&log).unwrap();
 
-            if !query.matches_log_topics(&log.topics) {
+            if !query.matches_log(&log) {
                 continue;
             }
 
@@ -265,7 +265,7 @@ impl DbHandle {
 
             let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
 
-            if !query.matches_tx_sighash(&tx.input) {
+            if !query.matches_tx(&tx) {
                 continue;
             }
 
