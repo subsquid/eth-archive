@@ -15,6 +15,7 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
+      - run: apt-get -y install build-essential llvm clang cmake liburing liburing-dev curl pkg-config
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -29,6 +30,7 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
+      - run: apt-get -y install build-essential llvm clang cmake liburing liburing-dev curl pkg-config
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -45,6 +47,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
+      - run: apt-get -y install build-essential llvm clang cmake liburing liburing-dev curl pkg-config
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
