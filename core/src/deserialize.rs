@@ -230,10 +230,12 @@ impl<'de> Visitor<'de> for NonceVisitor {
     where
         E: de::Error,
     {
-        let without_prefix = value.trim_start_matches("0x");
-        let val = u64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
+        let value = match value.strip_prefix("0x") {
+            Some(value) => u64::from_str_radix(value, 16).map_err(|e| E::custom(e.to_string()))?,
+            None => value.parse::<u64>().map_err(|e| E::custom(e.to_string()))?,
+        };
 
-        Ok(Nonce(val))
+        Ok(Nonce(value))
     }
 }
 
@@ -351,10 +353,12 @@ impl<'de> Visitor<'de> for BigIntVisitor {
     where
         E: de::Error,
     {
-        let without_prefix = value.trim_start_matches("0x");
-        let val = i64::from_str_radix(without_prefix, 16).map_err(|e| E::custom(e.to_string()))?;
+        let value = match value.strip_prefix("0x") {
+            Some(value) => i64::from_str_radix(value, 16).map_err(|e| E::custom(e.to_string()))?,
+            None => value.parse::<i64>().map_err(|e| E::custom(e.to_string()))?,
+        };
 
-        Ok(BigInt(val))
+        Ok(BigInt(value))
     }
 }
 

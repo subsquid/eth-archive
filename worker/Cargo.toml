@@ -32,4 +32,4 @@ features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 [dependencies.rocksdb]
 version = "0.19"
 default-features = false
-features = ["lz4", "jemalloc", "io-uring"]
+features = ["lz4", "jemalloc"]
