@@ -2089,7 +2089,6 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
- "pkg-config",
  "tikv-jemalloc-sys",
 ]
 
