@@ -7,6 +7,27 @@ use std::fmt;
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct Address(pub Box<[u8; 20]>);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+pub struct Sighash(pub Box<[u8; 4]>);
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+pub struct Nonce(pub u64);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+pub struct BloomFilterBytes(pub Box<[u8; 256]>);
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+pub struct BigInt(pub i64);
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+pub struct Index(pub u32);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+pub struct Bytes(pub Vec<u8>);
+
 impl Bytes32 {
     pub fn new(bytes: &[u8]) -> Self {
         match bytes.try_into() {
@@ -24,9 +45,6 @@ impl ToHexPrefixed for &Bytes32 {
         ToHexPrefixed::to_hex_prefixed(*self.0)
     }
 }
-
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
-pub struct Address(pub Box<[u8; 20]>);
 
 impl Address {
     pub fn new(bytes: &[u8]) -> Self {
@@ -46,9 +64,6 @@ impl ToHexPrefixed for &Address {
     }
 }
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct Sighash(pub Box<[u8; 4]>);
-
 impl Sighash {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
@@ -61,17 +76,11 @@ impl ToHexPrefixed for &Sighash {
     }
 }
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct Nonce(pub u64);
-
 impl Nonce {
     pub fn new(bytes: &[u8]) -> Self {
         Self(u64::from_be_bytes(bytes.try_into().unwrap()))
     }
 }
-
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
 impl BloomFilterBytes {
     pub fn new(bytes: &[u8]) -> Self {
@@ -79,20 +88,11 @@ impl BloomFilterBytes {
     }
 }
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct BigInt(pub i64);
-
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct Index(pub u32);
-
 impl Index {
     pub fn new(val: i64) -> Self {
         Self(val.try_into().unwrap())
     }
 }
-
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct Bytes(pub Vec<u8>);
 
 impl Bytes {
     pub fn new(bytes: &[u8]) -> Self {
