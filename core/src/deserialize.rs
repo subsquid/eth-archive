@@ -466,5 +466,34 @@ mod tests {
         "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31"
     );
 
-    
+    impl_bytes_test!(
+        test_address,
+        Address,
+        "0xe65ef515adc3fd724c326adf8212b4284fd10137"
+    );
+
+    impl_bytes_test!(test_sighash, Sighash, "0xfb0f3ee1");
+
+    impl_bytes_test!(
+        test_bloomfilter_bytes,
+        BloomFilterBytes,
+        "0x5f3bd75b5dafa6b1dbbbfeff9d1d9ef7b1dbf7ddf95ed1bebff92c\
+        fdf4bffb9370ff5572dedbcf7d57983f9be3bdc9be263ee6ec7b23bbdc\
+        7f77fd7fffeef4bbacffebe47dd3bd7febdeaecffffccdf92fcf7ffbbd\
+        6eb8e93ee6ff7feae4edb79f3d7feafbdfd7e7ffdfddeeb76cbbdbfe3fd\
+        73ede3cffdefb2feffff96ae1e6eb3aa9a657fe1733fcf947bbf5d7f4d6\
+        752eb5b7fbb0df9f1fffff526a1c7de39fdc677ffee9f9bf6eb3f7cbcb5\
+        f4ece7e3fdb59f956ef83f7e77ea79b997f6c5feded6f5f8defffbf2b7f3\
+        7fdceb7bc9fedbbdfd53f7dfd3dafff6ff8db6efb5fff7b6fde7b7fe9572\
+        fdfe8e6df5cd6bdeff66af9de87efce1dd9bff7b777e5"
+    );
+
+    impl_bytes_test!(test_bytes_empty, Bytes, "0x");
+
+    impl_bytes_test!(
+        test_bytes,
+        Bytes,
+        "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9\
+        352c97c6cacdcb6f31e65ef515adc3fd724c326adf8212b4284fd10137"
+    );
 }
