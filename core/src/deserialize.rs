@@ -460,6 +460,26 @@ mod tests {
         };
     }
 
+    macro_rules! impl_int_test {
+        ($fn_name:ident, $kind:ident, $val:expr, $int_kind:ident) => {
+            #[test]
+            fn $fn_name() {
+                let data = $val;
+                let val: $kind =
+                    serde_json::from_value(JsonValue::String(data.to_owned())).unwrap();
+                let real_val =
+                    $int_kind::from_str_radix(data.strip_prefix("0x").unwrap(), 16).unwrap();
+
+                assert_eq!(val.0, real_val);
+
+                let serialized_data = serde_json::to_string(&val).unwrap();
+                let deserialized_val: $kind = serde_json::from_str(&serialized_data).unwrap();
+
+                assert_eq!(val, deserialized_val);
+            }
+        };
+    }
+
     impl_bytes_test!(
         test_bytes32,
         Bytes32,
@@ -496,4 +516,10 @@ mod tests {
         "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9\
         352c97c6cacdcb6f31e65ef515adc3fd724c326adf8212b4284fd10137"
     );
+
+    impl_int_test!(test_index, Index, "0xF64B41", u32);
+
+    impl_int_test!(test_bigint, BigInt, "0xF64B41", i64);
+
+    impl_int_test!(test_nonce, Nonce, "0xF64B41", u64);
 }
