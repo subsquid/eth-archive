@@ -10,22 +10,22 @@ pub struct Bytes32(pub Box<[u8; 32]>);
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Address(pub Box<[u8; 20]>);
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Sighash(pub Box<[u8; 4]>);
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Nonce(pub u64);
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct BigInt(pub i64);
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Index(pub u32);
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes(pub Vec<u8>);
 
 impl Bytes32 {
@@ -434,4 +434,37 @@ impl Serialize for Index {
     {
         serializer.serialize_u32(self.0)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value as JsonValue;
+
+    macro_rules! impl_bytes_test {
+        ($fn_name:ident, $kind:ident, $val:expr) => {
+            #[test]
+            fn $fn_name() {
+                let data = $val;
+                let bytes: $kind =
+                    serde_json::from_value(JsonValue::String(data.to_owned())).unwrap();
+                let real_bytes: Vec<u8> = prefix_hex::decode(data).unwrap();
+
+                assert_eq!(bytes.0.as_slice(), real_bytes.as_slice());
+
+                let serialized_data = serde_json::to_string(&bytes).unwrap();
+                let deserialized_bytes: $kind = serde_json::from_str(&serialized_data).unwrap();
+
+                assert_eq!(bytes, deserialized_bytes);
+            }
+        };
+    }
+
+    impl_bytes_test!(
+        test_bytes32,
+        Bytes32,
+        "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31"
+    );
+
+    
 }
