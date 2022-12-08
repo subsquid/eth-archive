@@ -7,6 +7,27 @@ use std::fmt;
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct Address(pub Box<[u8; 20]>);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct Sighash(pub Box<[u8; 4]>);
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct Nonce(pub u64);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct BloomFilterBytes(pub Box<[u8; 256]>);
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct BigInt(pub i64);
+
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct Index(pub u32);
+
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct Bytes(pub Vec<u8>);
+
 impl Bytes32 {
     pub fn new(bytes: &[u8]) -> Self {
         match bytes.try_into() {
@@ -24,9 +45,6 @@ impl ToHexPrefixed for &Bytes32 {
         ToHexPrefixed::to_hex_prefixed(*self.0)
     }
 }
-
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
-pub struct Address(pub Box<[u8; 20]>);
 
 impl Address {
     pub fn new(bytes: &[u8]) -> Self {
@@ -46,9 +64,6 @@ impl ToHexPrefixed for &Address {
     }
 }
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct Sighash(pub Box<[u8; 4]>);
-
 impl Sighash {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
@@ -61,17 +76,11 @@ impl ToHexPrefixed for &Sighash {
     }
 }
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct Nonce(pub u64);
-
 impl Nonce {
     pub fn new(bytes: &[u8]) -> Self {
         Self(u64::from_be_bytes(bytes.try_into().unwrap()))
     }
 }
-
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
 impl BloomFilterBytes {
     pub fn new(bytes: &[u8]) -> Self {
@@ -79,20 +88,11 @@ impl BloomFilterBytes {
     }
 }
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct BigInt(pub i64);
-
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From)]
-pub struct Index(pub u32);
-
 impl Index {
     pub fn new(val: i64) -> Self {
         Self(val.try_into().unwrap())
     }
 }
-
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From)]
-pub struct Bytes(pub Vec<u8>);
 
 impl Bytes {
     pub fn new(bytes: &[u8]) -> Self {
@@ -434,4 +434,92 @@ impl Serialize for Index {
     {
         serializer.serialize_u32(self.0)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value as JsonValue;
+
+    macro_rules! impl_bytes_test {
+        ($fn_name:ident, $kind:ident, $val:expr) => {
+            #[test]
+            fn $fn_name() {
+                let data = $val;
+                let bytes: $kind =
+                    serde_json::from_value(JsonValue::String(data.to_owned())).unwrap();
+                let real_bytes: Vec<u8> = prefix_hex::decode(data).unwrap();
+
+                assert_eq!(bytes.0.as_slice(), real_bytes.as_slice());
+
+                let serialized_data = serde_json::to_string(&bytes).unwrap();
+                let deserialized_bytes: $kind = serde_json::from_str(&serialized_data).unwrap();
+
+                assert_eq!(bytes, deserialized_bytes);
+            }
+        };
+    }
+
+    macro_rules! impl_int_test {
+        ($fn_name:ident, $kind:ident, $val:expr, $int_kind:ident) => {
+            #[test]
+            fn $fn_name() {
+                let data = $val;
+                let val: $kind =
+                    serde_json::from_value(JsonValue::String(data.to_owned())).unwrap();
+                let real_val =
+                    $int_kind::from_str_radix(data.strip_prefix("0x").unwrap(), 16).unwrap();
+
+                assert_eq!(val.0, real_val);
+
+                let serialized_data = serde_json::to_string(&val).unwrap();
+                let deserialized_val: $kind = serde_json::from_str(&serialized_data).unwrap();
+
+                assert_eq!(val, deserialized_val);
+            }
+        };
+    }
+
+    impl_bytes_test!(
+        test_bytes32,
+        Bytes32,
+        "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31"
+    );
+
+    impl_bytes_test!(
+        test_address,
+        Address,
+        "0xe65ef515adc3fd724c326adf8212b4284fd10137"
+    );
+
+    impl_bytes_test!(test_sighash, Sighash, "0xfb0f3ee1");
+
+    impl_bytes_test!(
+        test_bloomfilter_bytes,
+        BloomFilterBytes,
+        "0x5f3bd75b5dafa6b1dbbbfeff9d1d9ef7b1dbf7ddf95ed1bebff92c\
+        fdf4bffb9370ff5572dedbcf7d57983f9be3bdc9be263ee6ec7b23bbdc\
+        7f77fd7fffeef4bbacffebe47dd3bd7febdeaecffffccdf92fcf7ffbbd\
+        6eb8e93ee6ff7feae4edb79f3d7feafbdfd7e7ffdfddeeb76cbbdbfe3fd\
+        73ede3cffdefb2feffff96ae1e6eb3aa9a657fe1733fcf947bbf5d7f4d6\
+        752eb5b7fbb0df9f1fffff526a1c7de39fdc677ffee9f9bf6eb3f7cbcb5\
+        f4ece7e3fdb59f956ef83f7e77ea79b997f6c5feded6f5f8defffbf2b7f3\
+        7fdceb7bc9fedbbdfd53f7dfd3dafff6ff8db6efb5fff7b6fde7b7fe9572\
+        fdfe8e6df5cd6bdeff66af9de87efce1dd9bff7b777e5"
+    );
+
+    impl_bytes_test!(test_bytes_empty, Bytes, "0x");
+
+    impl_bytes_test!(
+        test_bytes,
+        Bytes,
+        "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9\
+        352c97c6cacdcb6f31e65ef515adc3fd724c326adf8212b4284fd10137"
+    );
+
+    impl_int_test!(test_index, Index, "0xF64B41", u32);
+
+    impl_int_test!(test_bigint, BigInt, "0xF64B41", i64);
+
+    impl_int_test!(test_nonce, Nonce, "0xF64B41", u64);
 }
