@@ -10,7 +10,7 @@ serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 log = "0.4.17"
-env_logger = "0.9"
+env_logger = "0.10"
 clap = { version = "4", features = ["derive"] }
 prefix-hex = "0.5"
 rayon = "1"
