@@ -1398,6 +1398,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1451,7 +1464,7 @@ dependencies = [
  "actix-web",
  "arrow2",
  "clap",
- "env_logger",
+ "env_logger 0.10.0",
  "eth-archive-core",
  "futures",
  "itertools",
@@ -1481,7 +1494,7 @@ dependencies = [
  "bytes",
  "clap",
  "crossbeam-channel",
- "env_logger",
+ "env_logger 0.10.0",
  "eth-archive-core",
  "futures",
  "itertools",
@@ -3537,7 +3550,7 @@ version = "1.14.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48ec3aec81a83a876c68b6225d7eaf465b97e2d88ff33b2426e77ba08eded7ce"
 dependencies = [
- "env_logger",
+ "env_logger 0.9.3",
  "lazy_static",
  "log",
 ]
