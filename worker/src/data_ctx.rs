@@ -183,7 +183,7 @@ impl DataCtx {
 
             let parquet_height = self.db.parquet_height();
 
-            let field_selection = query.field_selection()?;
+            let field_selection = query.field_selection();
 
             if query.from_block < parquet_height {
                 let concurrency = self.config.query_concurrency.get();
@@ -403,7 +403,7 @@ impl DataCtx {
             let mut expr: Option<Expr> = None;
 
             for log in &query.logs {
-                if let Some(inner_expr) = log.to_expr()? {
+                if let Some(inner_expr) = log.to_expr() {
                     expr = match expr {
                         Some(expr) => Some(expr.or(inner_expr)),
                         None => Some(inner_expr),
@@ -463,7 +463,7 @@ impl DataCtx {
             let mut expr: Option<Expr> = None;
 
             for tx in &query.transactions {
-                if let Some(inner_expr) = tx.to_expr()? {
+                if let Some(inner_expr) = tx.to_expr() {
                     expr = match expr {
                         Some(expr) => Some(expr.or(inner_expr)),
                         None => Some(inner_expr),
@@ -533,9 +533,9 @@ impl DataCtx {
             LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
-        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let transactions = transactions.select(field_selection.transaction.unwrap().to_cols());
-        let logs = logs.select(field_selection.log.unwrap().to_cols());
+        let blocks = blocks.select(field_selection.block.to_cols());
+        let transactions = transactions.select(field_selection.transaction.to_cols());
+        let logs = logs.select(field_selection.log.to_cols());
 
         let lazy_frame = logs
             .join(
@@ -576,8 +576,8 @@ impl DataCtx {
             LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
         };
 
-        let blocks = blocks.select(field_selection.block.unwrap().to_cols());
-        let mut transaction_cols = field_selection.transaction.unwrap().to_cols();
+        let blocks = blocks.select(field_selection.block.to_cols());
+        let mut transaction_cols = field_selection.transaction.to_cols();
         let sighash_col = col("sighash").prefix("tx_");
         transaction_cols.push(sighash_col);
         let transactions = transactions.select(transaction_cols);

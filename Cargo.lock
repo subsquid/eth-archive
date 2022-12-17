@@ -1483,7 +1483,7 @@ name = "eth-archive-verifier"
 version = "0.1.0"
 dependencies = [
  "clap",
- "env_logger",
+ "env_logger 0.9.3",
  "eth-archive-core",
  "log",
  "mimalloc",
@@ -1502,6 +1502,7 @@ dependencies = [
  "bytes",
  "clap",
  "crossbeam-channel",
+ "derive_more",
  "env_logger 0.10.0",
  "eth-archive-core",
  "futures",
