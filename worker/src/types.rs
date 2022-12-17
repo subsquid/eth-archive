@@ -26,7 +26,7 @@ pub struct MiniLogSelection {
 #[derive(Deserialize, Clone)]
 pub struct MiniTransactionSelection {
     pub address: Option<Vec<Address>>,
-    pub sighash: Option<Sighash>,
+    pub sighash: Option<Vec<Sighash>>,
 }
 
 impl MiniQuery {
@@ -113,19 +113,23 @@ impl MiniTransactionSelection {
         let mut expr = match &self.address {
             Some(addr) if !addr.is_empty() => {
                 let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
-
                 let series = Series::new("", address).lit();
                 Some(col("tx_dest").is_in(series))
             }
             _ => None,
         };
 
-        if let Some(sighash) = &self.sighash {
-            let inner_expr = col("tx_sighash").eq(lit(sighash.0.as_slice()));
-            expr = match expr {
-                Some(expr) => Some(expr.and(inner_expr)),
-                None => Some(inner_expr),
-            };
+        match &self.sighash {
+            Some(sig) if !sig.is_empty() => {
+                let sighash = sig.iter().map(|sig| sig.as_slice()).collect::<Vec<_>>();
+                let series = Series::new("", sighash).lit();
+                let inner_expr = col("tx_sighash").is_in(series);
+                expr = match expr {
+                    Some(expr) => Some(expr.and(inner_expr)),
+                    None => Some(inner_expr),
+                };
+            }
+            _ => (),
         }
 
         expr
@@ -148,13 +152,13 @@ impl MiniTransactionSelection {
 
     pub fn matches_sighash(&self, input: &Bytes) -> bool {
         if let Some(sighash) = &self.sighash {
-            match input.get(..4) {
-                Some(sig) => {
-                    if sig != sighash.as_slice() {
-                        return false;
-                    }
-                }
+            let input = match input.get(..4) {
+                Some(sig) => sig,
                 None => return false,
+            };
+
+            if !sighash.is_empty() && !sighash.iter().any(|sig| sig.as_slice() == input) {
+                return false;
             }
         }
 
@@ -251,6 +255,6 @@ pub struct LogSelection {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionSelection {
     pub address: Option<Vec<Address>>,
-    pub sighash: Option<Sighash>,
+    pub sighash: Option<Vec<Sighash>>,
     pub field_selection: FieldSelection,
 }
