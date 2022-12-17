@@ -5,6 +5,7 @@ use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
+use arrayvec::ArrayVec;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
@@ -748,7 +749,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     log_index: map_from_arrow!(log_log_index, Index, i),
                     removed: log_removed.map(|arr| arr.get(i).unwrap()),
                     topics: {
-                        let mut topics = vec![];
+                        let mut topics = ArrayVec::new();
 
                         if let Some(Some(topic)) = log_topic0.map(|arr| arr.get(i)) {
                             topics.push(Bytes32::new(topic));
