@@ -10,4 +10,8 @@ mod types;
 
 pub use config::Config;
 pub use error::{Error, Result};
+pub use field_selection::{
+    BlockFieldSelection, FieldSelection, LogFieldSelection, TransactionFieldSelection,
+};
 pub use server::Server;
+pub use types::{BlockEntryVec, LogSelection, Query, TransactionSelection};

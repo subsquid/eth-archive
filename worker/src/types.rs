@@ -169,7 +169,7 @@ pub struct BlockEntry {
     pub logs: BTreeMap<u32, ResponseLog>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockEntryVec {
     pub block: ResponseBlock,
@@ -187,7 +187,7 @@ impl From<BlockEntry> for BlockEntryVec {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Query {
     pub from_block: u32,
@@ -242,7 +242,7 @@ impl Query {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {
     pub address: Option<Vec<Address>>,
@@ -250,7 +250,7 @@ pub struct LogSelection {
     pub field_selection: FieldSelection,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionSelection {
     pub address: Option<Vec<Address>>,

@@ -1,5 +1,6 @@
 use clap::Parser;
 use eth_archive_core::config::{IngestConfig, RetryConfig};
+use url::Url;
 
 #[derive(Clone, Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -8,6 +9,8 @@ pub struct Config {
     pub ingest: IngestConfig,
     #[command(flatten)]
     pub retry: RetryConfig,
+    #[clap(long)]
+    pub archive_url: Url,
 }
 
 impl Config {

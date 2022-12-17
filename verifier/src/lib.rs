@@ -1,5 +1,7 @@
+mod archive_client;
 mod config;
 mod error;
+mod types;
 mod verifier;
 
 pub use config::Config;
