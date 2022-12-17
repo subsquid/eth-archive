@@ -15,7 +15,7 @@ pub struct ArchiveClient {
 }
 
 impl ArchiveClient {
-    pub async fn new(archive_url: Url, ingest_config: IngestConfig, retry: Retry) -> Result<Self> {
+    pub fn new(archive_url: Url, ingest_config: IngestConfig, retry: Retry) -> Result<Self> {
         let request_timeout = Duration::from_secs(ingest_config.request_timeout_secs.get());
         let connect_timeout = Duration::from_millis(ingest_config.connect_timeout_ms.get());
 

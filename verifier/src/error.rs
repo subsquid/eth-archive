@@ -14,6 +14,10 @@ pub enum Error {
     RpcResponseParse(reqwest::Error),
     #[error("error: rpc response status is {0}. payload:\n{1:?}")]
     RpcResponseStatus(u16, Option<String>),
+    #[error("failed to create archive client:\n{0}")]
+    CreateArchiveClient(Box<Error>),
+    #[error("failed to build ethereum rpc client:\n{0}")]
+    CreateEthClient(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
