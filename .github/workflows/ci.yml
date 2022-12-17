@@ -8,7 +8,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-name: Check, Test and Lint
+name: CI
 
 jobs:
   check:
