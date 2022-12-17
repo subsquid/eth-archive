@@ -6,8 +6,6 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MiniQuery {
     pub from_block: u32,
     pub to_block: u32,
@@ -16,14 +14,13 @@ pub struct MiniQuery {
     pub field_selection: FieldSelection,
 }
 
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct MiniLogSelection {
     pub address: Option<Vec<Address>>,
     pub topics: ArrayVec<Vec<Bytes32>, 4>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Clone)]
 pub struct MiniTransactionSelection {
     pub address: Option<Vec<Address>>,
     pub sighash: Option<Vec<Sighash>>,
@@ -195,7 +192,9 @@ impl From<BlockEntry> for BlockEntryVec {
 pub struct Query {
     pub from_block: u32,
     pub to_block: Option<u32>,
+    #[serde(default)]
     pub logs: Vec<LogSelection>,
+    #[serde(default)]
     pub transactions: Vec<TransactionSelection>,
 }
 
