@@ -2,10 +2,10 @@ use crate::types::ArchiveResponse;
 use crate::{Error, Result};
 use eth_archive_core::config::IngestConfig;
 use eth_archive_core::retry::Retry;
-use std::time::Duration;
-use url::Url;
 use eth_archive_worker::Query;
 use std::sync::Arc;
+use std::time::Duration;
+use url::Url;
 
 pub struct ArchiveClient {
     http_client: reqwest::Client,
@@ -35,7 +35,23 @@ impl ArchiveClient {
     }
 
     async fn send_impl(&self, query: &Query) -> Result<ArchiveResponse> {
-        todo!()
+        let resp = self
+            .http_client
+            .post(self.archive_url.clone())
+            .json(query)
+            .send()
+            .await
+            .map_err(Error::HttpRequest)?;
+
+        let resp_status = resp.status();
+        if !resp_status.is_success() {
+            let body = resp.text().await.ok();
+            return Err(Error::RpcResponseStatus(resp_status.as_u16(), body));
+        }
+
+        let resp_body = resp.json().await.map_err(Error::RpcResponseParse)?;
+
+        Ok(resp_body)
     }
 
     pub async fn send(self: Arc<Self>, query: Arc<Query>) -> Result<ArchiveResponse> {
