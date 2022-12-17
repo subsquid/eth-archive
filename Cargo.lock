@@ -1435,6 +1435,7 @@ dependencies = [
 name = "eth-archive-core"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "async-stream",
  "aws-config",
  "aws-sdk-s3",
@@ -1482,7 +1483,15 @@ dependencies = [
 name = "eth-archive-verifier"
 version = "0.1.0"
 dependencies = [
+ "clap",
+ "env_logger 0.9.3",
+ "eth-archive-core",
+ "log",
  "mimalloc",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -1494,6 +1503,7 @@ dependencies = [
  "bytes",
  "clap",
  "crossbeam-channel",
+ "derive_more",
  "env_logger 0.10.0",
  "eth-archive-core",
  "futures",

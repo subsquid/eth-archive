@@ -1,5 +1,4 @@
 use crate::field_selection::FieldSelection;
-use crate::{Error, Result};
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Sighash};
 use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
@@ -7,8 +6,6 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MiniQuery {
     pub from_block: u32,
     pub to_block: u32,
@@ -17,17 +14,16 @@ pub struct MiniQuery {
     pub field_selection: FieldSelection,
 }
 
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct MiniLogSelection {
     pub address: Option<Vec<Address>>,
     pub topics: ArrayVec<Vec<Bytes32>, 4>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Clone)]
 pub struct MiniTransactionSelection {
     pub address: Option<Vec<Address>>,
-    pub sighash: Option<Sighash>,
+    pub sighash: Option<Vec<Sighash>>,
 }
 
 impl MiniQuery {
@@ -57,7 +53,7 @@ impl MiniQuery {
 }
 
 impl MiniLogSelection {
-    pub fn to_expr(&self) -> Result<Option<Expr>> {
+    pub fn to_expr(&self) -> Option<Expr> {
         let mut expr = match &self.address {
             Some(addr) if !addr.is_empty() => {
                 let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
@@ -85,7 +81,7 @@ impl MiniLogSelection {
             }
         }
 
-        Ok(expr)
+        expr
     }
 
     pub fn matches_addr(&self, filter_addr: &Address) -> bool {
@@ -110,26 +106,30 @@ impl MiniLogSelection {
 }
 
 impl MiniTransactionSelection {
-    pub fn to_expr(&self) -> Result<Option<Expr>> {
+    pub fn to_expr(&self) -> Option<Expr> {
         let mut expr = match &self.address {
             Some(addr) if !addr.is_empty() => {
                 let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
-
                 let series = Series::new("", address).lit();
                 Some(col("tx_dest").is_in(series))
             }
             _ => None,
         };
 
-        if let Some(sighash) = &self.sighash {
-            let inner_expr = col("tx_sighash").eq(lit(sighash.0.as_slice()));
-            expr = match expr {
-                Some(expr) => Some(expr.and(inner_expr)),
-                None => Some(inner_expr),
-            };
+        match &self.sighash {
+            Some(sig) if !sig.is_empty() => {
+                let sighash = sig.iter().map(|sig| sig.as_slice()).collect::<Vec<_>>();
+                let series = Series::new("", sighash).lit();
+                let inner_expr = col("tx_sighash").is_in(series);
+                expr = match expr {
+                    Some(expr) => Some(expr.and(inner_expr)),
+                    None => Some(inner_expr),
+                };
+            }
+            _ => (),
         }
 
-        Ok(expr)
+        expr
     }
 
     pub fn matches_dest(&self, dest: &Option<Address>) -> bool {
@@ -149,13 +149,13 @@ impl MiniTransactionSelection {
 
     pub fn matches_sighash(&self, input: &Bytes) -> bool {
         if let Some(sighash) = &self.sighash {
-            match input.get(..4) {
-                Some(sig) => {
-                    if sig != sighash.as_slice() {
-                        return false;
-                    }
-                }
+            let input = match input.get(..4) {
+                Some(sig) => sig,
                 None => return false,
+            };
+
+            if !sighash.is_empty() && !sighash.iter().any(|sig| sig.as_slice() == input) {
+                return false;
             }
         }
 
@@ -192,41 +192,33 @@ impl From<BlockEntry> for BlockEntryVec {
 pub struct Query {
     pub from_block: u32,
     pub to_block: Option<u32>,
+    #[serde(default)]
     pub logs: Vec<LogSelection>,
+    #[serde(default)]
     pub transactions: Vec<TransactionSelection>,
 }
 
 impl Query {
-    pub fn field_selection(&self) -> Result<FieldSelection> {
-        let mut field_selection = None;
-        for log in &self.logs {
-            field_selection = FieldSelection::merge(field_selection, log.field_selection);
-        }
-        for tx in &self.transactions {
-            field_selection = FieldSelection::merge(field_selection, tx.field_selection);
-        }
-        let mut field_selection = field_selection.ok_or(Error::NoFieldsSelected)?;
+    pub fn field_selection(&self) -> FieldSelection {
+        let mut field_selection: FieldSelection = self
+            .logs
+            .iter()
+            .map(|log| log.field_selection)
+            .chain(self.transactions.iter().map(|tx| tx.field_selection))
+            .fold(Default::default(), |a, b| a | b);
 
-        let mut block_selection = field_selection.block.unwrap_or_default();
-        let mut tx_selection = field_selection.transaction.unwrap_or_default();
-        let mut log_selection = field_selection.log.unwrap_or_default();
+        field_selection.block.number = true;
+        field_selection.transaction.hash = true;
+        field_selection.transaction.block_number = true;
+        field_selection.transaction.transaction_index = true;
+        field_selection.transaction.dest = true;
+        field_selection.log.block_number = true;
+        field_selection.log.log_index = true;
+        field_selection.log.transaction_index = true;
+        field_selection.log.address = true;
+        field_selection.log.topics = true;
 
-        block_selection.number = Some(true);
-        tx_selection.hash = Some(true);
-        tx_selection.block_number = Some(true);
-        tx_selection.transaction_index = Some(true);
-        tx_selection.dest = Some(true);
-        log_selection.block_number = Some(true);
-        log_selection.log_index = Some(true);
-        log_selection.transaction_index = Some(true);
-        log_selection.address = Some(true);
-        log_selection.topics = Some(true);
-
-        field_selection.block = Some(block_selection);
-        field_selection.transaction = Some(tx_selection);
-        field_selection.log = Some(log_selection);
-
-        Ok(field_selection)
+        field_selection
     }
 
     pub fn log_selection(&self) -> Vec<MiniLogSelection> {
@@ -255,13 +247,13 @@ impl Query {
 pub struct LogSelection {
     pub address: Option<Vec<Address>>,
     pub topics: ArrayVec<Vec<Bytes32>, 4>,
-    pub field_selection: Option<FieldSelection>,
+    pub field_selection: FieldSelection,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionSelection {
     pub address: Option<Vec<Address>>,
-    pub sighash: Option<Sighash>,
-    pub field_selection: Option<FieldSelection>,
+    pub sighash: Option<Vec<Sighash>>,
+    pub field_selection: FieldSelection,
 }

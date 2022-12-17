@@ -177,7 +177,7 @@ impl DbHandle {
             block_nums.insert(log.block_number.0);
             tx_keys.insert(log_tx_key(log.block_number.0, log.transaction_index.0));
 
-            let log = query.field_selection.log.unwrap().prune(log);
+            let log = query.field_selection.log.prune(log);
             logs.insert(log_key, log);
         }
 
@@ -192,7 +192,7 @@ impl DbHandle {
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
 
-            let block = query.field_selection.block.unwrap().prune(block);
+            let block = query.field_selection.block.prune(block);
 
             blocks.insert(num, block);
         }
@@ -205,7 +205,7 @@ impl DbHandle {
                 .unwrap();
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
-            let tx = query.field_selection.transaction.unwrap().prune(tx);
+            let tx = query.field_selection.transaction.prune(tx);
 
             txs.insert(key, tx);
         }
@@ -271,7 +271,7 @@ impl DbHandle {
 
             block_nums.insert(tx.block_number.0);
 
-            let tx = query.field_selection.transaction.unwrap().prune(tx);
+            let tx = query.field_selection.transaction.prune(tx);
             txs.insert(tx_key, tx);
         }
 
@@ -285,7 +285,7 @@ impl DbHandle {
                 .unwrap();
             let block = rmp_serde::decode::from_slice(&block).unwrap();
 
-            let block = query.field_selection.block.unwrap().prune(block);
+            let block = query.field_selection.block.prune(block);
 
             blocks.insert(num, block);
         }
@@ -318,7 +318,7 @@ impl DbHandle {
         let val = rmp_serde::encode::to_vec(idx).unwrap();
 
         self.inner
-            .put_cf(parquet_idx_cf, key, &val)
+            .put_cf(parquet_idx_cf, key, val)
             .map_err(Error::Db)?;
 
         self.status

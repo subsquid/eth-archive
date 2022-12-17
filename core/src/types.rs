@@ -1,4 +1,5 @@
 use crate::deserialize::{Address, BigInt, BloomFilterBytes, Bytes, Bytes32, Index, Nonce};
+use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 use std::cmp;
 
@@ -63,7 +64,7 @@ pub struct Log {
     pub data: Bytes,
     pub log_index: Index,
     pub removed: bool,
-    pub topics: Vec<Bytes32>,
+    pub topics: ArrayVec<Bytes32, 4>,
     pub transaction_hash: Bytes32,
     pub transaction_index: Index,
 }
@@ -175,7 +176,7 @@ pub struct ResponseLog {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub topics: Option<Vec<Bytes32>>,
+    pub topics: Option<ArrayVec<Bytes32, 4>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_hash: Option<Bytes32>,
     #[serde(skip_serializing_if = "Option::is_none")]

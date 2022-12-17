@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 macro_rules! append_col {
     ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
-        if let Some(true) = $self.$field {
+        if $self.$field {
             let field_name = stringify!($field);
             let col = col(&format!("{}", field_name));
             let col = col.prefix(&format!("{}_", $table_name));
@@ -17,63 +17,46 @@ macro_rules! append_col {
 
 macro_rules! prune_col {
     ($src:ident, $self:ident, $field:ident) => {
-        $self
-            .$field
-            .map(|cond| if cond { Some($src.$field) } else { None })
-            .flatten()
+        if $self.$field {
+            Some($src.$field)
+        } else {
+            None
+        }
     };
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct FieldSelection {
-    pub block: Option<BlockFieldSelection>,
-    pub transaction: Option<TransactionFieldSelection>,
-    pub log: Option<LogFieldSelection>,
+    pub block: BlockFieldSelection,
+    pub transaction: TransactionFieldSelection,
+    pub log: LogFieldSelection,
 }
 
-impl FieldSelection {
-    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
-        let left = match left {
-            Some(left) => left,
-            None => return right,
-        };
-
-        let right = match right {
-            Some(right) => right,
-            None => return Some(left),
-        };
-
-        Some(Self {
-            block: BlockFieldSelection::merge(left.block, right.block),
-            transaction: TransactionFieldSelection::merge(left.transaction, right.transaction),
-            log: LogFieldSelection::merge(left.log, right.log),
-        })
-    }
-}
-
-#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct BlockFieldSelection {
-    pub parent_hash: Option<bool>,
-    pub sha3_uncles: Option<bool>,
-    pub miner: Option<bool>,
-    pub state_root: Option<bool>,
-    pub transactions_root: Option<bool>,
-    pub receipts_root: Option<bool>,
-    pub logs_bloom: Option<bool>,
-    pub difficulty: Option<bool>,
-    pub number: Option<bool>,
-    pub gas_limit: Option<bool>,
-    pub gas_used: Option<bool>,
-    pub timestamp: Option<bool>,
-    pub extra_data: Option<bool>,
-    pub mix_hash: Option<bool>,
-    pub nonce: Option<bool>,
-    pub total_difficulty: Option<bool>,
-    pub base_fee_per_gas: Option<bool>,
-    pub size: Option<bool>,
-    pub hash: Option<bool>,
+    pub parent_hash: bool,
+    pub sha3_uncles: bool,
+    pub miner: bool,
+    pub state_root: bool,
+    pub transactions_root: bool,
+    pub receipts_root: bool,
+    pub logs_bloom: bool,
+    pub difficulty: bool,
+    pub number: bool,
+    pub gas_limit: bool,
+    pub gas_used: bool,
+    pub timestamp: bool,
+    pub extra_data: bool,
+    pub mix_hash: bool,
+    pub nonce: bool,
+    pub total_difficulty: bool,
+    pub base_fee_per_gas: bool,
+    pub size: bool,
+    pub hash: bool,
 }
 
 impl BlockFieldSelection {
@@ -127,68 +110,35 @@ impl BlockFieldSelection {
             hash: prune_col!(block, self, hash).flatten(),
         }
     }
-
-    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
-        let left = match left {
-            Some(left) => left,
-            None => return right,
-        };
-
-        let right = match right {
-            Some(right) => right,
-            None => return Some(left),
-        };
-
-        Some(Self {
-            parent_hash: merge_opt(left.parent_hash, right.parent_hash),
-            sha3_uncles: merge_opt(left.sha3_uncles, right.sha3_uncles),
-            miner: merge_opt(left.miner, right.miner),
-            state_root: merge_opt(left.state_root, right.state_root),
-            transactions_root: merge_opt(left.transactions_root, right.transactions_root),
-            receipts_root: merge_opt(left.receipts_root, right.receipts_root),
-            logs_bloom: merge_opt(left.logs_bloom, right.logs_bloom),
-            difficulty: merge_opt(left.difficulty, right.difficulty),
-            number: merge_opt(left.number, right.number),
-            gas_limit: merge_opt(left.gas_limit, right.gas_limit),
-            gas_used: merge_opt(left.gas_used, right.gas_used),
-            timestamp: merge_opt(left.timestamp, right.timestamp),
-            extra_data: merge_opt(left.extra_data, right.extra_data),
-            mix_hash: merge_opt(left.mix_hash, right.mix_hash),
-            nonce: merge_opt(left.nonce, right.nonce),
-            total_difficulty: merge_opt(left.total_difficulty, right.total_difficulty),
-            base_fee_per_gas: merge_opt(left.base_fee_per_gas, right.base_fee_per_gas),
-            size: merge_opt(left.size, right.size),
-            hash: merge_opt(left.hash, right.hash),
-        })
-    }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct TransactionFieldSelection {
     #[serde(rename = "type")]
-    pub kind: Option<bool>,
-    pub nonce: Option<bool>,
+    pub kind: bool,
+    pub nonce: bool,
     #[serde(rename = "to")]
-    pub dest: Option<bool>,
-    pub gas: Option<bool>,
-    pub value: Option<bool>,
-    pub input: Option<bool>,
-    pub max_priority_fee_per_gas: Option<bool>,
-    pub max_fee_per_gas: Option<bool>,
-    pub y_parity: Option<bool>,
-    pub chain_id: Option<bool>,
-    pub v: Option<bool>,
-    pub r: Option<bool>,
-    pub s: Option<bool>,
+    pub dest: bool,
+    pub gas: bool,
+    pub value: bool,
+    pub input: bool,
+    pub max_priority_fee_per_gas: bool,
+    pub max_fee_per_gas: bool,
+    pub y_parity: bool,
+    pub chain_id: bool,
+    pub v: bool,
+    pub r: bool,
+    pub s: bool,
     #[serde(rename = "from")]
-    pub source: Option<bool>,
-    pub block_hash: Option<bool>,
-    pub block_number: Option<bool>,
+    pub source: bool,
+    pub block_hash: bool,
+    pub block_number: bool,
     #[serde(rename = "index")]
-    pub transaction_index: Option<bool>,
-    pub gas_price: Option<bool>,
-    pub hash: Option<bool>,
+    pub transaction_index: bool,
+    pub gas_price: bool,
+    pub hash: bool,
 }
 
 impl TransactionFieldSelection {
@@ -242,58 +192,22 @@ impl TransactionFieldSelection {
             hash: prune_col!(tx, self, hash),
         }
     }
-
-    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
-        let left = match left {
-            Some(left) => left,
-            None => return right,
-        };
-
-        let right = match right {
-            Some(right) => right,
-            None => return Some(left),
-        };
-
-        Some(Self {
-            kind: merge_opt(left.kind, right.kind),
-            nonce: merge_opt(left.nonce, right.nonce),
-            dest: merge_opt(left.dest, right.dest),
-            gas: merge_opt(left.gas, right.gas),
-            value: merge_opt(left.value, right.value),
-            input: merge_opt(left.input, right.input),
-            max_priority_fee_per_gas: merge_opt(
-                left.max_priority_fee_per_gas,
-                right.max_priority_fee_per_gas,
-            ),
-            max_fee_per_gas: merge_opt(left.max_fee_per_gas, right.max_fee_per_gas),
-            y_parity: merge_opt(left.y_parity, right.y_parity),
-            chain_id: merge_opt(left.chain_id, right.chain_id),
-            v: merge_opt(left.v, right.v),
-            r: merge_opt(left.r, right.r),
-            s: merge_opt(left.s, right.s),
-            source: merge_opt(left.source, right.source),
-            block_hash: merge_opt(left.block_hash, right.block_hash),
-            block_number: merge_opt(left.block_number, right.block_number),
-            transaction_index: merge_opt(left.transaction_index, right.transaction_index),
-            gas_price: merge_opt(left.gas_price, right.gas_price),
-            hash: merge_opt(left.hash, right.hash),
-        })
-    }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct LogFieldSelection {
-    pub address: Option<bool>,
-    pub block_hash: Option<bool>,
-    pub block_number: Option<bool>,
-    pub data: Option<bool>,
+    pub address: bool,
+    pub block_hash: bool,
+    pub block_number: bool,
+    pub data: bool,
     #[serde(rename = "index")]
-    pub log_index: Option<bool>,
-    pub removed: Option<bool>,
-    pub topics: Option<bool>,
-    pub transaction_hash: Option<bool>,
-    pub transaction_index: Option<bool>,
+    pub log_index: bool,
+    pub removed: bool,
+    pub topics: bool,
+    pub transaction_hash: bool,
+    pub transaction_index: bool,
 }
 
 impl LogFieldSelection {
@@ -307,7 +221,7 @@ impl LogFieldSelection {
         append_col!(table_name, cols, self, data);
         append_col!(table_name, cols, self, log_index);
         append_col!(table_name, cols, self, removed);
-        if let Some(true) = self.topics {
+        if self.topics {
             for i in 0..4 {
                 let col = col(&format!("topic{}", i));
                 let alias = format!("log_topic{}", i);
@@ -334,42 +248,4 @@ impl LogFieldSelection {
             transaction_index: prune_col!(log, self, transaction_index),
         }
     }
-
-    pub fn merge(left: Option<Self>, right: Option<Self>) -> Option<Self> {
-        let left = match left {
-            Some(left) => left,
-            None => return right,
-        };
-
-        let right = match right {
-            Some(right) => right,
-            None => return Some(left),
-        };
-
-        Some(Self {
-            address: merge_opt(left.address, right.address),
-            block_hash: merge_opt(left.block_hash, right.block_hash),
-            block_number: merge_opt(left.block_number, right.block_number),
-            data: merge_opt(left.data, right.data),
-            log_index: merge_opt(left.log_index, right.log_index),
-            removed: merge_opt(left.removed, right.removed),
-            topics: merge_opt(left.topics, right.topics),
-            transaction_hash: merge_opt(left.transaction_hash, right.transaction_hash),
-            transaction_index: merge_opt(left.transaction_index, right.transaction_index),
-        })
-    }
-}
-
-fn merge_opt(left: Option<bool>, right: Option<bool>) -> Option<bool> {
-    let left = match left {
-        Some(left) => left,
-        None => return right,
-    };
-
-    let right = match right {
-        Some(right) => right,
-        None => return Some(left),
-    };
-
-    Some(left || right)
 }
