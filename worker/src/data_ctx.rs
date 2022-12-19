@@ -70,7 +70,7 @@ impl DataCtx {
             }
         });
 
-        // this taks check and registers new parquet files to database
+        // this task checks and registers new parquet files to database
         tokio::spawn({
             let start = db.parquet_height();
             let data_path = config.data_path.clone();
