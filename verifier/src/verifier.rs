@@ -4,6 +4,7 @@ use crate::{Error, Result};
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::retry::Retry;
+use eth_archive_worker::FieldSelection;
 use eth_archive_worker::Query as ArchiveQuery;
 use futures::pin_mut;
 use futures::stream::StreamExt;
@@ -29,23 +30,24 @@ impl Verifier {
                 .map_err(|e| Error::CreateArchiveClient(Box::new(e)))?;
         let archive_client = Arc::new(archive_client);
 
-        Ok(Self {
+        Ok(Arc::new(Self {
             archive_client,
             eth_client,
             config,
-        })
+        }))
     }
 
     pub async fn run(self: Arc<Self>) -> Result<()> {
         let start = 0;
-        let step = self.config.skip.get();
+        let step = self.config.step.get();
         let step = usize::try_from(step).unwrap();
 
         for block_num in (start..).step_by(step) {
-            let futs = self.config.offsets.iter().map(|| {
+            let futs = self.config.offsets.iter().map(|_offset| {
                 let verifier = self.clone();
             });
 
+            /*
             for offset in self.config.offsets.iter() {}
 
             let batches = self.eth_client.clone().stream_batches(
@@ -82,6 +84,9 @@ impl Verifier {
                 logs: Vec::new(),
                 transactions: Vec::new(),
             };
+            */
         }
+
+        Ok(())
     }
 }
