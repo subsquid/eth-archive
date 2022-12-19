@@ -1,7 +1,7 @@
 use crate::Error;
 use arrow2::array::{
-    Array, Int64Vec, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray,
-    MutableBooleanArray, UInt32Vec, UInt64Vec,
+    Array, MutableArray, MutableBinaryArray as ArrowMutableBinaryArray, MutableBooleanArray,
+    UInt32Vec,
 };
 use arrow2::chunk::Chunk as ArrowChunk;
 use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, SortOptions};
@@ -28,13 +28,13 @@ pub fn block_schema() -> Schema {
         Field::new("number", DataType::UInt32, false),
         Field::new("gas_limit", DataType::Binary, false),
         Field::new("gas_used", DataType::Binary, false),
-        Field::new("timestamp", DataType::Int64, false),
+        Field::new("timestamp", DataType::Binary, false),
         Field::new("extra_data", DataType::Binary, false),
         Field::new("mix_hash", DataType::Binary, true),
-        Field::new("nonce", DataType::UInt64, true),
+        Field::new("nonce", DataType::Binary, true),
         Field::new("total_difficulty", DataType::Binary, true),
         Field::new("base_fee_per_gas", DataType::Binary, true),
-        Field::new("size", DataType::Int64, false),
+        Field::new("size", DataType::Binary, false),
         Field::new("hash", DataType::Binary, true),
     ])
 }
@@ -42,23 +42,23 @@ pub fn block_schema() -> Schema {
 pub fn tx_schema() -> Schema {
     Schema::from(vec![
         Field::new("kind", DataType::UInt32, true),
-        Field::new("nonce", DataType::UInt64, false),
+        Field::new("nonce", DataType::Binary, false),
         Field::new("dest", DataType::Binary, true),
-        Field::new("gas", DataType::Int64, false),
+        Field::new("gas", DataType::Binary, false),
         Field::new("value", DataType::Binary, false),
         Field::new("input", DataType::Binary, false),
-        Field::new("max_priority_fee_per_gas", DataType::Int64, true),
-        Field::new("max_fee_per_gas", DataType::Int64, true),
+        Field::new("max_priority_fee_per_gas", DataType::Binary, true),
+        Field::new("max_fee_per_gas", DataType::Binary, true),
         Field::new("y_parity", DataType::UInt32, true),
         Field::new("chain_id", DataType::UInt32, true),
-        Field::new("v", DataType::Int64, true),
+        Field::new("v", DataType::Binary, true),
         Field::new("r", DataType::Binary, false),
         Field::new("s", DataType::Binary, false),
         Field::new("source", DataType::Binary, true),
         Field::new("block_hash", DataType::Binary, false),
         Field::new("block_number", DataType::UInt32, false),
         Field::new("transaction_index", DataType::UInt32, false),
-        Field::new("gas_price", DataType::Int64, true),
+        Field::new("gas_price", DataType::Binary, true),
         Field::new("hash", DataType::Binary, false),
         Field::new("sighash", DataType::Binary, true),
     ])
@@ -94,13 +94,13 @@ pub struct Blocks {
     pub number: UInt32Vec,
     pub gas_limit: MutableBinaryArray,
     pub gas_used: MutableBinaryArray,
-    pub timestamp: Int64Vec,
+    pub timestamp: MutableBinaryArray,
     pub extra_data: MutableBinaryArray,
     pub mix_hash: MutableBinaryArray,
-    pub nonce: UInt64Vec,
+    pub nonce: MutableBinaryArray,
     pub total_difficulty: MutableBinaryArray,
     pub base_fee_per_gas: MutableBinaryArray,
-    pub size: Int64Vec,
+    pub size: MutableBinaryArray,
     pub hash: MutableBinaryArray,
     pub len: usize,
 }
@@ -167,17 +167,17 @@ impl Blocks {
         self.logs_bloom.push(Some(elem.logs_bloom.to_vec()));
         self.difficulty.push(elem.difficulty.map(|n| n.to_vec()));
         self.number.push(Some(elem.number.0));
-        self.gas_limit.push(Some(elem.gas_limit.0));
-        self.gas_used.push(Some(elem.gas_used.0));
-        self.timestamp.push(Some(elem.timestamp.0));
+        self.gas_limit.push(Some(elem.gas_limit.to_vec()));
+        self.gas_used.push(Some(elem.gas_used.to_vec()));
+        self.timestamp.push(Some(elem.timestamp.to_vec()));
         self.extra_data.push(Some(elem.extra_data.0));
         self.mix_hash.push(elem.mix_hash.map(|n| n.to_vec()));
-        self.nonce.push(elem.nonce.map(|n| n.0));
+        self.nonce.push(elem.nonce.map(|n| n.to_vec()));
         self.total_difficulty
             .push(elem.total_difficulty.map(|n| n.to_vec()));
         self.base_fee_per_gas
             .push(elem.base_fee_per_gas.map(|n| n.to_vec()));
-        self.size.push(Some(elem.size.0));
+        self.size.push(Some(elem.size.to_vec()));
         self.hash.push(elem.hash.map(|n| n.to_vec()));
 
         self.len += 1;
@@ -187,23 +187,23 @@ impl Blocks {
 #[derive(Debug, Default)]
 pub struct Transactions {
     pub kind: UInt32Vec,
-    pub nonce: UInt64Vec,
+    pub nonce: MutableBinaryArray,
     pub dest: MutableBinaryArray,
-    pub gas: Int64Vec,
+    pub gas: MutableBinaryArray,
     pub value: MutableBinaryArray,
     pub input: MutableBinaryArray,
-    pub max_priority_fee_per_gas: Int64Vec,
-    pub max_fee_per_gas: Int64Vec,
+    pub max_priority_fee_per_gas: MutableBinaryArray,
+    pub max_fee_per_gas: MutableBinaryArray,
     pub y_parity: UInt32Vec,
     pub chain_id: UInt32Vec,
-    pub v: Int64Vec,
+    pub v: MutableBinaryArray,
     pub r: MutableBinaryArray,
     pub s: MutableBinaryArray,
     pub source: MutableBinaryArray,
     pub block_hash: MutableBinaryArray,
     pub block_number: UInt32Vec,
     pub transaction_index: UInt32Vec,
-    pub gas_price: Int64Vec,
+    pub gas_price: MutableBinaryArray,
     pub hash: MutableBinaryArray,
     pub sighash: MutableBinaryArray,
     pub len: usize,
@@ -276,27 +276,28 @@ impl IntoChunks for Transactions {
 impl Transactions {
     pub fn push(&mut self, elem: Transaction) {
         self.kind.push(elem.kind.map(|n| n.0));
-        self.nonce.push(Some(elem.nonce.0));
+        self.nonce.push(Some(elem.nonce.to_vec()));
         match elem.dest {
             Some(dest) => self.dest.push(Some(dest.to_vec())),
             None => self.dest.push::<&[u8]>(None),
         }
-        self.gas.push(Some(elem.gas.0));
+        self.gas.push(Some(elem.gas.to_vec()));
         self.value.push(Some(elem.value.0));
         self.input.push(Some(elem.input.0.clone()));
         self.max_priority_fee_per_gas
-            .push(elem.max_priority_fee_per_gas.map(|n| n.0));
-        self.max_fee_per_gas.push(elem.max_fee_per_gas.map(|n| n.0));
+            .push(elem.max_priority_fee_per_gas.map(|n| n.to_vec()));
+        self.max_fee_per_gas
+            .push(elem.max_fee_per_gas.map(|n| n.to_vec()));
         self.y_parity.push(elem.y_parity.map(|n| n.0));
         self.chain_id.push(elem.chain_id.map(|n| n.0));
-        self.v.push(elem.v.map(|n| n.0));
+        self.v.push(elem.v.map(|n| n.to_vec()));
         self.r.push(Some(elem.r.0));
         self.s.push(Some(elem.s.0));
         self.source.push(elem.source.map(|n| n.to_vec()));
         self.block_hash.push(Some(elem.block_hash.to_vec()));
         self.block_number.push(Some(elem.block_number.0));
         self.transaction_index.push(Some(elem.transaction_index.0));
-        self.gas_price.push(elem.gas_price.map(|n| n.0));
+        self.gas_price.push(elem.gas_price.map(|n| n.to_vec()));
         self.hash.push(Some(elem.hash.to_vec()));
         self.sighash.push(elem.input.get(..4));
 

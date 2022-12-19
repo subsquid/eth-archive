@@ -3,6 +3,7 @@ use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
 use std::fmt;
+use std::result::Result as StdResult;
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes32(pub Box<[u8; 32]>);
@@ -13,14 +14,8 @@ pub struct Address(pub Box<[u8; 20]>);
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Sighash(pub Box<[u8; 4]>);
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
-pub struct Nonce(pub u64);
-
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
-
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
-pub struct BigInt(pub i64);
 
 #[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Index(pub u32);
@@ -30,13 +25,7 @@ pub struct Bytes(pub Vec<u8>);
 
 impl Bytes32 {
     pub fn new(bytes: &[u8]) -> Self {
-        match bytes.try_into() {
-            Ok(b) => Self(Box::new(b)),
-            Err(_) => {
-                dbg!(bytes);
-                panic!("anan");
-            }
-        }
+        Self(Box::new(bytes.try_into().unwrap()))
     }
 }
 
@@ -76,12 +65,6 @@ impl ToHexPrefixed for &Sighash {
     }
 }
 
-impl Nonce {
-    pub fn new(bytes: &[u8]) -> Self {
-        Self(u64::from_be_bytes(bytes.try_into().unwrap()))
-    }
-}
-
 impl BloomFilterBytes {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
@@ -113,9 +96,17 @@ impl<'de> Visitor<'de> for Bytes32Visitor {
     where
         E: de::Error,
     {
-        let buf: [u8; 32] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf = vec_from_hex(value).map_err(|e| E::custom(e.to_string()))?;
 
-        Ok(Box::new(buf).into())
+        if buf.len() > 32 {
+            return Err(E::custom("data doesn't fit into 32 bytes".to_owned()));
+        }
+
+        let mut vals = [0; 32];
+
+        vals[32 - buf.len()..].copy_from_slice(&buf);
+
+        Ok(Box::new(vals).into())
     }
 }
 
@@ -217,46 +208,6 @@ impl Serialize for Sighash {
     }
 }
 
-struct NonceVisitor;
-
-impl<'de> Visitor<'de> for NonceVisitor {
-    type Value = Nonce;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string for 8 byte nonce")
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        let value = match value.strip_prefix("0x") {
-            Some(value) => u64::from_str_radix(value, 16).map_err(|e| E::custom(e.to_string()))?,
-            None => value.parse::<u64>().map_err(|e| E::custom(e.to_string()))?,
-        };
-
-        Ok(Nonce(value))
-    }
-}
-
-impl<'de> Deserialize<'de> for Nonce {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(NonceVisitor)
-    }
-}
-
-impl Serialize for Nonce {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.0.to_string())
-    }
-}
-
 struct BloomFilterBytesVisitor;
 
 impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
@@ -309,12 +260,7 @@ impl<'de> Visitor<'de> for BytesVisitor {
     where
         E: de::Error,
     {
-        let buf: Vec<u8> = if value.len() % 2 != 0 {
-            let value = format!("0x0{}", &value[2..]);
-            prefix_hex::decode(&value).map_err(|e| E::custom(e.to_string()))?
-        } else {
-            prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?
-        };
+        let buf = vec_from_hex(value).map_err(|e| E::custom(e.to_string()))?;
 
         Ok(buf.into())
     }
@@ -337,46 +283,6 @@ impl Serialize for Bytes {
         let hex = prefix_hex::encode(&*self.0);
 
         serializer.serialize_str(&hex)
-    }
-}
-
-struct BigIntVisitor;
-
-impl<'de> Visitor<'de> for BigIntVisitor {
-    type Value = BigInt;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string for 8 byte value")
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        let value = match value.strip_prefix("0x") {
-            Some(value) => i64::from_str_radix(value, 16).map_err(|e| E::custom(e.to_string()))?,
-            None => value.parse::<i64>().map_err(|e| E::custom(e.to_string()))?,
-        };
-
-        Ok(BigInt(value))
-    }
-}
-
-impl<'de> Deserialize<'de> for BigInt {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(BigIntVisitor)
-    }
-}
-
-impl Serialize for BigInt {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.0.to_string())
     }
 }
 
@@ -434,6 +340,17 @@ impl Serialize for Index {
     {
         serializer.serialize_u32(self.0)
     }
+}
+
+fn vec_from_hex(value: &str) -> StdResult<Vec<u8>, prefix_hex::Error> {
+    let buf: Vec<u8> = if value.len() % 2 != 0 {
+        let value = format!("0x0{}", &value[2..]);
+        prefix_hex::decode(&value)?
+    } else {
+        prefix_hex::decode(value)?
+    };
+
+    Ok(buf)
 }
 
 #[cfg(test)]
@@ -518,8 +435,4 @@ mod tests {
     );
 
     impl_int_test!(test_index, Index, "0xF64B41", u32);
-
-    impl_int_test!(test_bigint, BigInt, "0xF64B41", i64);
-
-    impl_int_test!(test_nonce, Nonce, "0xF64B41", u64);
 }
