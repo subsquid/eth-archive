@@ -70,7 +70,7 @@ impl DataCtx {
             }
         });
 
-        // this taks check and registers new parquet files to database
+        // this task checks and registers new parquet files to database
         tokio::spawn({
             let start = db.parquet_height();
             let data_path = config.data_path.clone();
@@ -717,7 +717,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
                 transaction: ResponseTransaction {
-                    kind: map_from_arrow!(tx_kind, Index, i),
+                    kind: map_from_arrow_opt!(tx_kind, Index, i),
                     nonce: map_from_arrow!(tx_nonce, Nonce, i),
                     dest: map_from_arrow_opt!(tx_dest, Address::new, i),
                     gas: map_from_arrow!(tx_gas, BigInt, i),
@@ -863,7 +863,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
                 transaction: ResponseTransaction {
-                    kind: map_from_arrow!(tx_kind, Index, i),
+                    kind: map_from_arrow_opt!(tx_kind, Index, i),
                     nonce: map_from_arrow!(tx_nonce, Nonce, i),
                     dest: map_from_arrow_opt!(tx_dest, Address::new, i),
                     gas: map_from_arrow!(tx_gas, BigInt, i),

@@ -2,7 +2,7 @@ use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
 use polars::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 macro_rules! append_col {
     ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
@@ -25,7 +25,9 @@ macro_rules! prune_col {
     };
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct FieldSelection {
@@ -34,7 +36,9 @@ pub struct FieldSelection {
     pub log: LogFieldSelection,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct BlockFieldSelection {
@@ -112,7 +116,9 @@ impl BlockFieldSelection {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct TransactionFieldSelection {
@@ -171,7 +177,7 @@ impl TransactionFieldSelection {
 
     pub fn prune(&self, tx: Transaction) -> ResponseTransaction {
         ResponseTransaction {
-            kind: prune_col!(tx, self, kind),
+            kind: prune_col!(tx, self, kind).flatten(),
             nonce: prune_col!(tx, self, nonce),
             dest: prune_col!(tx, self, dest).flatten(),
             gas: prune_col!(tx, self, gas),
@@ -194,7 +200,9 @@ impl TransactionFieldSelection {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct LogFieldSelection {

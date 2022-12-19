@@ -1486,12 +1486,16 @@ dependencies = [
  "clap",
  "env_logger 0.9.3",
  "eth-archive-core",
+ "eth-archive-worker",
+ "futures",
  "log",
  "mimalloc",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
+ "url",
 ]
 
 [[package]]
