@@ -41,7 +41,7 @@ pub fn block_schema() -> Schema {
 
 pub fn tx_schema() -> Schema {
     Schema::from(vec![
-        Field::new("kind", DataType::UInt32, false),
+        Field::new("kind", DataType::UInt32, true),
         Field::new("nonce", DataType::UInt64, false),
         Field::new("dest", DataType::Binary, true),
         Field::new("gas", DataType::Int64, false),
@@ -275,7 +275,7 @@ impl IntoChunks for Transactions {
 
 impl Transactions {
     pub fn push(&mut self, elem: Transaction) {
-        self.kind.push(Some(elem.kind.0));
+        self.kind.push(elem.kind.map(|n| n.0));
         self.nonce.push(Some(elem.nonce.0));
         match elem.dest {
             Some(dest) => self.dest.push(Some(dest.to_vec())),

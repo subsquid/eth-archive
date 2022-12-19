@@ -32,7 +32,7 @@ pub struct Block {
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     #[serde(rename = "type")]
-    pub kind: Index,
+    pub kind: Option<Index>,
     pub nonce: Nonce,
     #[serde(rename = "to")]
     pub dest: Option<Address>,

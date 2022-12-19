@@ -177,7 +177,7 @@ impl TransactionFieldSelection {
 
     pub fn prune(&self, tx: Transaction) -> ResponseTransaction {
         ResponseTransaction {
-            kind: prune_col!(tx, self, kind),
+            kind: prune_col!(tx, self, kind).flatten(),
             nonce: prune_col!(tx, self, nonce),
             dest: prune_col!(tx, self, dest).flatten(),
             gas: prune_col!(tx, self, gas),
