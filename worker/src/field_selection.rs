@@ -25,7 +25,9 @@ macro_rules! prune_col {
     };
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct FieldSelection {
@@ -34,7 +36,9 @@ pub struct FieldSelection {
     pub log: LogFieldSelection,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct BlockFieldSelection {
@@ -112,7 +116,9 @@ impl BlockFieldSelection {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct TransactionFieldSelection {
@@ -194,7 +200,9 @@ impl TransactionFieldSelection {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct LogFieldSelection {

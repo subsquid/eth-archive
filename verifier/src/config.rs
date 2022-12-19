@@ -1,5 +1,6 @@
 use clap::Parser;
 use eth_archive_core::config::{IngestConfig, RetryConfig};
+use std::num::NonZeroU32;
 use url::Url;
 
 #[derive(Clone, Parser, Debug)]
@@ -11,6 +12,10 @@ pub struct Config {
     pub retry: RetryConfig,
     #[clap(long)]
     pub archive_url: Url,
+    #[clap(long)]
+    pub offsets: Vec<u32>,
+    #[clap(long)]
+    pub step: NonZeroU32,
 }
 
 impl Config {

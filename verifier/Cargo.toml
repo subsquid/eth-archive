@@ -13,6 +13,7 @@ log = "0.4"
 env_logger = "0.9"
 clap = { version = "4", features = ["derive"] }
 url = { version = "2", features = ["serde"] } 
+futures = "0.3"
 
 eth-archive-core = { path = "../core" }
 eth-archive-worker = { path = "../worker" }
