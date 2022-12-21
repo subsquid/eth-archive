@@ -1,4 +1,4 @@
-use crate::deserialize::{Address, BloomFilterBytes, Bytes, Bytes32, Index};
+use crate::deserialize::{Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index};
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 use std::cmp;
@@ -17,15 +17,15 @@ pub struct Block {
     pub number: Index,
     pub gas_limit: Bytes,
     pub gas_used: Bytes,
-    pub timestamp: Bytes32,
+    pub timestamp: Bytes,
     pub extra_data: Bytes,
     pub mix_hash: Option<Bytes32>,
-    pub nonce: Option<Bytes32>,
+    pub nonce: Option<BigUnsigned>,
     pub total_difficulty: Option<Bytes>,
     pub base_fee_per_gas: Option<Bytes>,
-    pub size: Bytes32,
-    pub transactions: Vec<Transaction>,
+    pub size: Bytes,
     pub hash: Option<Bytes32>,
+    pub transactions: Vec<Transaction>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -33,17 +33,17 @@ pub struct Block {
 pub struct Transaction {
     #[serde(rename = "type")]
     pub kind: Option<Index>,
-    pub nonce: Bytes32,
+    pub nonce: BigUnsigned,
     #[serde(rename = "to")]
     pub dest: Option<Address>,
-    pub gas: Bytes32,
+    pub gas: Bytes,
     pub value: Bytes,
     pub input: Bytes,
-    pub max_priority_fee_per_gas: Option<Bytes32>,
-    pub max_fee_per_gas: Option<Bytes32>,
+    pub max_priority_fee_per_gas: Option<Bytes>,
+    pub max_fee_per_gas: Option<Bytes>,
     pub y_parity: Option<Index>,
     pub chain_id: Option<Index>,
-    pub v: Option<Bytes32>,
+    pub v: Option<BigUnsigned>,
     pub r: Bytes,
     pub s: Bytes,
     #[serde(rename = "from")]
@@ -51,7 +51,7 @@ pub struct Transaction {
     pub block_hash: Bytes32,
     pub block_number: Index,
     pub transaction_index: Index,
-    pub gas_price: Option<Bytes32>,
+    pub gas_price: Option<Bytes>,
     pub hash: Bytes32,
 }
 
@@ -101,13 +101,13 @@ pub struct ResponseBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mix_hash: Option<Bytes32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub nonce: Option<Bytes32>,
+    pub nonce: Option<BigUnsigned>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_difficulty: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_fee_per_gas: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<Bytes32>,
+    pub size: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<Bytes32>,
 }
@@ -119,26 +119,26 @@ pub struct ResponseTransaction {
     #[serde(rename = "type")]
     pub kind: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub nonce: Option<Bytes32>,
+    pub nonce: Option<BigUnsigned>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "to")]
     pub dest: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas: Option<Bytes32>,
+    pub gas: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_priority_fee_per_gas: Option<Bytes32>,
+    pub max_priority_fee_per_gas: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_fee_per_gas: Option<Bytes32>,
+    pub max_fee_per_gas: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub y_parity: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub v: Option<Bytes32>,
+    pub v: Option<BigUnsigned>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -154,7 +154,7 @@ pub struct ResponseTransaction {
     #[serde(rename = "index")]
     pub transaction_index: Option<Index>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas_price: Option<Bytes32>,
+    pub gas_price: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<Bytes32>,
 }

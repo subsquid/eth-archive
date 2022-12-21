@@ -14,6 +14,9 @@ pub struct Address(pub Box<[u8; 20]>);
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Sighash(pub Box<[u8; 4]>);
 
+#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+pub struct BigUnsigned(pub u64);
+
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
@@ -65,6 +68,12 @@ impl ToHexPrefixed for &Sighash {
     }
 }
 
+impl BigUnsigned {
+    pub fn new(bytes: &[u8]) -> Self {
+        Self(u64::from_be_bytes(bytes.try_into().unwrap()))
+    }
+}
+
 impl BloomFilterBytes {
     pub fn new(bytes: &[u8]) -> Self {
         Self(Box::new(bytes.try_into().unwrap()))
@@ -96,17 +105,9 @@ impl<'de> Visitor<'de> for Bytes32Visitor {
     where
         E: de::Error,
     {
-        let buf = vec_from_hex(value).map_err(|e| E::custom(e.to_string()))?;
+        let buf: [u8; 32] = prefix_hex::decode(value).map_err(|e| E::custom(e.to_string()))?;
 
-        if buf.len() > 32 {
-            return Err(E::custom("data doesn't fit into 32 bytes".to_owned()));
-        }
-
-        let mut vals = [0; 32];
-
-        vals[32 - buf.len()..].copy_from_slice(&buf);
-
-        Ok(Box::new(vals).into())
+        Ok(Box::new(buf).into())
     }
 }
 
@@ -208,6 +209,46 @@ impl Serialize for Sighash {
     }
 }
 
+struct BigUnsignedVisitor;
+
+impl<'de> Visitor<'de> for BigUnsignedVisitor {
+    type Value = BigUnsigned;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("hex string for 8 byte unsigned integer")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let value = match value.strip_prefix("0x") {
+            Some(value) => u64::from_str_radix(value, 16).map_err(|e| E::custom(e.to_string()))?,
+            None => value.parse::<u64>().map_err(|e| E::custom(e.to_string()))?,
+        };
+
+        Ok(BigUnsigned(value))
+    }
+}
+
+impl<'de> Deserialize<'de> for BigUnsigned {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(BigUnsignedVisitor)
+    }
+}
+
+impl Serialize for BigUnsigned {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
 struct BloomFilterBytesVisitor;
 
 impl<'de> Visitor<'de> for BloomFilterBytesVisitor {
@@ -292,7 +333,7 @@ impl<'de> Visitor<'de> for IndexVisitor {
     type Value = Index;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("hex string or integer for 4 byte index")
+        formatter.write_str("hex string or integer for 4 byte unsigned integer")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -318,7 +359,7 @@ impl<'de> Visitor<'de> for IndexVisitor {
     {
         let val: u32 = value
             .try_into()
-            .map_err(|_| E::custom("index value doesn't fit 4 bytes"))?;
+            .map_err(|_| E::custom("unsigned integer value doesn't fit 4 bytes"))?;
 
         Ok(Index(val))
     }
@@ -365,7 +406,7 @@ mod tests {
                 let data = $val;
                 let bytes: $kind =
                     serde_json::from_value(JsonValue::String(data.to_owned())).unwrap();
-                let real_bytes: Vec<u8> = prefix_hex::decode(data).unwrap();
+                let real_bytes: Vec<u8> = vec_from_hex(data).unwrap();
 
                 assert_eq!(bytes.0.as_slice(), real_bytes.as_slice());
 
@@ -403,25 +444,6 @@ mod tests {
         "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31"
     );
 
-    #[test]
-    fn test_bytes32_small() {
-        let data = "0x9d9af8e38d66c62e2c12f022524a";
-        let bytes: Bytes32 = serde_json::from_value(JsonValue::String(data.to_owned())).unwrap();
-        let real_bytes: Vec<u8> = prefix_hex::decode(data).unwrap();
-
-        let (zeroes, bytes_data) = bytes
-            .0
-            .as_slice()
-            .split_at(bytes.0.len() - real_bytes.len());
-        assert!(zeroes.iter().all(|z| *z == 0));
-        assert_eq!(bytes_data, real_bytes);
-
-        let serialized_data = serde_json::to_string(&bytes).unwrap();
-        let deserialized_bytes: Bytes32 = serde_json::from_str(&serialized_data).unwrap();
-
-        assert_eq!(bytes, deserialized_bytes);
-    }
-
     impl_bytes_test!(
         test_address,
         Address,
@@ -446,6 +468,14 @@ mod tests {
 
     impl_bytes_test!(test_bytes_empty, Bytes, "0x");
 
+    impl_bytes_test!(test_bytes_zero, Bytes, "0x0");
+
+    impl_bytes_test!(
+        test_bytes_small,
+        Bytes,
+        "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9"
+    );
+
     impl_bytes_test!(
         test_bytes,
         Bytes,
@@ -454,4 +484,6 @@ mod tests {
     );
 
     impl_int_test!(test_index, Index, "0xF64B41", u32);
+
+    impl_int_test!(test_big_unsigned, BigUnsigned, "0xF64B41", u64);
 }
