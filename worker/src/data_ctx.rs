@@ -626,8 +626,10 @@ macro_rules! map_from_arrow_opt {
 }
 
 fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<ResponseRow>> {
-    use eth_archive_core::deserialize::{Address, BloomFilterBytes, Bytes, Bytes32, Index};
-    use polars::export::arrow::array::{self, BooleanArray, UInt32Array};
+    use eth_archive_core::deserialize::{
+        Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
+    };
+    use polars::export::arrow::array::{self, BooleanArray, UInt32Array, UInt64Array};
 
     type BinaryArray = array::BinaryArray<i64>;
 
@@ -653,13 +655,13 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
             block_timestamp, BinaryArray,
             block_extra_data, BinaryArray,
             block_mix_hash, BinaryArray,
-            block_nonce, BinaryArray,
+            block_nonce, UInt64Array,
             block_total_difficulty, BinaryArray,
             block_base_fee_per_gas, BinaryArray,
             block_size, BinaryArray,
             block_hash, BinaryArray,
             tx_kind, UInt32Array,
-            tx_nonce, BinaryArray,
+            tx_nonce, UInt64Array,
             tx_dest, BinaryArray,
             tx_gas, BinaryArray,
             tx_value, BinaryArray,
@@ -668,7 +670,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
             tx_max_fee_per_gas, BinaryArray,
             tx_y_parity, UInt32Array,
             tx_chain_id, UInt32Array,
-            tx_v, BinaryArray,
+            tx_v, UInt64Array,
             tx_r, BinaryArray,
             tx_s, BinaryArray,
             tx_source, BinaryArray,
@@ -705,38 +707,38 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     number: map_from_arrow!(log_block_number, Index, i),
                     gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
                     gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
-                    timestamp: map_from_arrow!(block_timestamp, Bytes32::new, i),
+                    timestamp: map_from_arrow!(block_timestamp, Bytes::new, i),
                     extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
                     mix_hash: map_from_arrow_opt!(block_mix_hash, Bytes32::new, i),
-                    nonce: map_from_arrow_opt!(block_nonce, Bytes32::new, i),
+                    nonce: map_from_arrow_opt!(block_nonce, BigUnsigned, i),
                     total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
                     base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
-                    size: map_from_arrow!(block_size, Bytes32::new, i),
+                    size: map_from_arrow!(block_size, Bytes::new, i),
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
                 transaction: ResponseTransaction {
                     kind: map_from_arrow_opt!(tx_kind, Index, i),
-                    nonce: map_from_arrow!(tx_nonce, Bytes32::new, i),
+                    nonce: map_from_arrow!(tx_nonce, BigUnsigned, i),
                     dest: map_from_arrow_opt!(tx_dest, Address::new, i),
-                    gas: map_from_arrow!(tx_gas, Bytes32::new, i),
+                    gas: map_from_arrow!(tx_gas, Bytes::new, i),
                     value: map_from_arrow!(tx_value, Bytes::new, i),
                     input: map_from_arrow!(tx_input, Bytes::new, i),
                     max_priority_fee_per_gas: map_from_arrow_opt!(
                         tx_max_priority_fee_per_gas,
-                        Bytes32::new,
+                        Bytes::new,
                         i
                     ),
-                    max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, Bytes32::new, i),
+                    max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, Bytes::new, i),
                     y_parity: map_from_arrow_opt!(tx_y_parity, Index, i),
                     chain_id: map_from_arrow_opt!(tx_chain_id, Index, i),
-                    v: map_from_arrow_opt!(tx_v, Bytes32::new, i),
+                    v: map_from_arrow_opt!(tx_v, BigUnsigned, i),
                     r: map_from_arrow!(tx_r, Bytes::new, i),
                     s: map_from_arrow!(tx_s, Bytes::new, i),
                     source: map_from_arrow_opt!(tx_source, Address::new, i),
                     block_hash: map_from_arrow!(tx_block_hash, Bytes32::new, i),
                     block_number: map_from_arrow!(log_block_number, Index, i),
                     transaction_index: map_from_arrow!(log_transaction_index, Index, i),
-                    gas_price: map_from_arrow!(tx_gas_price, Bytes32::new, i),
+                    gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
                 },
                 log: Some(ResponseLog {
@@ -780,8 +782,10 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
 }
 
 fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<ResponseRow>> {
-    use eth_archive_core::deserialize::{Address, BloomFilterBytes, Bytes, Bytes32, Index};
-    use polars::export::arrow::array::{self, UInt32Array};
+    use eth_archive_core::deserialize::{
+        Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
+    };
+    use polars::export::arrow::array::{self, UInt32Array, UInt64Array};
 
     type BinaryArray = array::BinaryArray<i64>;
 
@@ -807,13 +811,13 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
             block_timestamp, BinaryArray,
             block_extra_data, BinaryArray,
             block_mix_hash, BinaryArray,
-            block_nonce, BinaryArray,
+            block_nonce, UInt64Array,
             block_total_difficulty, BinaryArray,
             block_base_fee_per_gas, BinaryArray,
             block_size, BinaryArray,
             block_hash, BinaryArray,
             tx_kind, UInt32Array,
-            tx_nonce, BinaryArray,
+            tx_nonce, UInt64Array,
             tx_dest, BinaryArray,
             tx_gas, BinaryArray,
             tx_value, BinaryArray,
@@ -822,7 +826,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
             tx_max_fee_per_gas, BinaryArray,
             tx_y_parity, UInt32Array,
             tx_chain_id, UInt32Array,
-            tx_v, BinaryArray,
+            tx_v, UInt64Array,
             tx_r, BinaryArray,
             tx_s, BinaryArray,
             tx_source, BinaryArray,
@@ -849,38 +853,38 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                     number: map_from_arrow!(tx_block_number, Index, i),
                     gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
                     gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
-                    timestamp: map_from_arrow!(block_timestamp, Bytes32::new, i),
+                    timestamp: map_from_arrow!(block_timestamp, Bytes::new, i),
                     extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
                     mix_hash: map_from_arrow_opt!(block_mix_hash, Bytes32::new, i),
-                    nonce: map_from_arrow_opt!(block_nonce, Bytes32::new, i),
+                    nonce: map_from_arrow_opt!(block_nonce, BigUnsigned, i),
                     total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
                     base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
-                    size: map_from_arrow!(block_size, Bytes32::new, i),
+                    size: map_from_arrow!(block_size, Bytes::new, i),
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
                 transaction: ResponseTransaction {
                     kind: map_from_arrow_opt!(tx_kind, Index, i),
-                    nonce: map_from_arrow!(tx_nonce, Bytes32::new, i),
+                    nonce: map_from_arrow!(tx_nonce, BigUnsigned, i),
                     dest: map_from_arrow_opt!(tx_dest, Address::new, i),
-                    gas: map_from_arrow!(tx_gas, Bytes32::new, i),
+                    gas: map_from_arrow!(tx_gas, Bytes::new, i),
                     value: map_from_arrow!(tx_value, Bytes::new, i),
                     input: map_from_arrow!(tx_input, Bytes::new, i),
                     max_priority_fee_per_gas: map_from_arrow_opt!(
                         tx_max_priority_fee_per_gas,
-                        Bytes32::new,
+                        Bytes::new,
                         i
                     ),
-                    max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, Bytes32::new, i),
+                    max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, Bytes::new, i),
                     y_parity: map_from_arrow_opt!(tx_y_parity, Index, i),
                     chain_id: map_from_arrow_opt!(tx_chain_id, Index, i),
-                    v: map_from_arrow_opt!(tx_v, Bytes32::new, i),
+                    v: map_from_arrow_opt!(tx_v, BigUnsigned, i),
                     r: map_from_arrow!(tx_r, Bytes::new, i),
                     s: map_from_arrow!(tx_s, Bytes::new, i),
                     source: map_from_arrow_opt!(tx_source, Address::new, i),
                     block_hash: map_from_arrow!(tx_block_hash, Bytes32::new, i),
                     block_number: map_from_arrow!(tx_block_number, Index, i),
                     transaction_index: map_from_arrow!(tx_transaction_index, Index, i),
-                    gas_price: map_from_arrow!(tx_gas_price, Bytes32::new, i),
+                    gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
                 },
                 log: None,
