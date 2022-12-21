@@ -95,7 +95,7 @@ pub struct ResponseBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_used: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<Bytes32>,
+    pub timestamp: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
