@@ -10,10 +10,10 @@ pub enum Error {
     Retry(Vec<Error>),
     #[error("failed to execute http request:\n{0}")]
     HttpRequest(reqwest::Error),
-    #[error("failed to parse rpc response:\n{0}")]
-    RpcResponseParse(reqwest::Error),
-    #[error("error: rpc response status is {0}. payload:\n{1:?}")]
-    RpcResponseStatus(u16, Option<String>),
+    #[error("failed to parse archive response:\n{0}")]
+    ArchiveResponseParse(reqwest::Error),
+    #[error("error: archive response status is {0}. payload:\n{1:?}")]
+    ArchiveResponseStatus(u16, Option<String>),
     #[error("failed to create archive client:\n{0}")]
     CreateArchiveClient(Box<Error>),
     #[error("failed to build ethereum rpc client:\n{0}")]

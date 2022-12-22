@@ -8,3 +8,9 @@ pub struct ArchiveResponse {
     archive_height: u32,
     next_block: u32,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Height {
+    height: Option<u32>,
+}
