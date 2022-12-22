@@ -47,8 +47,12 @@ impl Verifier {
         );
         pin_mut!(batches);
 
-        let batch = batches.next().await.unwrap();
-        let (block_ranges, block_batches, log_batches) = batches.map_err(Error::GetBatch)?;
+        for _ in 0..self.config.batches_per_step {
+            let batch = batches.next().await.
+            let (block_ranges, block_batches, log_batches) = batch.map_err(Error::GetBatch)?;
+        }
+
+        
 
         // get all of the fields so we can compare data more conveniently
         let field_selection = !FieldSelection::default();
@@ -83,7 +87,24 @@ impl Verifier {
         let step = self.config.step.get();
         let step = usize::try_from(step).unwrap();
 
+        let mut block_num = start;
+        loop {
+            let height = self.archive_client.get_height().await.map_err(|e| Error::GetArchiveHeight(Box::new(e)))?;
+            
+        }
+
         for block_num in (start..).step_by(step) {
+            let height = loop {
+                match height {
+                    Some(height) => break height,
+                    None => tokio::time::sleep(Duration::from_secs(5)).await,
+                }
+            };
+
+            if height < block_num {
+
+            }
+
             let futs = self.config.offsets.iter().filter_map(|offset| {
                 block_num
                     .checked_sub(offset)
