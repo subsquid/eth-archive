@@ -346,8 +346,6 @@ impl DbHandle {
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
         let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
 
-        let tail_is_zero = self.status.db_tail.load(Ordering::Relaxed) == 0;
-
         for (block_range, (blocks, logs)) in block_ranges
             .into_iter()
             .zip(block_batches.into_iter().zip(log_batches.into_iter()))
@@ -355,7 +353,6 @@ impl DbHandle {
             let mut batch = rocksdb::WriteBatch::default();
 
             let mut db_height = self.status.db_height.load(Ordering::Relaxed);
-            let mut db_tail = std::u32::MAX;
 
             for mut block in blocks {
                 let txs = mem::take(&mut block.transactions);
@@ -375,7 +372,6 @@ impl DbHandle {
                 batch.put_cf(block_cf, block.number.to_be_bytes(), &val);
 
                 db_height = cmp::max(db_height, block.number.0 + 1);
-                db_tail = cmp::min(db_tail, block.number.0);
             }
 
             for log in logs {
@@ -395,9 +391,15 @@ impl DbHandle {
                     .record_write_speed(range as f64 / elapsed as f64 * 1000.);
             }
 
-            if db_tail != std::u32::MAX && tail_is_zero {
-                self.status.db_tail.store(db_tail, Ordering::Relaxed);
-            }
+            let db_tail = self.inner
+                .iterator_cf(block_cf, rocksdb::IteratorMode::Start)
+                .next()
+                .transpose()
+                .map_err(Error::Db)?
+                .map(|(key, _)| block_num_from_key(&key))
+                .unwrap_or(0);
+
+            self.status.db_tail.store(db_tail, Ordering::Relaxed);
             self.status.db_height.store(db_height, Ordering::Relaxed);
 
             let height = self.height();
