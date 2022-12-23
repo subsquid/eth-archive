@@ -18,6 +18,8 @@ pub enum Error {
     CreateArchiveClient(Box<Error>),
     #[error("failed to build ethereum rpc client:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
+    #[error("failed to get archive height:\n{0}")]
+    GetArchiveHeight(Box<Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;

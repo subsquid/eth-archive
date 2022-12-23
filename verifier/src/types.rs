@@ -4,13 +4,13 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveResponse {
-    data: Vec<BlockEntryVec>,
-    archive_height: u32,
-    next_block: u32,
+    pub data: Vec<BlockEntryVec>,
+    pub archive_height: u32,
+    pub next_block: u32,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Height {
-    height: Option<u32>,
+    pub height: Option<u32>,
 }

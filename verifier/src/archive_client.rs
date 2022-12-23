@@ -68,7 +68,7 @@ impl ArchiveClient {
             .map_err(Error::Retry)
     }
 
-    pub async fn get_heigh(&self) -> Result<Option<u32>> {
+    pub async fn get_height(&self) -> Result<Option<u32>> {
         let mut url = self.archive_url.clone();
         url.path_segments_mut().unwrap().push("height");
 
