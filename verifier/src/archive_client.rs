@@ -1,4 +1,4 @@
-use crate::types::ArchiveResponse;
+use crate::types::{ArchiveResponse, Height};
 use crate::{Error, Result};
 use eth_archive_core::config::IngestConfig;
 use eth_archive_core::retry::Retry;
@@ -35,9 +35,12 @@ impl ArchiveClient {
     }
 
     async fn send_impl(&self, query: &Query) -> Result<ArchiveResponse> {
+        let mut url = self.archive_url.clone();
+        url.path_segments_mut().unwrap().push("query");
+
         let resp = self
             .http_client
-            .post(self.archive_url.clone())
+            .post(url)
             .json(query)
             .send()
             .await
@@ -46,10 +49,10 @@ impl ArchiveClient {
         let resp_status = resp.status();
         if !resp_status.is_success() {
             let body = resp.text().await.ok();
-            return Err(Error::RpcResponseStatus(resp_status.as_u16(), body));
+            return Err(Error::ArchiveResponseStatus(resp_status.as_u16(), body));
         }
 
-        let resp_body = resp.json().await.map_err(Error::RpcResponseParse)?;
+        let resp_body = resp.json().await.map_err(Error::ArchiveResponseParse)?;
 
         Ok(resp_body)
     }
@@ -63,5 +66,26 @@ impl ArchiveClient {
             })
             .await
             .map_err(Error::Retry)
+    }
+
+    pub async fn get_height(&self) -> Result<Option<u32>> {
+        let mut url = self.archive_url.clone();
+        url.path_segments_mut().unwrap().push("height");
+
+        let resp = self
+            .http_client
+            .get(url)
+            .send()
+            .await
+            .map_err(Error::HttpRequest)?;
+        let resp_status = resp.status();
+        if !resp_status.is_success() {
+            let body = resp.text().await.ok();
+            return Err(Error::ArchiveResponseStatus(resp_status.as_u16(), body));
+        }
+
+        let resp_body: Height = resp.json().await.map_err(Error::ArchiveResponseParse)?;
+
+        Ok(resp_body.height)
     }
 }

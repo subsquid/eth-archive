@@ -16,6 +16,8 @@ pub struct Config {
     pub offsets: Vec<u32>,
     #[clap(long)]
     pub step: NonZeroU32,
+    #[clap(long)]
+    pub batches_per_step: usize,
 }
 
 impl Config {
