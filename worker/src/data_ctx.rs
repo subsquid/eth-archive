@@ -50,10 +50,9 @@ impl DataCtx {
 
             async move {
                 let best_block = eth_client.clone().get_best_block().await.unwrap();
-                let mut start = if best_block > config.initial_hot_block_range {
-                    best_block - config.initial_hot_block_range
-                } else {
-                    0
+                let mut start = match config.initial_hot_block_range {
+                    Some(range) if best_block > range => best_block - range,
+                    _ => 0,
                 };
 
                 if db_height > start {
