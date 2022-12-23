@@ -1,3 +1,5 @@
+#[allow(unused)]
+
 use crate::archive_client::ArchiveClient;
 use crate::config::Config;
 use crate::{Error, Result};
