@@ -27,7 +27,7 @@ derive_more = "0.99.17"
 eth-archive-core = { path = "../core" }
 
 [dependencies.polars]
-version = "0.25"
+version = "0.26"
 features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 
 [dependencies.rocksdb]
