@@ -5,7 +5,6 @@ use aws_smithy_http::endpoint::Endpoint;
 use futures::Future;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::BTreeSet;
-use std::convert::TryInto;
 use std::io;
 use std::path::Path;
 use std::pin::Pin;
@@ -23,9 +22,7 @@ pub enum Direction {
 
 pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Config) -> Result<()> {
     let cfg = aws_config::from_env()
-        .endpoint_resolver(Endpoint::immutable(
-            config.s3_endpoint.clone().try_into().unwrap(),
-        ))
+        .endpoint_resolver(Endpoint::immutable(&config.s3_endpoint).unwrap())
         .region(aws_types::region::Region::new(
             config.s3_bucket_region.clone(),
         ))
