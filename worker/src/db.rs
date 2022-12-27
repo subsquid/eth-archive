@@ -391,7 +391,8 @@ impl DbHandle {
                     .record_write_speed(range as f64 / elapsed as f64 * 1000.);
             }
 
-            let db_tail = self.inner
+            let db_tail = self
+                .inner
                 .iterator_cf(block_cf, rocksdb::IteratorMode::Start)
                 .next()
                 .transpose()
