@@ -1,11 +1,12 @@
 use crate::{Error, Result};
-use core::sync::atomic::{AtomicU32, AtomicU64};
-use prometheus_client::encoding::text::{encode, Encode};
+use core::sync::atomic::{AtomicI64, AtomicU64};
+use prometheus_client::encoding::text::encode;
+use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::Gauge as GaugeImpl;
 use prometheus_client::registry::Registry;
 
-type HeightGauge = GaugeImpl<u32, AtomicU32>;
+type HeightGauge = GaugeImpl<i64, AtomicI64>;
 type IngestGauge = GaugeImpl<f64, AtomicU64>;
 
 pub struct IngestMetrics {
@@ -14,14 +15,14 @@ pub struct IngestMetrics {
     registry: Registry,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, EncodeLabelValue)]
 enum LabelKind {
     Download,
     Write,
     Chain,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct Label {
     kind: LabelKind,
 }
@@ -35,13 +36,13 @@ impl IngestMetrics {
         registry.register(
             "sqd_archive_ingest_speed",
             "Blocks processed per second",
-            Box::new(ingest.clone()),
+            ingest.clone(),
         );
 
         registry.register(
             "sqd_archive_block_height",
             "Number of the latest processed block",
-            Box::new(height.clone()),
+            height.clone(),
         );
 
         Self {
@@ -72,7 +73,7 @@ impl IngestMetrics {
             .get_or_create(&Label {
                 kind: LabelKind::Download,
             })
-            .set(height);
+            .set(i64::from(height));
     }
 
     pub fn record_write_height(&self, height: u32) {
@@ -80,7 +81,7 @@ impl IngestMetrics {
             .get_or_create(&Label {
                 kind: LabelKind::Write,
             })
-            .set(height);
+            .set(i64::from(height));
     }
 
     pub fn record_chain_height(&self, height: u32) {
@@ -88,16 +89,15 @@ impl IngestMetrics {
             .get_or_create(&Label {
                 kind: LabelKind::Chain,
             })
-            .set(height);
+            .set(i64::from(height));
     }
 
     pub fn encode(&self) -> Result<String> {
-        let mut buf = Vec::new();
+        let mut buf = String::new();
 
         encode(&mut buf, &self.registry).map_err(Error::EncodeMetrics)?;
-        let s = String::from_utf8(buf).map_err(Error::MetricsUtf8)?;
 
-        Ok(s)
+        Ok(buf)
     }
 }
 

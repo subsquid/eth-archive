@@ -1,7 +1,7 @@
 use aws_sdk_s3::types::SdkError as S3Err;
-use std::io;
 use std::result::Result as StdResult;
 use std::string::FromUtf8Error;
+use std::{fmt, io};
 use thiserror::Error as ThisError;
 
 type S3Put = S3Err<aws_sdk_s3::error::PutObjectError>;
@@ -41,7 +41,7 @@ pub enum Error {
     #[error("failed to parse ETH_RPC_URL:\n{0}")]
     ParseRpcUrl(url::ParseError),
     #[error("failed to encode metrics:\n{0}")]
-    EncodeMetrics(io::Error),
+    EncodeMetrics(fmt::Error),
     #[error("encoded metrics have invalid utf8:\n{0}")]
     MetricsUtf8(FromUtf8Error),
     #[error("failed to put object to s3:\n{0}")]
