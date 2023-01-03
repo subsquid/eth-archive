@@ -402,7 +402,7 @@ pub fn parquet_write_options() -> WriteOptions {
         write_statistics: true,
         compression: CompressionOptions::Lz4Raw,
         version: Version::V2,
-        data_pagesize_limit: None,
+        data_pagesize_limit: Some(100 * 1024), // 100 KB
     }
 }
 
