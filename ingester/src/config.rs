@@ -25,6 +25,9 @@ pub struct Config {
     /// Maximum number of row groups per parquet file
     #[clap(long)]
     pub max_row_groups_per_file: usize,
+    /// Page size for parquet files in bytes. Defaults to 1MB.
+    #[clap(long)]
+    pub parquet_page_size: Option<usize>,
     /// Maximum number of pending folder writes.
     /// This effects maximum memory consumption.
     #[clap(long, default_value_t = 8)]
