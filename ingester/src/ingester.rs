@@ -229,6 +229,7 @@ impl Data {
                 Box::new(self.blocks),
                 block_schema(),
                 cfg.max_blocks_per_file / cfg.max_row_groups_per_file,
+                cfg.parquet_page_size,
             )
         };
 
@@ -241,6 +242,7 @@ impl Data {
                 Box::new(self.txs),
                 tx_schema(),
                 cfg.max_txs_per_file / cfg.max_row_groups_per_file,
+                cfg.parquet_page_size,
             )
         };
 
@@ -253,6 +255,7 @@ impl Data {
                 Box::new(self.logs),
                 log_schema(),
                 cfg.max_logs_per_file / cfg.max_row_groups_per_file,
+                cfg.parquet_page_size,
             )
         };
 
@@ -303,6 +306,7 @@ async fn write_file<T: IntoChunks + Send + 'static>(
     chunks: Box<T>,
     schema: Schema,
     items_per_chunk: usize,
+    page_size: Option<usize>,
 ) -> Result<()> {
     let chunks = rayon_async::spawn(move || chunks.into_chunks(items_per_chunk)).await;
     let mut file = tokio::fs::File::create(&temp_path)
@@ -310,8 +314,13 @@ async fn write_file<T: IntoChunks + Send + 'static>(
         .map_err(Error::CreateFile)?
         .compat();
     let encodings = encodings(&schema);
-    let mut writer = FileSink::try_new(&mut file, schema, encodings, parquet_write_options())
-        .map_err(Error::CreateFileSink)?;
+    let mut writer = FileSink::try_new(
+        &mut file,
+        schema,
+        encodings,
+        parquet_write_options(page_size),
+    )
+    .map_err(Error::CreateFileSink)?;
     let mut chunk_stream = futures::stream::iter(chunks);
     writer
         .send_all(&mut chunk_stream)
