@@ -16,7 +16,7 @@ rayon = "1"
 itertools = "0.10"
 tokio-util = { version = "0.7", features = ["compat"] }
 actix-web = "4"
-mimalloc = { version = "0.1.32", default-features = false }
+mimalloc = { version = "0.1.34", default-features = false }
 
 eth-archive-core = { path = "../core" }
 
