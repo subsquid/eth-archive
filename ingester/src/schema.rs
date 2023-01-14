@@ -60,6 +60,7 @@ pub fn tx_schema() -> Schema {
         Field::new("transaction_index", DataType::UInt32, false),
         Field::new("gas_price", DataType::Binary, true),
         Field::new("hash", DataType::Binary, false),
+        Field::new("status", DataType::UInt32, false),
         Field::new("sighash", DataType::Binary, true),
     ])
 }
@@ -205,6 +206,7 @@ pub struct Transactions {
     pub transaction_index: UInt32Vec,
     pub gas_price: MutableBinaryArray,
     pub hash: MutableBinaryArray,
+    pub status: UInt32Vec,
     pub sighash: MutableBinaryArray,
     pub len: usize,
 }
@@ -257,6 +259,7 @@ impl IntoChunks for Transactions {
             arrow_take(transaction_index.as_ref(), &indices).unwrap(),
             arrow_take(self.gas_price.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.hash.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(self.status.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.sighash.as_box().as_ref(), &indices).unwrap(),
         ]);
 
@@ -275,6 +278,7 @@ impl IntoChunks for Transactions {
 
 impl Transactions {
     pub fn push(&mut self, elem: Transaction) {
+        self.sighash.push(elem.input.get(..4));
         self.kind.push(elem.kind.map(|n| n.0));
         self.nonce.push(Some(elem.nonce.0));
         match elem.dest {
@@ -283,7 +287,6 @@ impl Transactions {
         }
         self.gas.push(Some(elem.gas.0));
         self.value.push(Some(elem.value.0));
-        self.sighash.push(elem.input.get(..4));
         self.input.push(Some(elem.input.0));
         self.max_priority_fee_per_gas
             .push(elem.max_priority_fee_per_gas.map(|n| n.0));
@@ -299,6 +302,7 @@ impl Transactions {
         self.transaction_index.push(Some(elem.transaction_index.0));
         self.gas_price.push(elem.gas_price.map(|n| n.0));
         self.hash.push(Some(elem.hash.to_vec()));
+        self.status.push(Some(elem.status.0));
 
         self.len += 1;
     }

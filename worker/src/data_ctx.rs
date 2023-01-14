@@ -676,6 +676,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
             tx_block_hash, BinaryArray,
             tx_gas_price, BinaryArray,
             tx_hash, BinaryArray,
+            tx_status, UInt32Array,
             log_address, BinaryArray,
             log_block_hash, BinaryArray,
             log_block_number, UInt32Array,
@@ -739,6 +740,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     transaction_index: map_from_arrow!(log_transaction_index, Index, i),
                     gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
+                    status: map_from_arrow!(tx_status, Index, i),
                 },
                 log: Some(ResponseLog {
                     address: map_from_arrow!(log_address, Address::new, i),
@@ -833,7 +835,8 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
             tx_block_number, UInt32Array,
             tx_transaction_index, UInt32Array,
             tx_gas_price, BinaryArray,
-            tx_hash, BinaryArray
+            tx_hash, BinaryArray,
+            tx_status, UInt32Array
         );
 
         let len = tx_block_number.as_ref().unwrap().len();
@@ -885,6 +888,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                     transaction_index: map_from_arrow!(tx_transaction_index, Index, i),
                     gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
+                    status: map_from_arrow!(tx_status, Index, i),
                 },
                 log: None,
             };

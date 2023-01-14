@@ -145,6 +145,7 @@ pub struct TransactionFieldSelection {
     pub transaction_index: bool,
     pub gas_price: bool,
     pub hash: bool,
+    pub status: bool,
 }
 
 impl TransactionFieldSelection {
@@ -171,6 +172,7 @@ impl TransactionFieldSelection {
         append_col!(table_name, cols, self, transaction_index);
         append_col!(table_name, cols, self, gas_price);
         append_col!(table_name, cols, self, hash);
+        append_col!(table_name, cols, self, status);
 
         cols
     }
@@ -196,6 +198,7 @@ impl TransactionFieldSelection {
             transaction_index: prune_col!(tx, self, transaction_index),
             gas_price: prune_col!(tx, self, gas_price).flatten(),
             hash: prune_col!(tx, self, hash),
+            status: prune_col!(tx, self, status),
         }
     }
 }
