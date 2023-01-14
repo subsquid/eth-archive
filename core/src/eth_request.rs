@@ -73,7 +73,7 @@ impl EthRequest for GetBestBlock {
 
 #[derive(Clone)]
 pub struct GetTransactionReceipt {
-    transaction_hash: Bytes32,
+    pub transaction_hash: Bytes32,
 }
 
 impl EthRequest for GetTransactionReceipt {

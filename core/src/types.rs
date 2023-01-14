@@ -54,10 +54,10 @@ pub struct Transaction {
     pub gas_price: Option<Bytes>,
     pub hash: Bytes32,
     // When ingesting
-    // This field will be false for all transactions initially.
+    // This field will be 0 for all transactions initially.
     // It will later be filled by info from the tx receipt.
     #[serde(default)]
-    pub status: bool,
+    pub status: Index,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -171,6 +171,8 @@ pub struct ResponseTransaction {
     pub gas_price: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<Bytes32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<Index>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
