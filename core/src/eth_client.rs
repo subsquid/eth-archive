@@ -286,9 +286,16 @@ impl EthClient {
             })
             .collect::<Vec<Vec<GetTransactionReceipt>>>();
 
-        let tx_batches = self.send_batches(url_set, &tx_batches).await?;
+        let mut tx_batches_res = Vec::new();
 
-        for batch in tx_batches {
+        let req_concurrency = usize::try_from(self.cfg.http_req_concurrency).unwrap();
+
+        for chunk in tx_batches.chunks(req_concurrency) {
+            let txs = self.clone().send_batches(url_set.clone(), chunk).await?;
+            tx_batches_res.extend_from_slice(&txs);
+        }
+
+        for batch in tx_batches_res {
             for tx in batch {
                 let block_idx = block_map[&tx.block_number.0];
                 let tx_idx = usize::try_from(tx.transaction_index.0).unwrap();
