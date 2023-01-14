@@ -1,4 +1,6 @@
-use crate::types::{Block, Log};
+use crate::deserialize::Bytes32;
+use crate::types::{Block, Log, TransactionReceipt};
+use prefix_hex::ToHexPrefixed;
 use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
 
@@ -64,6 +66,26 @@ impl EthRequest for GetBestBlock {
             "jsonrpc": "2.0",
             "method": "eth_blockNumber",
             "params": [],
+            "id": id,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct GetTransactionReceipt {
+    transaction_hash: Bytes32,
+}
+
+impl EthRequest for GetTransactionReceipt {
+    type Resp = TransactionReceipt;
+
+    fn to_body(&self, id: usize) -> JsonValue {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "eth_getTransactionReceipt",
+            "params": [
+                self.transaction_hash.to_hex_prefixed(),
+            ],
             "id": id,
         })
     }

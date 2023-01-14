@@ -53,6 +53,20 @@ pub struct Transaction {
     pub transaction_index: Index,
     pub gas_price: Option<Bytes>,
     pub hash: Bytes32,
+    // When ingesting
+    // This field will be false for all transactions initially.
+    // It will later be filled by info from the tx receipt.
+    #[serde(default)]
+    pub status: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionReceipt {
+    pub block_number: Index,
+    pub transaction_index: Index,
+    pub logs: Option<Vec<Log>>,
+    pub status: Option<Index>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
