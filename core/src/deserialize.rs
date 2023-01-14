@@ -20,7 +20,7 @@ pub struct BigUnsigned(pub u64);
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct BloomFilterBytes(pub Box<[u8; 256]>);
 
-#[derive(Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Index(pub u32);
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]

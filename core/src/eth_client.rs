@@ -1,6 +1,9 @@
 use crate::config::IngestConfig;
+use crate::deserialize::Index;
 use crate::error::{Error, Result};
-use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetLogs};
+use crate::eth_request::{
+    EthRequest, GetBestBlock, GetBlockByNumber, GetLogs, GetTransactionReceipt,
+};
 use crate::ingest_metrics::IngestMetrics;
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
@@ -8,6 +11,7 @@ use futures::stream::Stream;
 use rand::seq::SliceRandom;
 use serde_json::Value as JsonValue;
 use std::cmp;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
@@ -232,19 +236,6 @@ impl EthClient {
         group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
-    async fn send_concurrent<R: EthRequest + Copy>(
-        self: Arc<Self>,
-        url_set: Arc<UrlSet>,
-        reqs: &[R],
-    ) -> Result<Vec<R::Resp>> {
-        let group = reqs.iter().map(|&req| {
-            let client = self.clone();
-            client.send(url_set.clone(), req)
-        });
-        let group = futures::future::join_all(group).await;
-        group.into_iter().collect()
-    }
-
     pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
         let url_set = self.healthy_url_set().await?;
 
@@ -262,6 +253,60 @@ impl EthClient {
         let num = if num > offset { num - offset } else { 0 };
 
         Ok(num)
+    }
+
+    // fills out transaction.status field and gets logs for a batch of blocks
+    async fn get_receipts(
+        self: Arc<Self>,
+        url_set: Arc<UrlSet>,
+        block_batch: &mut [Block],
+    ) -> Result<Vec<Log>> {
+        let block_map = block_batch
+            .iter()
+            .enumerate()
+            .map(|(i, block)| (block.number.0, i))
+            .collect::<BTreeMap<u32, usize>>();
+
+        let mut log_batch = Vec::new();
+
+        let hashes = block_batch
+            .iter()
+            .flat_map(|block| block.transactions.iter().map(|tx| &tx.hash))
+            .collect::<Vec<_>>();
+
+        let tx_batches = hashes
+            .chunks(self.cfg.tx_batch_size)
+            .map(|hashes| {
+                hashes
+                    .iter()
+                    .map(|&hash| GetTransactionReceipt {
+                        transaction_hash: hash.clone(),
+                    })
+                    .collect()
+            })
+            .collect::<Vec<Vec<GetTransactionReceipt>>>();
+
+        let mut tx_batches_res = Vec::new();
+
+        let req_concurrency = usize::try_from(self.cfg.http_req_concurrency).unwrap();
+
+        for chunk in tx_batches.chunks(req_concurrency) {
+            let txs = self.clone().send_batches(url_set.clone(), chunk).await?;
+            tx_batches_res.extend_from_slice(&txs);
+        }
+
+        for batch in tx_batches_res {
+            for tx in batch {
+                let block_idx = block_map[&tx.block_number.0];
+                let tx_idx = usize::try_from(tx.transaction_index.0).unwrap();
+                block_batch[block_idx].transactions[tx_idx].status = tx.status.unwrap_or(Index(1));
+                if let Some(logs) = &tx.logs {
+                    log_batch.extend_from_slice(logs);
+                }
+            }
+        }
+
+        Ok(log_batch)
     }
 
     pub fn stream_batches(
@@ -331,6 +376,8 @@ impl EthClient {
                     continue;
                 }
 
+                let start_time = Instant::now();
+
                 let block_batches = (0..concurrency)
                     .filter_map(|step_no: u32| {
                         let start = block_num + step_no * batch_size;
@@ -348,34 +395,19 @@ impl EthClient {
                     })
                     .collect::<Vec<_>>();
 
-                let log_batches = (0..concurrency)
-                    .filter_map(|step_no| {
-                        let start = block_num + step_no * batch_size;
-                        let end = cmp::min(start + batch_size, to_block);
-
-                        if start < end {
-                            Some(GetLogs {
-                                from_block: start,
-                                to_block: end - 1,
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
-                let start_time = Instant::now();
-
-                let ended_block = cmp::min(block_num + step, to_block);
-
-                let block_batches = self
+                let mut block_batches = self
                     .clone()
                     .send_batches(url_set.clone(), &block_batches)
                     .await?;
-                let log_batches = self
-                    .clone()
-                    .send_concurrent(url_set, &log_batches)
-                    .await?;
+
+                let mut log_batches = Vec::with_capacity(block_batches.len());
+
+                for block_batch in block_batches.iter_mut() {
+                    let log_batch = self.clone().get_receipts(url_set.clone(), block_batch).await?;
+                    log_batches.push(log_batch);
+                }
+
+                let ended_block = cmp::min(block_num + step, to_block);
 
                 if ended_block > 0 {
                     self.metrics.record_download_height(ended_block-1);

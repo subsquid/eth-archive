@@ -1,6 +1,6 @@
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
-use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Sighash};
+use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ pub struct MiniLogSelection {
 pub struct MiniTransactionSelection {
     pub address: Option<Vec<Address>>,
     pub sighash: Option<Vec<Sighash>>,
+    pub status: Option<u32>,
 }
 
 impl MiniQuery {
@@ -47,7 +48,9 @@ impl MiniQuery {
 
     pub fn matches_tx(&self, tx: &Transaction) -> bool {
         self.transactions.iter().any(|selection| {
-            selection.matches_dest(&tx.dest) && selection.matches_sighash(&tx.input)
+            selection.matches_dest(&tx.dest)
+                && selection.matches_sighash(&tx.input)
+                && selection.matches_status(tx.status)
         })
     }
 }
@@ -129,6 +132,15 @@ impl MiniTransactionSelection {
             _ => (),
         }
 
+        if let Some(status) = self.status {
+            let inner_expr = col("tx_status").eq(status.lit());
+
+            expr = match expr {
+                Some(expr) => Some(expr.and(inner_expr)),
+                None => Some(inner_expr),
+            };
+        }
+
         expr
     }
 
@@ -160,6 +172,14 @@ impl MiniTransactionSelection {
         }
 
         true
+    }
+
+    pub fn matches_status(&self, tx_status: Index) -> bool {
+        if let Some(status) = self.status {
+            status == tx_status.0
+        } else {
+            true
+        }
     }
 }
 
@@ -212,6 +232,7 @@ impl Query {
         field_selection.transaction.block_number = true;
         field_selection.transaction.transaction_index = true;
         field_selection.transaction.dest = true;
+        field_selection.transaction.status = true;
         field_selection.log.block_number = true;
         field_selection.log.log_index = true;
         field_selection.log.transaction_index = true;
@@ -237,6 +258,7 @@ impl Query {
             .map(|transaction| MiniTransactionSelection {
                 address: transaction.address.clone(),
                 sighash: transaction.sighash.clone(),
+                status: transaction.status,
             })
             .collect()
     }
@@ -255,5 +277,6 @@ pub struct LogSelection {
 pub struct TransactionSelection {
     pub address: Option<Vec<Address>>,
     pub sighash: Option<Vec<Sighash>>,
+    pub status: Option<u32>,
     pub field_selection: FieldSelection,
 }
