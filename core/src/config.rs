@@ -27,6 +27,7 @@ pub struct IngestConfig {
     #[clap(long)]
     pub http_req_concurrency: u32,
     /// Offset from tip of the chain (to avoid rollbacks)
+    #[clap(long)]
     pub best_block_offset: u32,
     #[clap(long)]
     pub rpc_urls: Vec<url::Url>,
