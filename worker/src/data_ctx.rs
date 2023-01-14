@@ -239,6 +239,7 @@ impl DataCtx {
                                     return Some(MiniTransactionSelection {
                                         address: tx_selection.address.clone(),
                                         sighash: tx_selection.sighash.clone(),
+                                        status: tx_selection.status,
                                     });
                                 }
                             };
@@ -253,6 +254,7 @@ impl DataCtx {
                                 Some(MiniTransactionSelection {
                                     address: Some(address),
                                     sighash: tx_selection.sighash.clone(),
+                                    status: tx_selection.status,
                                 })
                             } else {
                                 None
