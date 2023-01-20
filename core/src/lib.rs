@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 pub mod config;
 pub mod deserialize;
 pub mod dir_name;

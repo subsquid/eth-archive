@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 mod config;
 mod data_ctx;
 mod db;
