@@ -1,9 +1,7 @@
 use crate::config::IngestConfig;
 use crate::deserialize::Index;
 use crate::error::{Error, Result};
-use crate::eth_request::{
-    EthRequest, GetBestBlock, GetBlockByNumber, GetLogs, GetTransactionReceipt,
-};
+use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetBlockReceipts};
 use crate::ingest_metrics::IngestMetrics;
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
@@ -11,7 +9,6 @@ use futures::stream::Stream;
 use rand::seq::SliceRandom;
 use serde_json::Value as JsonValue;
 use std::cmp;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
@@ -255,60 +252,6 @@ impl EthClient {
         Ok(num)
     }
 
-    // fills out transaction.status field and gets logs for a batch of blocks
-    async fn get_receipts(
-        self: Arc<Self>,
-        url_set: Arc<UrlSet>,
-        block_batch: &mut [Block],
-    ) -> Result<Vec<Log>> {
-        let block_map = block_batch
-            .iter()
-            .enumerate()
-            .map(|(i, block)| (block.number.0, i))
-            .collect::<BTreeMap<u32, usize>>();
-
-        let mut log_batch = Vec::new();
-
-        let hashes = block_batch
-            .iter()
-            .flat_map(|block| block.transactions.iter().map(|tx| &tx.hash))
-            .collect::<Vec<_>>();
-
-        let tx_batches = hashes
-            .chunks(self.cfg.tx_batch_size)
-            .map(|hashes| {
-                hashes
-                    .iter()
-                    .map(|&hash| GetTransactionReceipt {
-                        transaction_hash: hash.clone(),
-                    })
-                    .collect()
-            })
-            .collect::<Vec<Vec<GetTransactionReceipt>>>();
-
-        let mut tx_batches_res = Vec::new();
-
-        let req_concurrency = usize::try_from(self.cfg.http_req_concurrency).unwrap();
-
-        for chunk in tx_batches.chunks(req_concurrency) {
-            let txs = self.clone().send_batches(url_set.clone(), chunk).await?;
-            tx_batches_res.extend_from_slice(&txs);
-        }
-
-        for batch in tx_batches_res {
-            for tx in batch {
-                let block_idx = block_map[&tx.block_number.0];
-                let tx_idx = usize::try_from(tx.transaction_index.0).unwrap();
-                block_batch[block_idx].transactions[tx_idx].status = tx.status.unwrap_or(Index(1));
-                if let Some(logs) = &tx.logs {
-                    log_batch.extend_from_slice(logs);
-                }
-            }
-        }
-
-        Ok(log_batch)
-    }
-
     pub fn stream_batches(
         self: Arc<Self>,
         from: Option<u32>,
@@ -347,11 +290,19 @@ impl EthClient {
                 if block_num + batch_size >= to_block {
                     let start_time = Instant::now();
 
-                    let block = self.clone().send(url_set.clone(), GetBlockByNumber { block_number: block_num }).await?;
-                    let logs = self.clone().send(url_set, GetLogs {
-                        from_block: block_num,
-                        to_block: block_num,
+                    let mut block = self.clone().send(url_set.clone(), GetBlockByNumber { block_number: block_num }).await?;
+                    let receipts = self.clone().send(url_set, GetBlockReceipts {
+                        block_number: block_num
                     }).await?;
+
+                    let logs = block.transactions.iter_mut().zip(receipts.into_iter()).filter_map(|(tx, receipt)| {
+                        assert_eq!(tx.block_number, receipt.block_number);
+                        assert_eq!(tx.transaction_index, receipt.transaction_index);
+
+                        tx.status = receipt.status.unwrap_or(Index(1));
+
+                        receipt.logs.map(|logs| logs.into_iter())
+                    }).flatten().collect();
 
                     self.metrics.record_download_height(block_num);
 
@@ -395,17 +346,45 @@ impl EthClient {
                     })
                     .collect::<Vec<_>>();
 
+                let receipt_batches = (0..concurrency)
+                    .filter_map(|step_no: u32| {
+                        let start = block_num + step_no * batch_size;
+                        let end = cmp::min(start + batch_size, to_block);
+
+                        let batch = (start..end)
+                            .map(|i| GetBlockReceipts { block_number: i })
+                            .collect::<Vec<_>>();
+
+                        if batch.is_empty() {
+                            None
+                        } else {
+                            Some(batch)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
                 let mut block_batches = self
                     .clone()
                     .send_batches(url_set.clone(), &block_batches)
                     .await?;
 
-                let mut log_batches = Vec::with_capacity(block_batches.len());
+                let receipt_batches = self
+                    .clone()
+                    .send_batches(url_set.clone(), &receipt_batches)
+                    .await?;
 
-                for block_batch in block_batches.iter_mut() {
-                    let log_batch = self.clone().get_receipts(url_set.clone(), block_batch).await?;
-                    log_batches.push(log_batch);
-                }
+                let log_batches = block_batches.iter_mut().zip(receipt_batches.into_iter()).map(|(block_batch, receipt_batch)| {
+                    block_batch.iter_mut().zip(receipt_batch.into_iter()).flat_map(|(block, receipts)| {
+                        block.transactions.iter_mut().zip(receipts.into_iter()).filter_map(|(tx, receipt)| {
+                            assert_eq!(tx.block_number, receipt.block_number);
+                            assert_eq!(tx.transaction_index, receipt.transaction_index);
+
+                            tx.status = receipt.status.unwrap_or(Index(1));
+
+                            receipt.logs.map(|logs| logs.into_iter())
+                        }).flatten()
+                    }).collect()
+                }).collect();
 
                 let ended_block = cmp::min(block_num + step, to_block);
 
