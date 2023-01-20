@@ -20,9 +20,6 @@ pub struct IngestConfig {
     /// Number of blocks a single get block batch request will cover
     #[clap(long)]
     pub block_batch_size: u32,
-    /// Number of transactions a single get tx receipt batch request will cover
-    #[clap(long)]
-    pub tx_batch_size: usize,
     /// Number of concurrent requests to make
     #[clap(long)]
     pub http_req_concurrency: u32,
