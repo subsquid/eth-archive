@@ -1,3 +1,4 @@
+use crate::bloom::Bloom as BloomFilter;
 use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
@@ -7,7 +8,6 @@ use eth_archive_core::types::{
     Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseRow, Transaction,
 };
 use serde::{Deserialize, Serialize};
-use solana_bloom::bloom::Bloom as BloomFilter;
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
