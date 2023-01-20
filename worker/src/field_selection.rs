@@ -253,7 +253,7 @@ impl LogFieldSelection {
             block_number: prune_col!(log, self, block_number),
             data: prune_col!(log, self, data),
             log_index: prune_col!(log, self, log_index),
-            removed: prune_col!(log, self, removed),
+            removed: prune_col!(log, self, removed).flatten(),
             topics: prune_col!(log, self, topics),
             transaction_hash: prune_col!(log, self, transaction_hash),
             transaction_index: prune_col!(log, self, transaction_index),

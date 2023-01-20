@@ -72,7 +72,7 @@ pub fn log_schema() -> Schema {
         Field::new("block_number", DataType::UInt32, false),
         Field::new("data", DataType::Binary, false),
         Field::new("log_index", DataType::UInt32, false),
-        Field::new("removed", DataType::Boolean, false),
+        Field::new("removed", DataType::Boolean, true),
         Field::new("topic0", DataType::Binary, true),
         Field::new("topic1", DataType::Binary, true),
         Field::new("topic2", DataType::Binary, true),
@@ -388,7 +388,7 @@ impl Logs {
         self.block_number.push(Some(elem.block_number.0));
         self.data.push(Some(elem.data.0));
         self.log_index.push(Some(elem.log_index.0));
-        self.removed.push(Some(elem.removed));
+        self.removed.push(elem.removed);
         self.topic0.push(elem.topics.get(0).map(|t| t.to_vec()));
         self.topic1.push(elem.topics.get(1).map(|t| t.to_vec()));
         self.topic2.push(elem.topics.get(2).map(|t| t.to_vec()));

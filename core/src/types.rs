@@ -77,7 +77,7 @@ pub struct Log {
     pub block_number: Index,
     pub data: Bytes,
     pub log_index: Index,
-    pub removed: bool,
+    pub removed: Option<bool>,
     pub topics: ArrayVec<Bytes32, 4>,
     pub transaction_hash: Bytes32,
     pub transaction_index: Index,
