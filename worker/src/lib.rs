@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 mod bloom;
 mod config;
 mod data_ctx;

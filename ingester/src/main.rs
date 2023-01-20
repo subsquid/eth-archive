@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 use eth_archive_ingester::{Config, Ingester};
 
 use mimalloc::MiMalloc;

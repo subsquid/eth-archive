@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 use eth_archive_worker::{Config, Server};
 
 use mimalloc::MiMalloc;

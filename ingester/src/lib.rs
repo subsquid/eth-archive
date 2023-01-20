@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 mod config;
 mod error;
 mod ingester;
