@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-//! Simple Bloom Filter
+//! Simple Bloom Filter. copy pasted from https://github.com/solana-labs/solana/blob/master/bloom/src/bloom.rs
 use {
     bv::BitVec,
     fnv::FnvHasher,
