@@ -5,27 +5,27 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-toml = "0.5.10"
-thiserror = "1.0"
+toml = "0.5"
+thiserror = "1"
 log = "0.4"
 serde_json = "1"
 url = { version = "2", features = ["serde"] } 
 futures = "0.3"
-prefix-hex = "0.5.0"
-derive_more = "0.99.17"
+prefix-hex = "0.5"
+derive_more = "0.99"
 tokio = { version = "1", features = ["full"] }
-async-stream = "0.3.3"
+async-stream = "0.3"
 rayon = "1"
 clap = { version = "4", features = ["derive"] }
-prometheus-client = "0.19.0"
-aws-sdk-s3 = "0.23.0"
-aws-config = "0.53.0"
-aws-smithy-http = "0.53.1"
-aws-types = "0.52.0"
-rand = "0.8.5"
-arrayvec = { version = "0.7.2", features = ["serde"] }
+prometheus-client = "0.19"
+aws-sdk-s3 = "0.23"
+aws-config = "0.53"
+aws-smithy-http = "0.53"
+aws-types = "0.53"
+rand = "0.8"
+arrayvec = { version = "0.7", features = ["serde"] }
 
 [dependencies.reqwest]
-version = "0.11.13"
+version = "0.11"
 default-features = false
 features = ["json", "rustls-tls", "gzip"]

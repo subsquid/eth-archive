@@ -3,5 +3,4 @@ members = [
     "ingester",
     "core",
     "worker",
-    "verifier",
 ]
