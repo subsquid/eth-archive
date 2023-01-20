@@ -1327,7 +1327,6 @@ dependencies = [
  "async-stream",
  "aws-config",
  "aws-sdk-s3",
- "aws-smithy-http",
  "aws-types",
  "clap",
  "derive_more",
