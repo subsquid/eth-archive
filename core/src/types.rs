@@ -207,22 +207,10 @@ pub struct ResponseRow {
     pub log: Option<ResponseLog>,
 }
 
-#[derive(
-    Debug, Serialize, Deserialize, Clone, Copy, Default, derive_more::Add, derive_more::AddAssign,
-)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryMetrics {
-    pub build_query: u128,
-    pub run_query: u128,
-    pub serialize_result: u128,
-    pub total: u128,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub data: Vec<ResponseRow>,
-    pub metrics: QueryMetrics,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

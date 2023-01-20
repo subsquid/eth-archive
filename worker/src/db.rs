@@ -4,9 +4,7 @@ use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
-use eth_archive_core::types::{
-    Block, BlockRange, Log, QueryMetrics, QueryResult, ResponseRow, Transaction,
-};
+use eth_archive_core::types::{Block, BlockRange, Log, QueryResult, ResponseRow, Transaction};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -122,30 +120,25 @@ impl DbHandle {
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
-        let mut metrics = QueryMetrics::default();
         let mut data = vec![];
 
         if !query.logs.is_empty() {
             let logs = self.query_logs(&query)?;
-            metrics += logs.metrics;
             data.extend_from_slice(&logs.data);
         }
 
         if !query.transactions.is_empty() {
             let transactions = self.query_transactions(&query)?;
-            metrics += transactions.metrics;
             data.extend_from_slice(&transactions.data);
         }
 
-        Ok(QueryResult { data, metrics })
+        Ok(QueryResult { data })
     }
 
     fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
         let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
-
-        let start = Instant::now();
 
         let mut block_nums = BTreeSet::new();
         let mut tx_keys = BTreeSet::new();
@@ -225,23 +218,12 @@ impl DbHandle {
             })
             .collect();
 
-        let elapsed = start.elapsed().as_millis();
-
-        Ok(QueryResult {
-            data,
-            metrics: QueryMetrics {
-                run_query: elapsed,
-                total: elapsed,
-                ..Default::default()
-            },
-        })
+        Ok(QueryResult { data })
     }
 
     fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
         let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
-
-        let start = Instant::now();
 
         let mut block_nums = BTreeSet::new();
         let mut txs = BTreeMap::new();
@@ -299,16 +281,7 @@ impl DbHandle {
             })
             .collect();
 
-        let elapsed = start.elapsed().as_millis();
-
-        Ok(QueryResult {
-            data,
-            metrics: QueryMetrics {
-                run_query: elapsed,
-                total: elapsed,
-                ..Default::default()
-            },
-        })
+        Ok(QueryResult { data })
     }
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {

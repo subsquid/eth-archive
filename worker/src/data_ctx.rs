@@ -13,8 +13,7 @@ use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_sync;
 use eth_archive_core::types::{
-    BlockRange, QueryMetrics, QueryResult, ResponseBlock, ResponseLog, ResponseRow,
-    ResponseTransaction,
+    BlockRange, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
 use futures::pin_mut;
 use futures::stream::StreamExt;
@@ -366,15 +365,13 @@ impl DataCtx {
     }
 
     fn query_parquet(&self, dir_name: DirName, query: MiniQuery) -> Result<QueryResult> {
-        let mut metrics = QueryMetrics::default();
-        let mut data = vec![];
+        let mut data = Vec::new();
 
         if !query.logs.is_empty() {
             let logs = self.query_logs(
                 &query,
                 self.open_log_lazy_frame(dir_name, query.field_selection)?,
             )?;
-            metrics += logs.metrics;
             data.extend_from_slice(&logs.data);
         }
 
@@ -383,17 +380,14 @@ impl DataCtx {
                 &query,
                 self.open_tx_lazy_frame(dir_name, query.field_selection)?,
             )?;
-            metrics += transactions.metrics;
             data.extend_from_slice(&transactions.data);
         }
 
-        Ok(QueryResult { data, metrics })
+        Ok(QueryResult { data })
     }
 
     fn query_logs(&self, query: &MiniQuery, mut lazy_frame: LazyFrame) -> Result<QueryResult> {
         use polars::prelude::*;
-
-        let start_time = Instant::now();
 
         lazy_frame = lazy_frame.filter(
             col("log_block_number")
@@ -421,29 +415,11 @@ impl DataCtx {
             }
         }
 
-        let build_query = start_time.elapsed().as_millis();
-
-        let start_time = Instant::now();
-
         let result_frame = lazy_frame.collect().map_err(Error::ExecuteQuery)?;
-
-        let run_query = start_time.elapsed().as_millis();
-
-        let start_time = Instant::now();
 
         let data = response_rows_from_result_frame(result_frame)?;
 
-        let serialize_result = start_time.elapsed().as_millis();
-
-        Ok(QueryResult {
-            data,
-            metrics: QueryMetrics {
-                build_query,
-                run_query,
-                serialize_result,
-                total: build_query + run_query + serialize_result,
-            },
-        })
+        Ok(QueryResult { data })
     }
 
     fn query_transactions(
@@ -452,8 +428,6 @@ impl DataCtx {
         mut lazy_frame: LazyFrame,
     ) -> Result<QueryResult> {
         use polars::prelude::*;
-
-        let start_time = Instant::now();
 
         lazy_frame = lazy_frame.filter(
             col("tx_block_number")
@@ -481,29 +455,11 @@ impl DataCtx {
             }
         }
 
-        let build_query = start_time.elapsed().as_millis();
-
-        let start_time = Instant::now();
-
         let result_frame = lazy_frame.collect().map_err(Error::ExecuteQuery)?;
-
-        let run_query = start_time.elapsed().as_millis();
-
-        let start_time = Instant::now();
 
         let data = tx_response_rows_from_result_frame(result_frame)?;
 
-        let serialize_result = start_time.elapsed().as_millis();
-
-        Ok(QueryResult {
-            data,
-            metrics: QueryMetrics {
-                build_query,
-                run_query,
-                serialize_result,
-                total: build_query + run_query + serialize_result,
-            },
-        })
+        Ok(QueryResult { data })
     }
 
     fn open_log_lazy_frame(
