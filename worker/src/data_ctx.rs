@@ -750,7 +750,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     block_number: map_from_arrow!(log_block_number, Index, i),
                     data: map_from_arrow!(log_data, Bytes::new, i),
                     log_index: map_from_arrow!(log_log_index, Index, i),
-                    removed: log_removed.map(|arr| arr.get(i).unwrap()),
+                    removed: log_removed.and_then(|arr| arr.get(i)),
                     topics: {
                         let mut topics = ArrayVec::new();
 
