@@ -273,6 +273,7 @@ impl DataCtx {
                         logs,
                         transactions,
                         field_selection,
+                        include_all_blocks: query.include_all_blocks,
                     };
 
                     let block_range = BlockRange {
@@ -338,6 +339,7 @@ impl DataCtx {
                         logs: query.log_selection(),
                         transactions: query.tx_selection(),
                         field_selection,
+                        include_all_blocks: query.include_all_blocks,
                     };
 
                     if serialize_task.is_closed() {
@@ -674,7 +676,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     size: map_from_arrow!(block_size, Bytes::new, i),
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
-                transaction: ResponseTransaction {
+                transaction: Some(ResponseTransaction {
                     kind: map_from_arrow_opt!(tx_kind, Index, i),
                     nonce: map_from_arrow!(tx_nonce, BigUnsigned, i),
                     dest: map_from_arrow_opt!(tx_dest, Address::new, i),
@@ -699,7 +701,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
                     status: map_from_arrow_opt!(tx_status, Index, i),
-                },
+                }),
                 log: Some(ResponseLog {
                     address: map_from_arrow!(log_address, Address::new, i),
                     block_hash: map_from_arrow!(log_block_hash, Bytes32::new, i),
@@ -822,7 +824,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                     size: map_from_arrow!(block_size, Bytes::new, i),
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                 },
-                transaction: ResponseTransaction {
+                transaction: Some(ResponseTransaction {
                     kind: map_from_arrow_opt!(tx_kind, Index, i),
                     nonce: map_from_arrow!(tx_nonce, BigUnsigned, i),
                     dest: map_from_arrow_opt!(tx_dest, Address::new, i),
@@ -847,7 +849,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                     gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
                     status: map_from_arrow_opt!(tx_status, Index, i),
-                },
+                }),
                 log: None,
             };
 

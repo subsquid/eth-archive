@@ -175,21 +175,43 @@ impl DbHandle {
         }
 
         let mut blocks = BTreeMap::new();
-        let mut txs = BTreeMap::new();
+        if !query.include_all_blocks {
+            for num in block_nums {
+                let block = self
+                    .inner
+                    .get_pinned_cf(block_cf, num.to_be_bytes())
+                    .map_err(Error::Db)?
+                    .unwrap();
+                let block = rmp_serde::decode::from_slice(&block).unwrap();
 
-        for num in block_nums {
-            let block = self
-                .inner
-                .get_pinned_cf(block_cf, num.to_be_bytes())
-                .map_err(Error::Db)?
-                .unwrap();
-            let block = rmp_serde::decode::from_slice(&block).unwrap();
+                let block = query.field_selection.block.prune(block);
 
-            let block = query.field_selection.block.prune(block);
+                blocks.insert(num, block);
+            }
+        } else {
+            for res in self.inner.iterator_cf(
+                block_cf,
+                rocksdb::IteratorMode::From(
+                    &query.from_block.to_be_bytes(),
+                    rocksdb::Direction::Forward,
+                ),
+            ) {
+                let (block_key, block) = res.map_err(Error::Db)?;
 
-            blocks.insert(num, block);
+                let block_num = u32::from_be_bytes((&*block_key).try_into().unwrap());
+
+                if block_num >= query.to_block {
+                    break;
+                }
+
+                let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
+                let block = query.field_selection.block.prune(block);
+
+                blocks.insert(block_num, block);
+            }
         }
 
+        let mut txs = BTreeMap::new();
         for key in tx_keys {
             let tx = self
                 .inner
@@ -203,7 +225,7 @@ impl DbHandle {
             txs.insert(key, tx);
         }
 
-        let data = logs
+        let mut data = logs
             .into_values()
             .map(|log| ResponseRow {
                 block: blocks.get(&log.block_number.unwrap().0).unwrap().clone(),
@@ -212,11 +234,20 @@ impl DbHandle {
                         log.block_number.unwrap().0,
                         log.transaction_index.unwrap().0,
                     ))
-                    .unwrap()
-                    .clone(),
+                    .cloned(),
                 log: Some(log),
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        if query.include_all_blocks {
+            for block in blocks.into_values() {
+                data.push(ResponseRow {
+                    block,
+                    transaction: None,
+                    log: None,
+                })
+            }
+        }
 
         Ok(QueryResult { data })
     }
@@ -258,28 +289,60 @@ impl DbHandle {
         }
 
         let mut blocks = BTreeMap::new();
+        if !query.include_all_blocks {
+            for num in block_nums {
+                let block = self
+                    .inner
+                    .get_pinned_cf(block_cf, num.to_be_bytes())
+                    .map_err(Error::Db)?
+                    .unwrap();
+                let block = rmp_serde::decode::from_slice(&block).unwrap();
 
-        for num in block_nums {
-            let block = self
-                .inner
-                .get_pinned_cf(block_cf, num.to_be_bytes())
-                .map_err(Error::Db)?
-                .unwrap();
-            let block = rmp_serde::decode::from_slice(&block).unwrap();
+                let block = query.field_selection.block.prune(block);
 
-            let block = query.field_selection.block.prune(block);
+                blocks.insert(num, block);
+            }
+        } else {
+            for res in self.inner.iterator_cf(
+                block_cf,
+                rocksdb::IteratorMode::From(
+                    &query.from_block.to_be_bytes(),
+                    rocksdb::Direction::Forward,
+                ),
+            ) {
+                let (block_key, block) = res.map_err(Error::Db)?;
 
-            blocks.insert(num, block);
+                let block_num = u32::from_be_bytes((&*block_key).try_into().unwrap());
+
+                if block_num >= query.to_block {
+                    break;
+                }
+
+                let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
+                let block = query.field_selection.block.prune(block);
+
+                blocks.insert(block_num, block);
+            }
         }
 
-        let data = txs
+        let mut data = txs
             .into_values()
             .map(|tx| ResponseRow {
                 block: blocks.get(&tx.block_number.unwrap().0).unwrap().clone(),
-                transaction: tx,
+                transaction: Some(tx),
                 log: None,
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        if query.include_all_blocks {
+            for block in blocks.into_values() {
+                data.push(ResponseRow {
+                    block,
+                    transaction: None,
+                    log: None,
+                })
+            }
+        }
 
         Ok(QueryResult { data })
     }

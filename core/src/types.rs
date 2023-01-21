@@ -199,7 +199,7 @@ pub struct ResponseLog {
 #[serde(rename_all = "camelCase")]
 pub struct ResponseRow {
     pub block: ResponseBlock,
-    pub transaction: ResponseTransaction,
+    pub transaction: Option<ResponseTransaction>,
     pub log: Option<ResponseLog>,
 }
 

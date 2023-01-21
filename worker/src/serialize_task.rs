@@ -92,7 +92,6 @@ fn process_query_result(mut bytes: Vec<u8>, res: QueryResult, is_first: bool) ->
 
     for row in res.data {
         let block_number = row.block.number.unwrap().0;
-        let tx_idx = row.transaction.transaction_index.unwrap().0;
 
         let block_entry = match data.entry(block_number) {
             Vacant(entry) => entry.insert(BlockEntry {
@@ -103,8 +102,12 @@ fn process_query_result(mut bytes: Vec<u8>, res: QueryResult, is_first: bool) ->
             Occupied(entry) => entry.into_mut(),
         };
 
-        if let Vacant(entry) = block_entry.transactions.entry(tx_idx) {
-            entry.insert(row.transaction);
+        if let Some(tx) = row.transaction {
+            let tx_idx = tx.transaction_index.unwrap().0;
+
+            if let Vacant(entry) = block_entry.transactions.entry(tx_idx) {
+                entry.insert(tx);
+            }
         }
 
         if let Some(log) = row.log {
