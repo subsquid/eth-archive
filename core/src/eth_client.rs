@@ -1,5 +1,4 @@
 use crate::config::IngestConfig;
-use crate::deserialize::Index;
 use crate::error::{Error, Result};
 use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetBlockReceipts};
 use crate::ingest_metrics::IngestMetrics;
@@ -299,7 +298,7 @@ impl EthClient {
                         assert_eq!(tx.block_number, receipt.block_number);
                         assert_eq!(tx.transaction_index, receipt.transaction_index);
 
-                        tx.status = receipt.status.unwrap_or(Index(1));
+                        tx.status = receipt.status;
 
                         receipt.logs.map(|logs| logs.into_iter())
                     }).flatten().collect();
@@ -379,7 +378,7 @@ impl EthClient {
                             assert_eq!(tx.block_number, receipt.block_number);
                             assert_eq!(tx.transaction_index, receipt.transaction_index);
 
-                            tx.status = receipt.status.unwrap_or(Index(1));
+                            tx.status = receipt.status;
 
                             receipt.logs.map(|logs| logs.into_iter())
                         }).flatten()

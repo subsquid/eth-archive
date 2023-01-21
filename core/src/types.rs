@@ -53,11 +53,7 @@ pub struct Transaction {
     pub transaction_index: Index,
     pub gas_price: Option<Bytes>,
     pub hash: Bytes32,
-    // When ingesting
-    // This field will be 0 for all transactions initially.
-    // It will later be filled by info from the tx receipt.
-    #[serde(default)]
-    pub status: Index,
+    pub status: Option<Index>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -698,7 +698,7 @@ fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Respon
                     transaction_index: map_from_arrow!(log_transaction_index, Index, i),
                     gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
-                    status: map_from_arrow!(tx_status, Index, i),
+                    status: map_from_arrow_opt!(tx_status, Index, i),
                 },
                 log: Some(ResponseLog {
                     address: map_from_arrow!(log_address, Address::new, i),
@@ -846,7 +846,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
                     transaction_index: map_from_arrow!(tx_transaction_index, Index, i),
                     gas_price: map_from_arrow!(tx_gas_price, Bytes::new, i),
                     hash: map_from_arrow!(tx_hash, Bytes32::new, i),
-                    status: map_from_arrow!(tx_status, Index, i),
+                    status: map_from_arrow_opt!(tx_status, Index, i),
                 },
                 log: None,
             };
