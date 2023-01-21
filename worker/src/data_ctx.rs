@@ -385,6 +385,15 @@ impl DataCtx {
             data.extend_from_slice(&transactions.data);
         }
 
+        if query.include_all_blocks {
+            let blocks = self
+                .open_all_blocks_lazy_frame(dir_name, &query)?
+                .collect()
+                .map_err(Error::ExecuteQuery)?;
+
+            append_blocks_to_response_rows(&mut data, blocks)?;
+        }
+
         Ok(QueryResult { data })
     }
 
@@ -551,6 +560,32 @@ impl DataCtx {
 
         Ok(lazy_frame)
     }
+
+    fn open_all_blocks_lazy_frame(
+        &self,
+        dir_name: DirName,
+        query: &MiniQuery,
+    ) -> Result<LazyFrame> {
+        let mut path = self.config.data_path.clone();
+        path.push(dir_name.to_string());
+
+        let mut blocks = {
+            let mut path = path.clone();
+            path.push("block.parquet");
+
+            LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?
+        };
+
+        blocks = blocks.select(query.field_selection.block.to_cols());
+
+        blocks = blocks.filter(
+            col("block_number")
+                .gt_eq(lit(query.from_block))
+                .and(col("block_number").lt(lit(query.to_block))),
+        );
+
+        Ok(blocks)
+    }
 }
 
 // defines columns using the result frame and a list of column names
@@ -582,6 +617,80 @@ macro_rules! map_from_arrow_opt {
             _ => None,
         }
     };
+}
+
+fn append_blocks_to_response_rows(
+    data: &mut Vec<ResponseRow>,
+    result_frame: DataFrame,
+) -> Result<()> {
+    use eth_archive_core::deserialize::{
+        Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
+    };
+    use polars::export::arrow::array::{self, UInt32Array, UInt64Array};
+
+    type BinaryArray = array::BinaryArray<i64>;
+
+    let schema = result_frame.schema();
+
+    for batch in result_frame.iter_chunks() {
+        #[rustfmt::skip]
+        define_cols!(
+            batch,
+            schema,
+            block_number, UInt32Array,
+            block_parent_hash, BinaryArray,
+            block_sha3_uncles, BinaryArray,
+            block_miner, BinaryArray,
+            block_state_root, BinaryArray,
+            block_transactions_root, BinaryArray,
+            block_receipts_root, BinaryArray,
+            block_logs_bloom, BinaryArray,
+            block_difficulty, BinaryArray,
+            block_gas_limit, BinaryArray,
+            block_gas_used, BinaryArray,
+            block_timestamp, BinaryArray,
+            block_extra_data, BinaryArray,
+            block_mix_hash, BinaryArray,
+            block_nonce, UInt64Array,
+            block_total_difficulty, BinaryArray,
+            block_base_fee_per_gas, BinaryArray,
+            block_size, BinaryArray,
+            block_hash, BinaryArray
+        );
+
+        let len = block_number.as_ref().unwrap().len();
+        for i in 0..len {
+            let response_row = ResponseRow {
+                block: ResponseBlock {
+                    parent_hash: map_from_arrow!(block_parent_hash, Bytes32::new, i),
+                    sha3_uncles: map_from_arrow!(block_sha3_uncles, Bytes32::new, i),
+                    miner: map_from_arrow!(block_miner, Address::new, i),
+                    state_root: map_from_arrow!(block_state_root, Bytes32::new, i),
+                    transactions_root: map_from_arrow!(block_transactions_root, Bytes32::new, i),
+                    receipts_root: map_from_arrow!(block_receipts_root, Bytes32::new, i),
+                    logs_bloom: map_from_arrow!(block_logs_bloom, BloomFilterBytes::new, i),
+                    difficulty: map_from_arrow_opt!(block_difficulty, Bytes::new, i),
+                    number: map_from_arrow!(block_number, Index, i),
+                    gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
+                    gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
+                    timestamp: map_from_arrow!(block_timestamp, Bytes::new, i),
+                    extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
+                    mix_hash: map_from_arrow_opt!(block_mix_hash, Bytes32::new, i),
+                    nonce: map_from_arrow_opt!(block_nonce, BigUnsigned, i),
+                    total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
+                    base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
+                    size: map_from_arrow!(block_size, Bytes::new, i),
+                    hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
+                },
+                transaction: None,
+                log: None,
+            };
+
+            data.push(response_row);
+        }
+    }
+
+    Ok(())
 }
 
 fn response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<ResponseRow>> {
