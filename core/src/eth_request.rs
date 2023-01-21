@@ -1,4 +1,4 @@
-use crate::types::{Block, TransactionReceipt};
+use crate::types::{Block, Log, TransactionReceipt};
 use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
 
@@ -59,6 +59,30 @@ impl EthRequest for GetBlockReceipts {
             "method": "eth_getBlockReceipts",
             "params": [
                 block_number_to_hex(self.block_number),
+            ],
+            "id": id,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GetLogs {
+    pub from_block: u32,
+    pub to_block: u32,
+}
+
+impl EthRequest for GetLogs {
+    type Resp = Vec<Log>;
+
+    fn to_body(&self, id: usize) -> JsonValue {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "eth_getLogs",
+            "params": [
+                {
+                    "fromBlock": block_number_to_hex(self.from_block),
+                    "toBlock": block_number_to_hex(self.to_block),
+                }
             ],
             "id": id,
         })

@@ -1,6 +1,6 @@
 use crate::config::IngestConfig;
 use crate::error::{Error, Result};
-use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetBlockReceipts};
+use crate::eth_request::{EthRequest, GetBestBlock, GetBlockByNumber, GetBlockReceipts, GetLogs};
 use crate::ingest_metrics::IngestMetrics;
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
@@ -232,6 +232,19 @@ impl EthClient {
         group.into_iter().map(|g| g.map_err(Error::Retry)).collect()
     }
 
+    async fn send_concurrent<R: EthRequest + Copy>(
+        self: Arc<Self>,
+        url_set: Arc<UrlSet>,
+        reqs: &[R],
+    ) -> Result<Vec<R::Resp>> {
+        let group = reqs.iter().map(|&req| {
+            let client = self.clone();
+            client.send(url_set.clone(), req)
+        });
+        let group = futures::future::join_all(group).await;
+        group.into_iter().collect()
+    }
+
     pub async fn get_best_block(self: Arc<Self>) -> Result<u32> {
         let url_set = self.healthy_url_set().await?;
 
@@ -290,18 +303,26 @@ impl EthClient {
                     let start_time = Instant::now();
 
                     let mut block = self.clone().send(url_set.clone(), GetBlockByNumber { block_number: block_num }).await?;
-                    let receipts = self.clone().send(url_set, GetBlockReceipts {
-                        block_number: block_num
-                    }).await?;
 
-                    let logs = block.transactions.iter_mut().zip(receipts.into_iter()).filter_map(|(tx, receipt)| {
-                        assert_eq!(tx.block_number, receipt.block_number);
-                        assert_eq!(tx.transaction_index, receipt.transaction_index);
+                    let logs = if self.cfg.get_receipts {
+                        let receipts = self.clone().send(url_set, GetBlockReceipts {
+                            block_number: block_num
+                        }).await?;
 
-                        tx.status = receipt.status;
+                        block.transactions.iter_mut().zip(receipts.into_iter()).filter_map(|(tx, receipt)| {
+                            assert_eq!(tx.block_number, receipt.block_number);
+                            assert_eq!(tx.transaction_index, receipt.transaction_index);
 
-                        receipt.logs.map(|logs| logs.into_iter())
-                    }).flatten().collect();
+                            tx.status = receipt.status;
+
+                            receipt.logs.map(|logs| logs.into_iter())
+                        }).flatten().collect()
+                    } else {
+                        self.clone().send(url_set, GetLogs {
+                            from_block: block_num,
+                            to_block: block_num,
+                        }).await?
+                    };
 
                     self.metrics.record_download_height(block_num);
 
@@ -367,23 +388,46 @@ impl EthClient {
                     .send_batches(url_set.clone(), &block_batches)
                     .await?;
 
-                let receipt_batches = self
-                    .clone()
-                    .send_batches(url_set.clone(), &receipt_batches)
-                    .await?;
+                let log_batches = if self.cfg.get_receipts {
+                    let receipt_batches = self
+                        .clone()
+                        .send_batches(url_set.clone(), &receipt_batches)
+                        .await?;
 
-                let log_batches = block_batches.iter_mut().zip(receipt_batches.into_iter()).map(|(block_batch, receipt_batch)| {
-                    block_batch.iter_mut().zip(receipt_batch.into_iter()).flat_map(|(block, receipts)| {
-                        block.transactions.iter_mut().zip(receipts.into_iter()).filter_map(|(tx, receipt)| {
-                            assert_eq!(tx.block_number, receipt.block_number);
-                            assert_eq!(tx.transaction_index, receipt.transaction_index);
+                    block_batches.iter_mut().zip(receipt_batches.into_iter()).map(|(block_batch, receipt_batch)| {
+                        block_batch.iter_mut().zip(receipt_batch.into_iter()).flat_map(|(block, receipts)| {
+                            block.transactions.iter_mut().zip(receipts.into_iter()).filter_map(|(tx, receipt)| {
+                                assert_eq!(tx.block_number, receipt.block_number);
+                                assert_eq!(tx.transaction_index, receipt.transaction_index);
 
-                            tx.status = receipt.status;
+                                tx.status = receipt.status;
 
-                            receipt.logs.map(|logs| logs.into_iter())
-                        }).flatten()
+                                receipt.logs.map(|logs| logs.into_iter())
+                            }).flatten()
+                        }).collect()
                     }).collect()
-                }).collect();
+                } else {
+                    let log_batches = (0..concurrency)
+                        .filter_map(|step_no| {
+                            let start = block_num + step_no * batch_size;
+                            let end = cmp::min(start + batch_size, to_block);
+
+                            if start < end {
+                                Some(GetLogs {
+                                    from_block: start,
+                                    to_block: end - 1,
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    self
+                        .clone()
+                        .send_concurrent(url_set, &log_batches)
+                        .await?
+                };
 
                 let ended_block = cmp::min(block_num + step, to_block);
 
