@@ -12,6 +12,7 @@ pub struct MiniQuery {
     pub logs: Vec<MiniLogSelection>,
     pub transactions: Vec<MiniTransactionSelection>,
     pub field_selection: FieldSelection,
+    pub include_all_blocks: bool,
 }
 
 #[derive(Clone)]
@@ -215,6 +216,8 @@ pub struct Query {
     pub logs: Vec<LogSelection>,
     #[serde(default)]
     pub transactions: Vec<TransactionSelection>,
+    #[serde(default)]
+    pub include_all_blocks: bool,
 }
 
 impl Query {
