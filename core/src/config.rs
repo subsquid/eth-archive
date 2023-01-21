@@ -28,6 +28,10 @@ pub struct IngestConfig {
     pub best_block_offset: u32,
     #[clap(long)]
     pub rpc_urls: Vec<url::Url>,
+    /// Get transaction receipts. This fills the transaction.status field.
+    /// Requires eth_getBlockReceipts to be available on the RPC API.
+    #[clap(long, default_value_t = false)]
+    pub get_receipts: bool,
 }
 
 #[derive(Parser, Clone, Debug)]

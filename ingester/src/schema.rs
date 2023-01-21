@@ -60,7 +60,7 @@ pub fn tx_schema() -> Schema {
         Field::new("transaction_index", DataType::UInt32, false),
         Field::new("gas_price", DataType::Binary, true),
         Field::new("hash", DataType::Binary, false),
-        Field::new("status", DataType::UInt32, false),
+        Field::new("status", DataType::UInt32, true),
         Field::new("sighash", DataType::Binary, true),
     ])
 }
@@ -302,7 +302,7 @@ impl Transactions {
         self.transaction_index.push(Some(elem.transaction_index.0));
         self.gas_price.push(elem.gas_price.map(|n| n.0));
         self.hash.push(Some(elem.hash.to_vec()));
-        self.status.push(Some(elem.status.0));
+        self.status.push(elem.status.map(|n| n.0));
 
         self.len += 1;
     }

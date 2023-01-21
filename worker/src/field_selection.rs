@@ -198,7 +198,7 @@ impl TransactionFieldSelection {
             transaction_index: prune_col!(tx, self, transaction_index),
             gas_price: prune_col!(tx, self, gas_price).flatten(),
             hash: prune_col!(tx, self, hash),
-            status: prune_col!(tx, self, status),
+            status: prune_col!(tx, self, status).flatten(),
         }
     }
 }

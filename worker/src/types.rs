@@ -174,11 +174,10 @@ impl MiniTransactionSelection {
         true
     }
 
-    pub fn matches_status(&self, tx_status: Index) -> bool {
-        if let Some(status) = self.status {
-            status == tx_status.0
-        } else {
-            true
+    pub fn matches_status(&self, tx_status: Option<Index>) -> bool {
+        match (self.status, tx_status) {
+            (Some(status), Some(tx_status)) => status == tx_status.0,
+            _ => true,
         }
     }
 }
