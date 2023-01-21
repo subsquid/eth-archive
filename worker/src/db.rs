@@ -4,7 +4,9 @@ use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
-use eth_archive_core::types::{Block, BlockRange, Log, QueryResult, ResponseRow, Transaction};
+use eth_archive_core::types::{
+    Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -136,7 +138,6 @@ impl DbHandle {
     }
 
     fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
-        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
         let log_tx_cf = self.inner.cf_handle(cf_name::LOG_TX).unwrap();
 
@@ -174,42 +175,7 @@ impl DbHandle {
             logs.insert(log_key, log);
         }
 
-        let mut blocks = BTreeMap::new();
-        if !query.include_all_blocks {
-            for num in block_nums {
-                let block = self
-                    .inner
-                    .get_pinned_cf(block_cf, num.to_be_bytes())
-                    .map_err(Error::Db)?
-                    .unwrap();
-                let block = rmp_serde::decode::from_slice(&block).unwrap();
-
-                let block = query.field_selection.block.prune(block);
-
-                blocks.insert(num, block);
-            }
-        } else {
-            for res in self.inner.iterator_cf(
-                block_cf,
-                rocksdb::IteratorMode::From(
-                    &query.from_block.to_be_bytes(),
-                    rocksdb::Direction::Forward,
-                ),
-            ) {
-                let (block_key, block) = res.map_err(Error::Db)?;
-
-                let block_num = u32::from_be_bytes((&*block_key).try_into().unwrap());
-
-                if block_num >= query.to_block {
-                    break;
-                }
-
-                let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
-                let block = query.field_selection.block.prune(block);
-
-                blocks.insert(block_num, block);
-            }
-        }
+        let blocks = self.get_blocks(&block_nums, query)?;
 
         let mut txs = BTreeMap::new();
         for key in tx_keys {
@@ -253,7 +219,6 @@ impl DbHandle {
     }
 
     fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
-        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
         let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
 
         let mut block_nums = BTreeSet::new();
@@ -288,7 +253,39 @@ impl DbHandle {
             txs.insert(tx_key, tx);
         }
 
+        let blocks = self.get_blocks(&block_nums, query)?;
+
+        let mut data = txs
+            .into_values()
+            .map(|tx| ResponseRow {
+                block: blocks.get(&tx.block_number.unwrap().0).unwrap().clone(),
+                transaction: Some(tx),
+                log: None,
+            })
+            .collect::<Vec<_>>();
+
+        if query.include_all_blocks {
+            for block in blocks.into_values() {
+                data.push(ResponseRow {
+                    block,
+                    transaction: None,
+                    log: None,
+                })
+            }
+        }
+
+        Ok(QueryResult { data })
+    }
+
+    fn get_blocks(
+        &self,
+        block_nums: &BTreeSet<u32>,
+        query: &MiniQuery,
+    ) -> Result<BTreeMap<u32, ResponseBlock>> {
+        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
+
         let mut blocks = BTreeMap::new();
+
         if !query.include_all_blocks {
             for num in block_nums {
                 let block = self
@@ -300,7 +297,7 @@ impl DbHandle {
 
                 let block = query.field_selection.block.prune(block);
 
-                blocks.insert(num, block);
+                blocks.insert(*num, block);
             }
         } else {
             for res in self.inner.iterator_cf(
@@ -325,26 +322,7 @@ impl DbHandle {
             }
         }
 
-        let mut data = txs
-            .into_values()
-            .map(|tx| ResponseRow {
-                block: blocks.get(&tx.block_number.unwrap().0).unwrap().clone(),
-                transaction: Some(tx),
-                log: None,
-            })
-            .collect::<Vec<_>>();
-
-        if query.include_all_blocks {
-            for block in blocks.into_values() {
-                data.push(ResponseRow {
-                    block,
-                    transaction: None,
-                    log: None,
-                })
-            }
-        }
-
-        Ok(QueryResult { data })
+        Ok(blocks)
     }
 
     pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
