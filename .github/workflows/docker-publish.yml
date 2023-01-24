@@ -32,4 +32,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            component=${{ matrix.component }
+            component=${{ matrix.component }}
