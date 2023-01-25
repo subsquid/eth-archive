@@ -68,41 +68,43 @@ impl DataCtx {
             }
         });
 
-        // this task checks and registers new parquet files to database
-        tokio::spawn({
-            let start = db.parquet_height();
-            let data_path = config.data_path.clone();
-            let db_writer = db_writer.clone();
+        if let Some(data_path) = &config.data_path {
+            // this task checks and registers new parquet files to database
+            tokio::spawn({
+                let start = db.parquet_height();
+                let data_path = data_path.clone();
+                let db_writer = db_writer.clone();
 
-            async move {
-                if let Err(e) = tokio::fs::create_dir_all(&data_path).await {
-                    eprintln!(
-                        "failed to create missing data directory:\n{}\nstopping parquet watcher",
-                        e
-                    );
-                    return;
-                }
-
-                let mut next_start = start;
-                loop {
-                    let dir_names = DirName::find_sorted(&data_path, next_start).await.unwrap();
-
-                    for dir_name in dir_names {
-                        if !Self::parquet_folder_is_valid(&data_path, dir_name)
-                            .await
-                            .unwrap()
-                        {
-                            break;
-                        }
-
-                        db_writer.register_parquet_folder(dir_name).await;
-                        next_start = dir_name.range.to;
+                async move {
+                    if let Err(e) = tokio::fs::create_dir_all(&data_path).await {
+                        eprintln!(
+                            "failed to create missing data directory:\n{}\nstopping parquet watcher",
+                            e
+                        );
+                        return;
                     }
 
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    let mut next_start = start;
+                    loop {
+                        let dir_names = DirName::find_sorted(&data_path, next_start).await.unwrap();
+
+                        for dir_name in dir_names {
+                            if !Self::parquet_folder_is_valid(&data_path, dir_name)
+                                .await
+                                .unwrap()
+                            {
+                                break;
+                            }
+
+                            db_writer.register_parquet_folder(dir_name).await;
+                            next_start = dir_name.range.to;
+                        }
+
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // this task runs periodical compactions on the database
         tokio::spawn(async move {
@@ -112,12 +114,14 @@ impl DataCtx {
             }
         });
 
-        if let Some(s3_config) = config.s3.into_parsed() {
-            s3_sync::start(s3_sync::Direction::Down, &config.data_path, &s3_config)
-                .await
-                .map_err(Error::StartS3Sync)?;
-        } else {
-            log::info!("no s3 config, disabling s3 sync");
+        if let Some(data_path) = &config.data_path {
+            if let Some(s3_config) = config.s3.into_parsed() {
+                s3_sync::start(s3_sync::Direction::Down, data_path, &s3_config)
+                    .await
+                    .map_err(Error::StartS3Sync)?;
+            } else {
+                log::info!("no s3 config, disabling s3 sync");
+            }
         }
 
         Ok(Self { config, db })
@@ -478,7 +482,7 @@ impl DataCtx {
         dir_name: DirName,
         field_selection: FieldSelection,
     ) -> Result<LazyFrame> {
-        let mut path = self.config.data_path.clone();
+        let mut path = self.config.data_path.as_ref().unwrap().clone();
         path.push(dir_name.to_string());
 
         let blocks = {
@@ -528,7 +532,7 @@ impl DataCtx {
         dir_name: DirName,
         field_selection: FieldSelection,
     ) -> Result<LazyFrame> {
-        let mut path = self.config.data_path.clone();
+        let mut path = self.config.data_path.as_ref().unwrap().clone();
         path.push(dir_name.to_string());
 
         let blocks = {
@@ -566,7 +570,7 @@ impl DataCtx {
         dir_name: DirName,
         query: &MiniQuery,
     ) -> Result<LazyFrame> {
-        let mut path = self.config.data_path.clone();
+        let mut path = self.config.data_path.as_ref().unwrap().clone();
         path.push(dir_name.to_string());
 
         let mut blocks = {
