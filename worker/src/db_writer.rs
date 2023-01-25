@@ -6,7 +6,7 @@ use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use polars::export::arrow::array::BinaryArray;
 use polars::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -16,10 +16,10 @@ pub struct DbWriter {
 }
 
 impl DbWriter {
-    pub fn new(db: Arc<DbHandle>, data_path: &Path) -> Self {
+    pub fn new(db: Arc<DbHandle>, data_path: &Option<PathBuf>) -> Self {
         let (tx, mut rx) = mpsc::channel::<Job>(4);
 
-        let data_path = data_path.to_owned();
+        let data_path = data_path.as_ref().map(|p| p.to_owned());
 
         std::thread::spawn(move || {
             while let Some(job) = rx.blocking_recv() {
@@ -27,7 +27,11 @@ impl DbWriter {
                     let res = match job.clone() {
                         Job::WriteBatches(batches) => db.insert_batches(batches),
                         Job::RegisterParquetFolder(dir_name) => {
-                            Self::handle_register_parquet_folder(&db, &data_path, dir_name)
+                            Self::handle_register_parquet_folder(
+                                &db,
+                                data_path.as_ref().unwrap(),
+                                dir_name,
+                            )
                         }
                         Job::RunCompaction => {
                             db.compact();

@@ -11,7 +11,7 @@ pub struct Config {
     pub db_path: PathBuf,
     /// Path to read parquet files from
     #[clap(long)]
-    pub data_path: PathBuf,
+    pub data_path: Option<PathBuf>,
     #[command(flatten)]
     pub ingest: IngestConfig,
     #[command(flatten)]
