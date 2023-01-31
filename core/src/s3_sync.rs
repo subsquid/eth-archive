@@ -232,8 +232,8 @@ async fn sync_files_to_s3(
         for kind in ["block", "tx", "log"] {
             let mut path = data_path.to_owned();
             path.push(dir_name.to_string());
-            path.push(format!("{}.parquet", kind));
-            let s3_path = format!("{}/{}.parquet", dir_name, kind);
+            path.push(format!("{kind}.parquet"));
+            let s3_path = format!("{dir_name}/{kind}.parquet");
             if s3_names.contains(s3_path.as_str()) {
                 continue;
             }

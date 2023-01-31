@@ -234,8 +234,8 @@ impl LogFieldSelection {
         append_col!(table_name, cols, self, removed);
         if self.topics {
             for i in 0..4 {
-                let col = col(&format!("topic{}", i));
-                let alias = format!("log_topic{}", i);
+                let col = col(&format!("topic{i}"));
+                let alias = format!("log_topic{i}");
                 let col = col.alias(&alias);
                 cols.push(col);
             }

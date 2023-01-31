@@ -76,7 +76,7 @@ impl MiniLogSelection {
                     .collect::<Vec<_>>();
 
                 let series = Series::new("", series).lit();
-                let inner_expr = col(&format!("log_topic{}", i)).is_in(series);
+                let inner_expr = col(&format!("log_topic{i}")).is_in(series);
 
                 expr = match expr {
                     Some(expr) => Some(expr.and(inner_expr)),

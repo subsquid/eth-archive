@@ -90,5 +90,5 @@ impl EthRequest for GetLogs {
 }
 
 fn block_number_to_hex(block_number: u32) -> String {
-    format!("0x{:x}", block_number)
+    format!("0x{block_number:x}")
 }
