@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::parquet_src;
 use crate::schema::{
     block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
     Transactions,
@@ -15,11 +16,11 @@ use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_sync;
-use eth_archive_core::types::BlockRange;
+use eth_archive_core::types::{Block, BlockRange, Log};
 use futures::channel::mpsc;
 use futures::pin_mut;
 use futures::stream::StreamExt;
-use futures::SinkExt;
+use futures::{SinkExt, Stream, TryStreamExt};
 use itertools::Itertools;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -80,22 +81,6 @@ impl Ingester {
 
         log::info!("starting to ingest from {}", block_num);
 
-        if let Some(s3_config) = self.cfg.s3.into_parsed() {
-            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
-                .await
-                .map_err(Error::StartS3Sync)?;
-        } else {
-            log::info!("no s3 config, disabling s3 sync");
-        }
-
-        let batches = self
-            .eth_client
-            .clone()
-            .stream_batches(Some(block_num), None);
-        pin_mut!(batches);
-
-        let mut data = Data::default();
-
         let (mut sender, receiver): (mpsc::Sender<Data>, _) =
             mpsc::channel(self.cfg.max_pending_folder_writes);
 
@@ -124,8 +109,54 @@ impl Ingester {
             }
         });
 
+        let mut block_num = block_num;
+        if let Some(s3_config) = self.cfg.s3.into_parsed() {
+            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
+                .await
+                .map_err(Error::StartS3Sync)?;
+
+            if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
+                (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
+            {
+                let (batches, max_block_num) =
+                    parquet_src::stream_batches(&s3_config, s3_src_bucket, s3_src_format_ver)
+                        .await?;
+
+                self.ingest_batches(&mut sender, batches).await?;
+
+                block_num = max_block_num;
+            }
+        } else {
+            log::info!("no s3 config, disabling s3 sync");
+        }
+
+        let batches = self
+            .eth_client
+            .clone()
+            .stream_batches(Some(block_num), None)
+            .map_err(Error::GetBatch);
+
+        self.ingest_batches(&mut sender, batches).await?;
+
+        if !writer_thread.is_finished() {
+            log::info!("waiting for writer thread to finish...");
+        }
+        writer_thread.await.map_err(Error::RunWriterThread)?;
+
+        Ok(())
+    }
+
+    async fn ingest_batches(
+        &self,
+        sender: &mut mpsc::Sender<Data>,
+        batches: impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>>,
+    ) -> Result<()> {
+        pin_mut!(batches);
+
+        let mut data = Data::default();
+
         'ingest: while let Some(batches) = batches.next().await {
-            let (block_ranges, block_batches, log_batches) = batches.map_err(Error::GetBatch)?;
+            let (block_ranges, block_batches, log_batches) = batches?;
 
             for ((block_range, block_batch), log_batch) in block_ranges
                 .into_iter()
@@ -162,11 +193,6 @@ impl Ingester {
                 }
             }
         }
-
-        if !writer_thread.is_finished() {
-            log::info!("waiting for writer thread to finish...");
-        }
-        writer_thread.await.map_err(Error::RunWriterThread)?;
 
         Ok(())
     }

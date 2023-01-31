@@ -37,6 +37,12 @@ pub struct Config {
     /// Address to serve prometheus metrics from
     #[clap(long, default_value_t = default_metrics_addr())]
     pub metrics_addr: SocketAddr,
+    /// S3 bucket name to initial sync from
+    #[clap(long)]
+    pub s3_src_bucket: Option<String>,
+    /// Source data format version
+    #[clap(long)]
+    pub s3_src_format_ver: Option<String>,
     #[command(flatten)]
     pub s3: S3Config,
 }
