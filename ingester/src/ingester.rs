@@ -111,21 +111,25 @@ impl Ingester {
 
         let mut block_num = block_num;
         if let Some(s3_config) = self.cfg.s3.into_parsed() {
-            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
-                .await
-                .map_err(Error::StartS3Sync)?;
-
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
             {
-                let (batches, max_block_num) =
-                    parquet_src::stream_batches(&s3_config, s3_src_bucket, s3_src_format_ver)
-                        .await?;
+                let (batches, max_block_num) = parquet_src::stream_batches(
+                    block_num,
+                    &s3_config,
+                    s3_src_bucket,
+                    s3_src_format_ver,
+                )
+                .await?;
 
                 self.ingest_batches(&mut sender, batches).await?;
 
                 block_num = max_block_num;
             }
+
+            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
+                .await
+                .map_err(Error::StartS3Sync)?;
         } else {
             log::info!("no s3 config, disabling s3 sync");
         }

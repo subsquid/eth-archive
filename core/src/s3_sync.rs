@@ -265,7 +265,7 @@ async fn sync_files_to_s3(
     Ok(futs)
 }
 
-async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<BTreeSet<String>> {
+pub async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<BTreeSet<String>> {
     let mut s3_names = BTreeSet::new();
     let mut stream = client
         .list_objects_v2()

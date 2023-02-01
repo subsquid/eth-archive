@@ -48,6 +48,10 @@ pub enum Error {
     BindHttpServer(io::Error),
     #[error("failed to start s3 sync:\n{0}")]
     StartS3Sync(eth_archive_core::Error),
+    #[error("failed to list s3 bucket contents:\n{0}")]
+    ListS3BucketContents(eth_archive_core::Error),
+    #[error("unknown format version: {0}")]
+    UnknownFormatVersion(String),
 }
 
 pub type Result<T> = StdResult<T, Error>;
