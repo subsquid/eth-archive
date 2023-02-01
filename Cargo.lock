@@ -1352,6 +1352,7 @@ version = "0.0.1"
 dependencies = [
  "actix-web",
  "arrow2",
+ "async-stream",
  "aws-config",
  "aws-sdk-s3",
  "aws-types",

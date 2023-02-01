@@ -114,7 +114,7 @@ impl Ingester {
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
             {
-                let (batches, max_block_num) = parquet_src::stream_batches(
+                let batches = parquet_src::stream_batches(
                     block_num,
                     &s3_config,
                     s3_src_bucket,
@@ -122,9 +122,7 @@ impl Ingester {
                 )
                 .await?;
 
-                self.ingest_batches(&mut sender, batches).await?;
-
-                block_num = max_block_num;
+                block_num = self.ingest_batches(&mut sender, batches).await?;
             }
 
             s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
@@ -154,10 +152,12 @@ impl Ingester {
         &self,
         sender: &mut mpsc::Sender<Data>,
         batches: impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>>,
-    ) -> Result<()> {
+    ) -> Result<u32> {
         pin_mut!(batches);
 
         let mut data = Data::default();
+
+        let mut max_block_num = 0;
 
         'ingest: while let Some(batches) = batches.next().await {
             let (block_ranges, block_batches, log_batches) = batches?;
@@ -174,6 +174,8 @@ impl Ingester {
                     }
                     None => Some(block_range),
                 };
+
+                max_block_num = cmp::max(max_block_num, block_range.to);
 
                 for mut block in block_batch.into_iter() {
                     for tx in mem::take(&mut block.transactions).into_iter() {
@@ -198,7 +200,7 @@ impl Ingester {
             }
         }
 
-        Ok(())
+        Ok(max_block_num)
     }
 
     fn get_start_block(dir_names: &[DirName]) -> Result<u32> {

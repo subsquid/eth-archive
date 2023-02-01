@@ -14,7 +14,7 @@ pub async fn stream_batches(
     config: &ParsedS3Config,
     s3_src_bucket: &str,
     s3_src_format_ver: &str,
-) -> Result<(Data, u32)> {
+) -> Result<Data> {
     let cfg = aws_config::from_env()
         .endpoint_url(&config.s3_endpoint)
         .region(aws_types::region::Region::new(
