@@ -1,14 +1,47 @@
 use super::Data;
 use crate::{Error, Result};
+use arrow2::array::{self, Int64Array, UInt32Array, UInt64Array};
+use arrow2::compute::concatenate::concatenate;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::io::parquet::read::{read_columns_many, read_metadata};
+use eth_archive_core::deserialize::{
+    Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
+};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::s3_sync::{get_list, parse_s3_name};
 use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use futures::{Stream, TryStreamExt};
+use polars::prelude::*;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
+
+type BinaryArray = array::BinaryArray<i64>;
+
+// defines columns using the result frame and a list of column names
+macro_rules! define_cols {
+    ($columns:expr, $($name:ident, $arrow_type:ident),*) => {
+        $(
+            let arrays = $columns.next().unwrap().collect::<Vec<_>>();
+            let arrays = arrays.into_iter().map(|a| a.unwrap()).collect::<Vec<_>>();
+            let arrs = arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>();
+            let array = concatenate(arrs.as_slice()).unwrap();
+            let $name = array.as_any().downcast_ref::<$arrow_type>().unwrap();
+        )*
+    };
+}
+
+macro_rules! map_from_arrow {
+    ($src_field:ident, $map_type:expr, $idx:expr) => {
+        $map_type($src_field.get($idx).unwrap())
+    };
+}
+
+macro_rules! map_from_arrow_opt {
+    ($src_field:ident, $map_type:expr, $idx:expr) => {
+        $src_field.get($idx).map($map_type)
+    };
+}
 
 fn block_not_found_err(block_num: u32) -> Result<()> {
     Err(Error::BlockNotFoundInS3(block_num))
@@ -179,8 +212,11 @@ async fn read_blocks(
     let file: Arc<[u8]> = file.into();
     let mut cursor = Cursor::new(file);
     let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
+
+    let mut blocks = BTreeMap::new();
+
     for row_group_meta in metadata.row_groups.iter() {
-        let columns = read_columns_many(
+        let mut columns = read_columns_many(
             &mut cursor,
             row_group_meta,
             block_schema().fields,
@@ -188,10 +224,67 @@ async fn read_blocks(
             None,
             None,
         )
-        .map_err(Error::ReadParquet)?;
+        .map_err(Error::ReadParquet)?
+        .into_iter();
+
+        #[rustfmt::skip]
+        define_cols!(
+            columns,
+            block_parent_hash, BinaryArray,
+            block_sha3_uncles, BinaryArray,
+            block_miner, BinaryArray,
+            block_state_root, BinaryArray,
+            block_transactions_root, BinaryArray,
+            block_receipts_root, BinaryArray,
+            block_logs_bloom, BinaryArray,
+            block_difficulty, BinaryArray,
+            block_number, UInt32Array,
+            block_gas_limit, BinaryArray,
+            block_gas_used, BinaryArray,
+            block_timestamp, Int64Array,
+            block_extra_data, BinaryArray,
+            block_mix_hash, BinaryArray,
+            block_nonce, UInt64Array,
+            block_total_difficulty, BinaryArray,
+            block_base_fee_per_gas, BinaryArray,
+            block_size, Int64Array,
+            block_hash, BinaryArray
+        );
+
+        let len = block_number.len();
+
+        for i in 0..len {
+            let number = map_from_arrow!(block_number, Index, i);
+
+            blocks.insert(
+                number.0,
+                Block {
+                    parent_hash: map_from_arrow!(block_parent_hash, Bytes32::new, i),
+                    sha3_uncles: map_from_arrow!(block_sha3_uncles, Bytes32::new, i),
+                    miner: map_from_arrow!(block_miner, Address::new, i),
+                    state_root: map_from_arrow!(block_state_root, Bytes32::new, i),
+                    transactions_root: map_from_arrow!(block_transactions_root, Bytes32::new, i),
+                    receipts_root: map_from_arrow!(block_receipts_root, Bytes32::new, i),
+                    logs_bloom: map_from_arrow!(block_logs_bloom, BloomFilterBytes::new, i),
+                    difficulty: map_from_arrow_opt!(block_difficulty, Bytes::new, i),
+                    number,
+                    gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
+                    gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
+                    timestamp: map_from_arrow!(block_timestamp, BigInt, i),
+                    extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
+                    mix_hash: map_from_arrow_opt!(block_mix_hash, Bytes32::new, i),
+                    nonce: map_from_arrow_opt!(block_nonce, Nonce, i),
+                    total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
+                    base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
+                    size: map_from_arrow!(block_size, BigInt, i),
+                    hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
+                    transactions: Vec::new(),
+                },
+            );
+        }
     }
 
-    todo!()
+    Ok(blocks)
 }
 
 async fn read_txs(

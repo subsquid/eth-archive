@@ -1363,6 +1363,7 @@ dependencies = [
  "itertools",
  "log",
  "mimalloc",
+ "polars",
  "rayon",
  "serde",
  "serde_json",
