@@ -26,7 +26,7 @@ pub async fn stream_batches(
     let client = Arc::new(client);
 
     match s3_src_format_ver {
-        "0.0.39" => ver0_0_39::execute(start_block, s3_src_bucket, &client).await,
+        "0.0.39" => ver0_0_39::execute(start_block, s3_src_bucket.into(), client).await,
         _ => Err(Error::UnknownFormatVersion(s3_src_format_ver.to_owned())),
     }
 }
