@@ -1,5 +1,6 @@
 use super::Data;
 use crate::{Error, Result};
+use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::io::parquet::read::{read_columns_many, read_metadata};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::s3_sync::{get_list, parse_s3_name};
@@ -8,7 +9,6 @@ use futures::{Stream, TryStreamExt};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
-use arrow2::datatypes::Field;
 
 fn block_not_found_err(block_num: u32) -> Result<()> {
     Err(Error::BlockNotFoundInS3(block_num))
@@ -103,16 +103,70 @@ pub async fn execute(
     Ok(Box::pin(data))
 }
 
-fn block_fields() -> Vec<Field> {
-    todo!()
+pub fn block_schema() -> Schema {
+    Schema::from(vec![
+        Field::new("parent_hash", DataType::Binary, false),
+        Field::new("sha3_uncles", DataType::Binary, false),
+        Field::new("miner", DataType::Binary, false),
+        Field::new("state_root", DataType::Binary, false),
+        Field::new("transactions_root", DataType::Binary, false),
+        Field::new("receipts_root", DataType::Binary, false),
+        Field::new("logs_bloom", DataType::Binary, false),
+        Field::new("difficulty", DataType::Binary, true),
+        Field::new("number", DataType::UInt32, false),
+        Field::new("gas_limit", DataType::Binary, false),
+        Field::new("gas_used", DataType::Binary, false),
+        Field::new("timestamp", DataType::Int64, false),
+        Field::new("extra_data", DataType::Binary, false),
+        Field::new("mix_hash", DataType::Binary, true),
+        Field::new("nonce", DataType::UInt64, true),
+        Field::new("total_difficulty", DataType::Binary, true),
+        Field::new("base_fee_per_gas", DataType::Binary, true),
+        Field::new("size", DataType::Int64, false),
+        Field::new("hash", DataType::Binary, true),
+    ])
 }
 
-fn tx_fields() -> Vec<Field> {
-    todo!()
+pub fn tx_schema() -> Schema {
+    Schema::from(vec![
+        Field::new("kind", DataType::UInt32, false),
+        Field::new("nonce", DataType::UInt64, false),
+        Field::new("dest", DataType::Binary, true),
+        Field::new("gas", DataType::Int64, false),
+        Field::new("value", DataType::Binary, false),
+        Field::new("input", DataType::Binary, false),
+        Field::new("max_priority_fee_per_gas", DataType::Int64, true),
+        Field::new("max_fee_per_gas", DataType::Int64, true),
+        Field::new("y_parity", DataType::UInt32, true),
+        Field::new("chain_id", DataType::UInt32, true),
+        Field::new("v", DataType::Int64, true),
+        Field::new("r", DataType::Binary, false),
+        Field::new("s", DataType::Binary, false),
+        Field::new("source", DataType::Binary, true),
+        Field::new("block_hash", DataType::Binary, false),
+        Field::new("block_number", DataType::UInt32, false),
+        Field::new("transaction_index", DataType::UInt32, false),
+        Field::new("gas_price", DataType::Int64, true),
+        Field::new("hash", DataType::Binary, false),
+        Field::new("sighash", DataType::Binary, true),
+    ])
 }
 
-fn log_fields() -> Vec<Field> {
-    todo!()
+pub fn log_schema() -> Schema {
+    Schema::from(vec![
+        Field::new("address", DataType::Binary, false),
+        Field::new("block_hash", DataType::Binary, false),
+        Field::new("block_number", DataType::UInt32, false),
+        Field::new("data", DataType::Binary, false),
+        Field::new("log_index", DataType::UInt32, false),
+        Field::new("removed", DataType::Boolean, false),
+        Field::new("topic0", DataType::Binary, true),
+        Field::new("topic1", DataType::Binary, true),
+        Field::new("topic2", DataType::Binary, true),
+        Field::new("topic3", DataType::Binary, true),
+        Field::new("transaction_hash", DataType::Binary, false),
+        Field::new("transaction_index", DataType::UInt32, false),
+    ])
 }
 
 async fn read_blocks(
@@ -129,7 +183,7 @@ async fn read_blocks(
         let columns = read_columns_many(
             &mut cursor,
             row_group_meta,
-            block_fields(),
+            block_schema().fields,
             None,
             None,
             None,
