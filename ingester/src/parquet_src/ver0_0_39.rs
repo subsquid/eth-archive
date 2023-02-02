@@ -202,6 +202,18 @@ pub fn log_schema() -> Schema {
     ])
 }
 
+fn i64_to_bytes(num: i64) -> Bytes {
+    let bytes = num.to_le_bytes();
+    let idx = bytes
+        .iter()
+        .enumerate()
+        .find(|(_, b)| **b != 0)
+        .map(|b| b.0)
+        .unwrap_or(bytes.len() - 1);
+    let bytes = &bytes[idx..];
+    Bytes::new(bytes)
+}
+
 async fn read_blocks(
     dir_name: DirName,
     s3_src_bucket: Arc<str>,
@@ -270,13 +282,13 @@ async fn read_blocks(
                     number,
                     gas_limit: map_from_arrow!(block_gas_limit, Bytes::new, i),
                     gas_used: map_from_arrow!(block_gas_used, Bytes::new, i),
-                    timestamp: map_from_arrow!(block_timestamp, BigInt, i),
+                    timestamp: map_from_arrow!(block_timestamp, i64_to_bytes, i),
                     extra_data: map_from_arrow!(block_extra_data, Bytes::new, i),
                     mix_hash: map_from_arrow_opt!(block_mix_hash, Bytes32::new, i),
-                    nonce: map_from_arrow_opt!(block_nonce, Nonce, i),
+                    nonce: map_from_arrow_opt!(block_nonce, BigUnsigned, i),
                     total_difficulty: map_from_arrow_opt!(block_total_difficulty, Bytes::new, i),
                     base_fee_per_gas: map_from_arrow_opt!(block_base_fee_per_gas, Bytes::new, i),
-                    size: map_from_arrow!(block_size, BigInt, i),
+                    size: map_from_arrow!(block_size, i64_to_bytes, i),
                     hash: map_from_arrow_opt!(block_hash, Bytes32::new, i),
                     transactions: Vec::new(),
                 },
