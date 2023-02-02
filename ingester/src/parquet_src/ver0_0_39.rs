@@ -1,11 +1,14 @@
 use super::Data;
 use crate::{Error, Result};
+use arrow2::io::parquet::read::{read_columns_many, read_metadata};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::s3_sync::{get_list, parse_s3_name};
 use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use futures::{Stream, TryStreamExt};
 use std::collections::BTreeMap;
+use std::io::Cursor;
 use std::sync::Arc;
+use arrow2::datatypes::Field;
 
 fn block_not_found_err(block_num: u32) -> Result<()> {
     Err(Error::BlockNotFoundInS3(block_num))
@@ -100,6 +103,18 @@ pub async fn execute(
     Ok(Box::pin(data))
 }
 
+fn block_fields() -> Vec<Field> {
+    todo!()
+}
+
+fn tx_fields() -> Vec<Field> {
+    todo!()
+}
+
+fn log_fields() -> Vec<Field> {
+    todo!()
+}
+
 async fn read_blocks(
     dir_name: DirName,
     s3_src_bucket: Arc<str>,
@@ -107,6 +122,20 @@ async fn read_blocks(
 ) -> Result<BTreeMap<u32, Block>> {
     let key = format!("{dir_name}/block.parquet");
     let file = read_file_from_s3(&key, &s3_src_bucket, &client).await?;
+    let file: Arc<[u8]> = file.into();
+    let mut cursor = Cursor::new(file);
+    let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
+    for row_group_meta in metadata.row_groups.iter() {
+        let columns = read_columns_many(
+            &mut cursor,
+            row_group_meta,
+            block_fields(),
+            None,
+            None,
+            None,
+        )
+        .map_err(Error::ReadParquet)?;
+    }
 
     todo!()
 }

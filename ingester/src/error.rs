@@ -61,6 +61,8 @@ pub enum Error {
     S3GetObjChunk,
     #[error("failed get object from s3:\n{0}")]
     S3Get(S3Get),
+    #[error("failed to read parquet file:\n{0}")]
+    ReadParquet(arrow2::error::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
