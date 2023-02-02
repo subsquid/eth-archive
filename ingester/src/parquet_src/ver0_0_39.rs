@@ -1,6 +1,7 @@
 use super::Data;
 use crate::{Error, Result};
-use arrow2::array::{self, Int64Array, UInt32Array, UInt64Array};
+use arrayvec::ArrayVec;
+use arrow2::array::{self, BooleanArray, Int64Array, UInt32Array, UInt64Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::io::parquet::read::{read_columns_many, read_metadata};
@@ -13,6 +14,7 @@ use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use futures::{Stream, TryStreamExt};
 use polars::prelude::*;
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -203,7 +205,7 @@ pub fn log_schema() -> Schema {
 }
 
 fn i64_to_bytes(num: i64) -> Bytes {
-    let bytes = num.to_le_bytes();
+    let bytes = num.to_be_bytes();
     let idx = bytes
         .iter()
         .enumerate()
@@ -212,6 +214,10 @@ fn i64_to_bytes(num: i64) -> Bytes {
         .unwrap_or(bytes.len() - 1);
     let bytes = &bytes[idx..];
     Bytes::new(bytes)
+}
+
+fn i64_to_big_unsigned(num: i64) -> BigUnsigned {
+    BigUnsigned(num.try_into().unwrap())
 }
 
 async fn read_blocks(
@@ -306,8 +312,81 @@ async fn read_txs(
 ) -> Result<Vec<Transaction>> {
     let key = format!("{dir_name}/tx.parquet");
     let file = read_file_from_s3(&key, &s3_src_bucket, &client).await?;
+    let file: Arc<[u8]> = file.into();
+    let mut cursor = Cursor::new(file);
+    let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
 
-    todo!()
+    let mut txs = Vec::new();
+
+    for row_group_meta in metadata.row_groups.iter() {
+        let mut columns = read_columns_many(
+            &mut cursor,
+            row_group_meta,
+            tx_schema().fields,
+            None,
+            None,
+            None,
+        )
+        .map_err(Error::ReadParquet)?
+        .into_iter();
+
+        #[rustfmt::skip]
+        define_cols!(
+            columns,
+            tx_kind, UInt32Array,
+            tx_nonce, UInt64Array,
+            tx_dest, BinaryArray,
+            tx_gas, Int64Array,
+            tx_value, BinaryArray,
+            tx_input, BinaryArray,
+            tx_max_priority_fee_per_gas, Int64Array,
+            tx_max_fee_per_gas, Int64Array,
+            tx_y_parity, UInt32Array,
+            tx_chain_id, UInt32Array,
+            tx_v, Int64Array,
+            tx_r, BinaryArray,
+            tx_s, BinaryArray,
+            tx_source, BinaryArray,
+            tx_block_hash, BinaryArray,
+            tx_block_number, UInt32Array,
+            tx_transaction_index, UInt32Array,
+            tx_gas_price, Int64Array,
+            tx_hash, BinaryArray
+        );
+
+        let len = tx_block_number.len();
+
+        for i in 0..len {
+            txs.push(Transaction {
+                kind: Some(map_from_arrow!(tx_kind, Index, i)),
+                nonce: map_from_arrow!(tx_nonce, BigUnsigned, i),
+                dest: map_from_arrow_opt!(tx_dest, Address::new, i),
+                gas: map_from_arrow!(tx_gas, i64_to_bytes, i),
+                value: map_from_arrow!(tx_value, Bytes::new, i),
+                input: map_from_arrow!(tx_input, Bytes::new, i),
+                max_priority_fee_per_gas: map_from_arrow_opt!(
+                    tx_max_priority_fee_per_gas,
+                    i64_to_bytes,
+                    i
+                ),
+                max_fee_per_gas: map_from_arrow_opt!(tx_max_fee_per_gas, i64_to_bytes, i),
+                y_parity: map_from_arrow_opt!(tx_y_parity, Index, i),
+                chain_id: map_from_arrow_opt!(tx_chain_id, Index, i),
+                v: map_from_arrow_opt!(tx_v, i64_to_big_unsigned, i),
+                r: map_from_arrow!(tx_r, Bytes::new, i),
+                s: map_from_arrow!(tx_s, Bytes::new, i),
+                source: map_from_arrow_opt!(tx_source, Address::new, i),
+                block_hash: map_from_arrow!(tx_block_hash, Bytes32::new, i),
+                block_number: map_from_arrow!(tx_block_number, Index, i),
+                transaction_index: map_from_arrow!(tx_transaction_index, Index, i),
+                gas_price: Some(map_from_arrow!(tx_gas_price, i64_to_bytes, i)),
+                hash: map_from_arrow!(tx_hash, Bytes32::new, i),
+                status: None,
+            });
+        }
+    }
+
+    Ok(txs)
 }
 
 async fn read_logs(
@@ -317,8 +396,79 @@ async fn read_logs(
 ) -> Result<Vec<Log>> {
     let key = format!("{dir_name}/log.parquet");
     let file = read_file_from_s3(&key, &s3_src_bucket, &client).await?;
+    let file: Arc<[u8]> = file.into();
+    let mut cursor = Cursor::new(file);
+    let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
 
-    todo!()
+    let mut logs = Vec::new();
+
+    for row_group_meta in metadata.row_groups.iter() {
+        let mut columns = read_columns_many(
+            &mut cursor,
+            row_group_meta,
+            log_schema().fields,
+            None,
+            None,
+            None,
+        )
+        .map_err(Error::ReadParquet)?
+        .into_iter();
+
+        #[rustfmt::skip]
+        define_cols!(
+            columns,
+            log_address, BinaryArray,
+            log_block_hash, BinaryArray,
+            log_block_number, UInt32Array,
+            log_data, BinaryArray,
+            log_log_index, UInt32Array,
+            log_removed, BooleanArray,
+            log_topic0, BinaryArray,
+            log_topic1, BinaryArray,
+            log_topic2, BinaryArray,
+            log_topic3, BinaryArray,
+            log_transaction_hash, BinaryArray,
+            log_transaction_index, UInt32Array
+        );
+
+        let len = log_block_number.len();
+
+        for i in 0..len {
+            logs.push(Log {
+                address: map_from_arrow!(log_address, Address::new, i),
+                block_hash: map_from_arrow!(log_block_hash, Bytes32::new, i),
+                block_number: map_from_arrow!(log_block_number, Index, i),
+                data: map_from_arrow!(log_data, Bytes::new, i),
+                log_index: map_from_arrow!(log_log_index, Index, i),
+                removed: log_removed.get(i),
+                topics: {
+                    let mut topics = ArrayVec::new();
+
+                    if let Some(topic) = log_topic0.get(i) {
+                        topics.push(Bytes32::new(topic));
+                    }
+
+                    if let Some(topic) = log_topic1.get(i) {
+                        topics.push(Bytes32::new(topic));
+                    }
+
+                    if let Some(topic) = log_topic2.get(i) {
+                        topics.push(Bytes32::new(topic));
+                    }
+
+                    if let Some(topic) = log_topic3.get(i) {
+                        topics.push(Bytes32::new(topic));
+                    }
+
+                    topics
+                },
+                transaction_hash: map_from_arrow!(log_transaction_hash, Bytes32::new, i),
+                transaction_index: map_from_arrow!(log_transaction_index, Index, i),
+            });
+        }
+    }
+
+    Ok(logs)
 }
 
 async fn read_file_from_s3(

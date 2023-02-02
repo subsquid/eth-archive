@@ -1351,6 +1351,7 @@ name = "eth-archive-ingester"
 version = "0.0.1"
 dependencies = [
  "actix-web",
+ "arrayvec",
  "arrow2",
  "async-stream",
  "aws-config",
