@@ -2,7 +2,7 @@ use super::Data;
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
 use arrow2::array::{self, BooleanArray, Int64Array, UInt32Array, UInt64Array};
-use arrow2::compute::concatenate::concatenate;
+use arrow2::compute::{cast::cast, concatenate::concatenate};
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::io::parquet::read::{read_columns_many, read_metadata};
 use eth_archive_core::deserialize::{
@@ -28,20 +28,25 @@ macro_rules! define_cols {
             let arrays = arrays.into_iter().map(|a| a.unwrap()).collect::<Vec<_>>();
             let arrs = arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>();
             let array = concatenate(arrs.as_slice()).unwrap();
-            let $name = array.as_any().downcast_ref::<$arrow_type>().unwrap();
+
+            let $name = if array.data_type() == &DataType::Binary {
+                cast(array.as_ref(), &DataType::LargeBinary, Default::default()).unwrap().as_any().downcast_ref::<$arrow_type>().unwrap().clone()
+            } else {
+                array.as_any().downcast_ref::<$arrow_type>().unwrap().clone()
+            };
         )*
     };
 }
 
 macro_rules! map_from_arrow {
     ($src_field:ident, $map_type:expr, $idx:expr) => {
-        $map_type($src_field.get($idx).unwrap())
+        $map_type((&$src_field).get($idx).unwrap())
     };
 }
 
 macro_rules! map_from_arrow_opt {
     ($src_field:ident, $map_type:expr, $idx:expr) => {
-        $src_field.get($idx).map($map_type)
+        (&$src_field).get($idx).map($map_type)
     };
 }
 
@@ -444,19 +449,19 @@ async fn read_logs(
                 topics: {
                     let mut topics = ArrayVec::new();
 
-                    if let Some(topic) = log_topic0.get(i) {
+                    if let Some(topic) = (&log_topic0).get(i) {
                         topics.push(Bytes32::new(topic));
                     }
 
-                    if let Some(topic) = log_topic1.get(i) {
+                    if let Some(topic) = (&log_topic1).get(i) {
                         topics.push(Bytes32::new(topic));
                     }
 
-                    if let Some(topic) = log_topic2.get(i) {
+                    if let Some(topic) = (&log_topic2).get(i) {
                         topics.push(Bytes32::new(topic));
                     }
 
-                    if let Some(topic) = log_topic3.get(i) {
+                    if let Some(topic) = (&log_topic3).get(i) {
                         topics.push(Bytes32::new(topic));
                     }
 
