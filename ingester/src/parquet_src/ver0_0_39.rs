@@ -9,6 +9,7 @@ use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
 };
 use eth_archive_core::dir_name::DirName;
+use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::s3_sync::{get_list, parse_s3_name};
 use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use futures::{Stream, TryStreamExt};
@@ -17,6 +18,7 @@ use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::Cursor;
 use std::sync::Arc;
+use std::time::Instant;
 
 type BinaryArray = array::BinaryArray<i64>;
 
@@ -55,20 +57,28 @@ fn block_not_found_err(block_num: u32) -> Result<()> {
 }
 
 fn stream_batches(
+    ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     s3_src_bucket: Arc<str>,
     client: Arc<aws_sdk_s3::Client>,
     dir_names: Vec<DirName>,
 ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
+    let num_files = dir_names.len();
+
+    log::info!("s3_sync_ingest: {} directories to sync.", num_files);
+
     let mut block_num = start_block;
+    let mut start_time = Instant::now();
 
     async_stream::try_stream! {
-        for dir_name in dir_names {
+        for (i, dir_name) in dir_names.into_iter().enumerate() {
             // s3 files have a gap in them
             if dir_name.range.from > block_num {
                 // This is a function a call to make the macro work
                 block_not_found_err(block_num)?;
             }
+
+            let start = Instant::now();
 
             let block_fut = read_blocks(
                     dir_name,
@@ -107,12 +117,32 @@ fn stream_batches(
 
             block_num = dir_name.range.to;
 
+            if block_num > 0 {
+                ingest_metrics.record_download_height(block_num-1);
+            }
+            let elapsed = start.elapsed().as_millis();
+            if elapsed > 0 {
+                ingest_metrics.record_download_speed((block_num-dir_name.range.from) as f64 / elapsed as f64 * 1000.);
+            }
+
+            if start_time.elapsed().as_secs() > 15 {
+                let percentage = (i + 1) as f64 / num_files as f64 * 100.;
+                log::info!(
+                    "s3 sync progress: {}/{} {:.2}%",
+                    i + 1,
+                    num_files,
+                    percentage
+                );
+                start_time = Instant::now();
+            }
+
             yield (vec![block_range], vec![blocks], vec![logs]);
         }
     }
 }
 
 pub async fn execute(
+    ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     s3_src_bucket: Arc<str>,
     client: Arc<aws_sdk_s3::Client>,
@@ -134,11 +164,17 @@ pub async fn execute(
     let dir_names = dir_names
         .into_iter()
         // Check that this dir has all parquet files in s3 and is relevant considering our start_block
-        .filter(|(_, (val, dir_name))| *val == 3 && dir_name.range.to >= start_block)
+        .filter(|(_, (val, dir_name))| *val == 3 && dir_name.range.to > start_block)
         .map(|(_, (_, dir_name))| dir_name)
         .collect::<Vec<_>>();
 
-    let data = stream_batches(start_block, s3_src_bucket, client, dir_names);
+    let data = stream_batches(
+        ingest_metrics,
+        start_block,
+        s3_src_bucket,
+        client,
+        dir_names,
+    );
 
     Ok(Box::pin(data))
 }
