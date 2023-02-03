@@ -18,7 +18,7 @@ rayon = "1"
 clap = { version = "4", features = ["derive"] }
 prometheus-client = "0.19"
 aws-sdk-s3 = "0.23"
-aws-config = "0.53"
+aws-config = "0.54"
 aws-types = "0.53"
 rand = "0.8"
 arrayvec = { version = "0.7", features = ["serde"] }
