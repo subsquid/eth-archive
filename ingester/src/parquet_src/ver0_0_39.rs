@@ -148,7 +148,7 @@ pub async fn execute(
     let dir_names = dir_names
         .into_iter()
         // Check that this dir has all parquet files in s3 and is relevant considering our start_block
-        .filter(|(_, (val, dir_name))| *val == 3 && dir_name.range.to >= start_block)
+        .filter(|(_, (val, dir_name))| *val == 3 && dir_name.range.to > start_block)
         .map(|(_, (_, dir_name))| dir_name)
         .collect::<Vec<_>>();
 
