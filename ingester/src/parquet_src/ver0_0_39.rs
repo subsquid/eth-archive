@@ -63,17 +63,22 @@ fn stream_batches(
     client: Arc<aws_sdk_s3::Client>,
     dir_names: Vec<DirName>,
 ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
+    let num_files = dir_names.len();
+
+    log::info!("s3_sync_ingest: {} directories to sync.", num_files);
+
     let mut block_num = start_block;
+    let mut start_time = Instant::now();
 
     async_stream::try_stream! {
-        for dir_name in dir_names {
+        for (i, dir_name) in dir_names.into_iter().enumerate() {
             // s3 files have a gap in them
             if dir_name.range.from > block_num {
                 // This is a function a call to make the macro work
                 block_not_found_err(block_num)?;
             }
 
-            let start_time = Instant::now();
+            let start = Instant::now();
 
             let block_fut = read_blocks(
                     dir_name,
@@ -115,9 +120,20 @@ fn stream_batches(
             if block_num > 0 {
                 ingest_metrics.record_download_height(block_num-1);
             }
-            let elapsed = start_time.elapsed().as_millis();
+            let elapsed = start.elapsed().as_millis();
             if elapsed > 0 {
                 ingest_metrics.record_download_speed((block_num-dir_name.range.from) as f64 / elapsed as f64 * 1000.);
+            }
+
+            if start_time.elapsed().as_secs() > 15 {
+                let percentage = (i + 1) as f64 / num_files as f64 * 100.;
+                log::info!(
+                    "s3 sync progress: {}/{} {:.2}%",
+                    i + 1,
+                    num_files,
+                    percentage
+                );
+                start_time = Instant::now();
             }
 
             yield (vec![block_range], vec![blocks], vec![logs]);

@@ -1,6 +1,7 @@
 use crate::config::ParsedS3Config;
 use crate::dir_name::DirName;
 use crate::{Error, Result};
+use aws_config::retry::RetryConfig;
 use futures::Future;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::BTreeSet;
@@ -21,6 +22,7 @@ pub enum Direction {
 
 pub async fn start(direction: Direction, data_path: &Path, config: &ParsedS3Config) -> Result<()> {
     let cfg = aws_config::from_env()
+        .retry_config(RetryConfig::standard())
         .endpoint_url(&config.s3_endpoint)
         .region(aws_types::region::Region::new(
             config.s3_bucket_region.clone(),

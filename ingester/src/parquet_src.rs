@@ -1,4 +1,5 @@
 use crate::{Error, Result};
+use aws_config::retry::RetryConfig;
 use eth_archive_core::config::ParsedS3Config;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{Block, BlockRange, Log};
@@ -18,6 +19,7 @@ pub async fn stream_batches(
     s3_src_format_ver: &str,
 ) -> Result<Data> {
     let cfg = aws_config::from_env()
+        .retry_config(RetryConfig::standard())
         .endpoint_url(&config.s3_endpoint)
         .region(aws_types::region::Region::new(
             config.s3_bucket_region.clone(),
