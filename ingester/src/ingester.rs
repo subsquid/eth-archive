@@ -115,6 +115,7 @@ impl Ingester {
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
             {
                 let batches = parquet_src::stream_batches(
+                    self.metrics.clone(),
                     block_num,
                     &s3_config,
                     s3_src_bucket,

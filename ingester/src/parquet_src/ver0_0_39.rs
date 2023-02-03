@@ -9,6 +9,7 @@ use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
 };
 use eth_archive_core::dir_name::DirName;
+use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::s3_sync::{get_list, parse_s3_name};
 use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use futures::{Stream, TryStreamExt};
@@ -17,6 +18,7 @@ use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::Cursor;
 use std::sync::Arc;
+use std::time::Instant;
 
 type BinaryArray = array::BinaryArray<i64>;
 
@@ -55,6 +57,7 @@ fn block_not_found_err(block_num: u32) -> Result<()> {
 }
 
 fn stream_batches(
+    ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     s3_src_bucket: Arc<str>,
     client: Arc<aws_sdk_s3::Client>,
@@ -69,6 +72,8 @@ fn stream_batches(
                 // This is a function a call to make the macro work
                 block_not_found_err(block_num)?;
             }
+
+            let start_time = Instant::now();
 
             let block_fut = read_blocks(
                     dir_name,
@@ -107,12 +112,21 @@ fn stream_batches(
 
             block_num = dir_name.range.to;
 
+            if block_num > 0 {
+                ingest_metrics.record_download_height(block_num-1);
+            }
+            let elapsed = start_time.elapsed().as_millis();
+            if elapsed > 0 {
+                ingest_metrics.record_download_speed((block_num-dir_name.range.from) as f64 / elapsed as f64 * 1000.);
+            }
+
             yield (vec![block_range], vec![blocks], vec![logs]);
         }
     }
 }
 
 pub async fn execute(
+    ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     s3_src_bucket: Arc<str>,
     client: Arc<aws_sdk_s3::Client>,
@@ -138,7 +152,13 @@ pub async fn execute(
         .map(|(_, (_, dir_name))| dir_name)
         .collect::<Vec<_>>();
 
-    let data = stream_batches(start_block, s3_src_bucket, client, dir_names);
+    let data = stream_batches(
+        ingest_metrics,
+        start_block,
+        s3_src_bucket,
+        client,
+        dir_names,
+    );
 
     Ok(Box::pin(data))
 }
