@@ -78,8 +78,7 @@ impl DataCtx {
                 async move {
                     if let Err(e) = tokio::fs::create_dir_all(&data_path).await {
                         eprintln!(
-                            "failed to create missing data directory:\n{}\nstopping parquet watcher",
-                            e
+                            "failed to create missing data directory:\n{e}\nstopping parquet watcher",
                         );
                         return;
                     }
@@ -133,7 +132,7 @@ impl DataCtx {
 
         for name in ["block", "tx", "log"] {
             let mut path = path.clone();
-            path.push(format!("{}.parquet", name));
+            path.push(format!("{name}.parquet"));
             match tokio::fs::File::open(&path).await {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     return Ok(false);

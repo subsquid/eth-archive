@@ -1,8 +1,11 @@
 use actix_web::{HttpResponse, ResponseError};
 use arrow2::error::Error as ArrowError;
+use aws_sdk_s3::types::SdkError as S3Err;
 use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
+
+type S3Get = S3Err<aws_sdk_s3::error::GetObjectError>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -48,6 +51,18 @@ pub enum Error {
     BindHttpServer(io::Error),
     #[error("failed to start s3 sync:\n{0}")]
     StartS3Sync(eth_archive_core::Error),
+    #[error("failed to list s3 bucket contents:\n{0}")]
+    ListS3BucketContents(eth_archive_core::Error),
+    #[error("unknown format version: {0}")]
+    UnknownFormatVersion(String),
+    #[error("block {0} not found while trying to sync from s3")]
+    BlockNotFoundInS3(u32),
+    #[error("failed to get object chunk when downloading from s3.")]
+    S3GetObjChunk,
+    #[error("failed get object from s3:\n{0}")]
+    S3Get(S3Get),
+    #[error("failed to read parquet file:\n{0}")]
+    ReadParquet(arrow2::error::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

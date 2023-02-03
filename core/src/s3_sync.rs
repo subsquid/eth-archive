@@ -124,6 +124,15 @@ async fn execute(
 
 type FileFutures = Vec<Pin<Box<dyn Future<Output = Result<()>> + Send>>>;
 
+pub fn parse_s3_name(s3_name: &str) -> (DirName, String) {
+    let mut s3_name_parts = s3_name.split('/');
+    let dir_name = s3_name_parts.next().unwrap();
+    let dir_name = DirName::from_str(dir_name).unwrap();
+    let file_name = s3_name_parts.next().unwrap().to_owned();
+
+    (dir_name, file_name)
+}
+
 async fn sync_files_from_s3(
     data_path: &Path,
     bucket: Arc<str>,
@@ -132,10 +141,7 @@ async fn sync_files_from_s3(
     let mut futs: FileFutures = Vec::new();
 
     for s3_name in get_list(&bucket, &client).await?.iter() {
-        let mut s3_name_parts = s3_name.split('/');
-        let dir_name = s3_name_parts.next().unwrap();
-        let dir_name = DirName::from_str(dir_name).unwrap();
-        let file_name = s3_name_parts.next().unwrap().to_owned();
+        let (dir_name, file_name) = parse_s3_name(s3_name);
 
         let mut path = data_path.to_owned();
         path.push(dir_name.to_string());
@@ -232,8 +238,8 @@ async fn sync_files_to_s3(
         for kind in ["block", "tx", "log"] {
             let mut path = data_path.to_owned();
             path.push(dir_name.to_string());
-            path.push(format!("{}.parquet", kind));
-            let s3_path = format!("{}/{}.parquet", dir_name, kind);
+            path.push(format!("{kind}.parquet"));
+            let s3_path = format!("{dir_name}/{kind}.parquet");
             if s3_names.contains(s3_path.as_str()) {
                 continue;
             }
@@ -265,7 +271,7 @@ async fn sync_files_to_s3(
     Ok(futs)
 }
 
-async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<BTreeSet<String>> {
+pub async fn get_list(bucket: &str, client: &aws_sdk_s3::Client) -> Result<BTreeSet<String>> {
     let mut s3_names = BTreeSet::new();
     let mut stream = client
         .list_objects_v2()

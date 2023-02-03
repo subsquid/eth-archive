@@ -1351,7 +1351,12 @@ name = "eth-archive-ingester"
 version = "0.0.1"
 dependencies = [
  "actix-web",
+ "arrayvec",
  "arrow2",
+ "async-stream",
+ "aws-config",
+ "aws-sdk-s3",
+ "aws-types",
  "clap",
  "env_logger",
  "eth-archive-core",
@@ -1359,6 +1364,7 @@ dependencies = [
  "itertools",
  "log",
  "mimalloc",
+ "polars",
  "rayon",
  "serde",
  "serde_json",

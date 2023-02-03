@@ -17,9 +17,18 @@ itertools = "0.10"
 tokio-util = { version = "0.7", features = ["compat"] }
 actix-web = "4"
 mimalloc = { version = "0.1.34", default-features = false }
+aws-sdk-s3 = "0.23"
+aws-config = "0.53"
+aws-types = "0.53"
+async-stream = "0.3"
+arrayvec = { version = "0.7", features = ["serde"] }
 
 eth-archive-core = { path = "../core" }
 
 [dependencies.arrow2]
 version = "0.15"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
+
+[dependencies.polars]
+version = "0.26"
+features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]

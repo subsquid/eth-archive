@@ -56,10 +56,12 @@ args = [
 	"--max-logs-per-file", "100000",
 	"--max-row-groups-per-file", "16",
 	"--s3-endpoint", "https://s3.filebase.com",
-	"--s3-bucket-name", "eth0",
+	"--s3-bucket-name", "eth-stage-1-local-test",
 	"--s3-bucket-region", "us-east-1",
 	"--s3-sync-interval-secs", "10",
 	"--s3-concurrency", "32",
+	"--s3-src-bucket", "eth-mainnet-v1-stage1",
+	"--s3-src-format-ver", "0.0.39",
 ]
 
 [tasks.worker-s3]
