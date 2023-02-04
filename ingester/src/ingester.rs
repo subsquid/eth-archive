@@ -116,7 +116,11 @@ impl Ingester {
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
             {
-                log::info!("starting to ingest existing data from s3");
+                s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
+                    .await
+                    .map_err(Error::StartS3Sync)?;
+
+                log::info!("starting s3_sync_ingest");
 
                 let batches = parquet_src::stream_batches(
                     self.retry,
@@ -130,12 +134,8 @@ impl Ingester {
 
                 block_num = self.ingest_batches(&mut sender, batches).await?;
 
-                log::info!("finished ingesting existing s3 data");
+                log::info!("finished s3_sync_ingest");
             }
-
-            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
-                .await
-                .map_err(Error::StartS3Sync)?;
         } else {
             log::info!("no s3 config, disabling s3 sync");
         }
