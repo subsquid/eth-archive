@@ -34,6 +34,7 @@ pub struct Ingester {
     eth_client: Arc<EthClient>,
     cfg: Config,
     metrics: Arc<IngestMetrics>,
+    retry: Retry,
 }
 
 impl Ingester {
@@ -63,6 +64,7 @@ impl Ingester {
             eth_client,
             cfg,
             metrics,
+            retry,
         })
     }
 
@@ -117,6 +119,7 @@ impl Ingester {
                 log::info!("starting to ingest existing data from s3");
 
                 let batches = parquet_src::stream_batches(
+                    self.retry,
                     self.metrics.clone(),
                     block_num,
                     &s3_config,
