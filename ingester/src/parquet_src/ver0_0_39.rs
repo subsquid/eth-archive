@@ -147,7 +147,7 @@ fn stream_batches(
             if start_time.elapsed().as_secs() > 15 {
                 let percentage = (i + 1) as f64 / num_files as f64 * 100.;
                 log::info!(
-                    "s3 sync progress: {}/{} {:.2}%",
+                    "s3_sync_ingest progress: {}/{} {:.2}%",
                     i + 1,
                     num_files,
                     percentage
