@@ -10,6 +10,7 @@ use eth_archive_core::deserialize::{
 };
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
+use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_sync::{get_list, parse_s3_name};
 use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use futures::{Stream, TryStreamExt};
@@ -57,6 +58,7 @@ fn block_not_found_err(block_num: u32) -> Result<()> {
 }
 
 fn stream_batches(
+    retry: Retry,
     ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     s3_src_bucket: Arc<str>,
@@ -80,25 +82,46 @@ fn stream_batches(
 
             let start = Instant::now();
 
-            let block_fut = read_blocks(
-                    dir_name,
-                    s3_src_bucket.clone(),
-                    client.clone(),
-                );
+            let block_fut = retry
+                .retry(|| {
+                    let s3_src_bucket = s3_src_bucket.clone();
+                    let client = client.clone();
+                    async move {
+                        read_blocks(
+                            dir_name,
+                            s3_src_bucket,
+                            client,
+                        ).await
+                    }
+                });
 
-            let tx_fut = read_txs(
-                    dir_name,
-                    s3_src_bucket.clone(),
-                    client.clone(),
-                );
+            let tx_fut = retry
+                .retry(|| {
+                    let s3_src_bucket = s3_src_bucket.clone();
+                    let client = client.clone();
+                    async move {
+                        read_txs(
+                            dir_name,
+                            s3_src_bucket,
+                            client,
+                        ).await
+                    }
+                });
 
-            let log_fut = read_logs(
-                    dir_name,
-                    s3_src_bucket.clone(),
-                    client.clone(),
-                );
+            let log_fut = retry
+                .retry(|| {
+                    let s3_src_bucket = s3_src_bucket.clone();
+                    let client = client.clone();
+                    async move {
+                        read_logs(
+                            dir_name,
+                            s3_src_bucket,
+                            client,
+                        ).await
+                    }
+                });
 
-            let (mut blocks, txs, logs) = futures::future::try_join3(block_fut, tx_fut, log_fut).await?;
+            let (mut blocks, txs, logs) = futures::future::try_join3(block_fut, tx_fut, log_fut).await.map_err(Error::Retry)?;
 
             let block_range = BlockRange {
                 from: *blocks.first_key_value().unwrap().0,
@@ -138,6 +161,7 @@ fn stream_batches(
 }
 
 pub async fn execute(
+    retry: Retry,
     ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     s3_src_bucket: Arc<str>,
@@ -165,6 +189,7 @@ pub async fn execute(
         .collect::<Vec<_>>();
 
     let data = stream_batches(
+        retry,
         ingest_metrics,
         start_block,
         s3_src_bucket,

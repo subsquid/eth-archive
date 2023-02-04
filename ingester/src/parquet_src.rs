@@ -2,6 +2,7 @@ use crate::{Error, Result};
 use aws_config::retry::RetryConfig;
 use eth_archive_core::config::ParsedS3Config;
 use eth_archive_core::ingest_metrics::IngestMetrics;
+use eth_archive_core::retry::Retry;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use futures::Stream;
 use std::pin::Pin;
@@ -12,6 +13,7 @@ mod ver0_0_39;
 type Data = Pin<Box<dyn Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>>>>;
 
 pub async fn stream_batches(
+    retry: Retry,
     ingest_metrics: Arc<IngestMetrics>,
     start_block: u32,
     config: &ParsedS3Config,
@@ -31,7 +33,14 @@ pub async fn stream_batches(
 
     match s3_src_format_ver {
         "0.0.39" => {
-            ver0_0_39::execute(ingest_metrics, start_block, s3_src_bucket.into(), client).await
+            ver0_0_39::execute(
+                retry,
+                ingest_metrics,
+                start_block,
+                s3_src_bucket.into(),
+                client,
+            )
+            .await
         }
         _ => Err(Error::UnknownFormatVersion(s3_src_format_ver.to_owned())),
     }

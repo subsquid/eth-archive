@@ -63,6 +63,8 @@ pub enum Error {
     S3Get(S3Get),
     #[error("failed to read parquet file:\n{0}")]
     ReadParquet(arrow2::error::Error),
+    #[error("failed operation after retrying:\n{0:#?}")]
+    Retry(Vec<Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;
