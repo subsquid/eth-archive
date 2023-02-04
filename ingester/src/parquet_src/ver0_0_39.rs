@@ -100,14 +100,10 @@ fn stream_batches(
 
             let (mut blocks, txs, logs) = futures::future::try_join3(block_fut, tx_fut, log_fut).await?;
 
-            let mut block_range = Default::default();
-
-            for &num in blocks.keys() {
-                block_range += BlockRange {
-                    from: num,
-                    to: num + 1,
-                };
-            }
+            let block_range = BlockRange {
+                from: *blocks.first_key_value().unwrap().0,
+                to: blocks.last_key_value().unwrap().0 + 1,
+            };
 
             for tx in txs {
                 blocks.get_mut(&tx.block_number.0).unwrap().transactions.push(tx);
