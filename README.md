@@ -42,7 +42,7 @@
 
 ##### Query Fields
 
-- **fromBloc**k: Block number to start from (inclusive).
+- **fromBlock**: Block number to start from (inclusive).
 - **toBlock**: Block number to end on (inclusive) (optional). If this is not given, the query will go on for a fixed amount of time or until it reaches the height of the archive.
 - **logs.address**: Array of addresses to query for. A log will be included in the response if the log's address matches any of the addresses given in the query. (null or empty array means any address).
 - **log.topics**: Array of arrays of topics. Outer array has an element for each topic an EVM log can have. Each inner array represents possible matching values for a topic. For example topics[2] is an array of possible values that should match the log's third topic or the log won't be included in the response.
