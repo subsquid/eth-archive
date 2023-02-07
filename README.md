@@ -44,8 +44,68 @@
 
 <summary>
 
-##### Example Request
+##### Request
+</summary>
 
+```json
+{
+	"fromBlock": "block number to start the query from, inclusive. integer",
+	"toBlock": "block number to end the query on, inclusive. integer",
+	"logs": [
+		{
+			"address": [
+				"0x3883f5e181fccaF8410FA61e12b59BAd963fb645"
+			],
+			"topics": [
+				[
+					"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+				]
+			],
+			"fieldSelection": {
+				"block": {
+					"id": true,
+					"number": true,
+					"hash": true,
+					"parentHash": true,
+					"nonce": true
+				},
+				"log": {
+					"id": true,
+					"address": true,
+					"index": true,
+					"transactionIndex": true,
+					"topics": true,
+					"data": true
+				},
+				"transaction": {
+					"id": true,
+					"to": true,
+					"index": true,
+					"hash": true
+				}
+			}
+		}
+	],
+	"transactions": []
+}
+```
+
+</details>
+
+<details>
+
+<summary>
+
+##### Response
+</summary>
+
+</details>
+
+<details>
+
+<summary>
+
+##### Data Format
 </summary>
 
 ```json
@@ -97,7 +157,6 @@
 <summary>
 
 ##### Example Response
-
 </summary>
 
 ```json
@@ -143,4 +202,5 @@
 ```
 
 </details>
+
 </details>
