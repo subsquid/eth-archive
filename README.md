@@ -2,6 +2,10 @@
 
 ## Usage
 
+### Requirements
+
+- Latest stable version of Rust. Code is only tested and built using the latest stable version of rustc.
+
 #### Install cargo make
 
 - `cargo install --force cargo-make`
