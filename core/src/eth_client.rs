@@ -458,6 +458,10 @@ impl EthClient {
                     block_batches,
                     log_batches,
                 );
+
+                if let Some(secs) = self.cfg.wait_between_rounds {
+                    tokio::time::sleep(Duration::from_secs(secs)).await;
+                }
             }
         }
     }

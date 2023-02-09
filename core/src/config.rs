@@ -32,6 +32,9 @@ pub struct IngestConfig {
     /// Requires eth_getBlockReceipts to be available on the RPC API.
     #[clap(long, default_value_t = false)]
     pub get_receipts: bool,
+    /// Wait this amount of seconds between rounds
+    #[clap(long)]
+    pub wait_between_rounds: Option<u64>,
 }
 
 #[derive(Parser, Clone, Debug)]
