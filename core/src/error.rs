@@ -16,8 +16,8 @@ pub enum Error {
     RpcResponseParseJson(serde_json::Error),
     #[error("failed to parse rpc result:\n{0}")]
     RpcResultParse(serde_json::Error),
-    #[error("invalid rpc response")]
-    InvalidRpcResponse,
+    #[error("invalid rpc response:\n{0}")]
+    InvalidRpcResponse(String),
     #[error("error: rpc response status is {0}. payload:\n{1:?}")]
     RpcResponseStatus(u16, Option<String>),
     #[error("failed to execute http request:\n{0}")]

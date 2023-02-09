@@ -115,20 +115,28 @@ impl EthClient {
 
         let resp_status = resp.status();
         if !resp_status.is_success() {
-            let body = resp.text().await.ok();
-            return Err(Error::RpcResponseStatus(resp_status.as_u16(), body));
+            return Err(Error::RpcResponseStatus(
+                resp_status.as_u16(),
+                resp.text().await.ok(),
+            ));
         }
 
         let rpc_result = resp.json().await.map_err(Error::RpcResponseParse)?;
 
         let mut rpc_result = match rpc_result {
             JsonValue::Object(rpc_result) => rpc_result,
-            _ => return Err(Error::InvalidRpcResponse),
+            _ => {
+                return Err(Error::InvalidRpcResponse(
+                    serde_json::to_string_pretty(&rpc_result).unwrap(),
+                ))
+            }
         };
 
         let rpc_result = rpc_result
             .remove("result")
-            .ok_or(Error::InvalidRpcResponse)?;
+            .ok_or(Error::InvalidRpcResponse(
+                serde_json::to_string_pretty(&rpc_result).unwrap(),
+            ))?;
 
         let rpc_result = serde_json::from_value(rpc_result).map_err(Error::RpcResultParse)?;
 
@@ -181,8 +189,7 @@ impl EthClient {
             JsonValue::Array(resp) => resp,
             _ => {
                 let body = serde_json::to_string_pretty(&resp_body).unwrap();
-                log::error!("invalid rpc response, body was:\n{}", body);
-                return Err(Error::InvalidRpcResponse);
+                return Err(Error::InvalidRpcResponse(body));
             }
         };
 
@@ -191,12 +198,18 @@ impl EthClient {
             .map(|rpc_response| {
                 let mut rpc_response = match rpc_response {
                     JsonValue::Object(rpc_response) => rpc_response,
-                    _ => return Err(Error::InvalidRpcResponse),
+                    _ => {
+                        return Err(Error::InvalidRpcResponse(
+                            serde_json::to_string_pretty(&rpc_response).unwrap(),
+                        ))
+                    }
                 };
 
                 let rpc_result = rpc_response
                     .remove("result")
-                    .ok_or(Error::InvalidRpcResponse)?;
+                    .ok_or(Error::InvalidRpcResponse(
+                        serde_json::to_string_pretty(&rpc_response).unwrap(),
+                    ))?;
 
                 match serde_json::from_value(rpc_result) {
                     Ok(res) => Ok(res),
