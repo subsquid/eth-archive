@@ -105,10 +105,13 @@ impl EthClient {
     }
 
     async fn send_impl<R: EthRequest>(&self, url: Url, req: R) -> Result<R::Resp> {
+        let req_body = req.to_body(1);
+        let req_str = serde_json::to_string(&req_body).unwrap();
+
         let resp = self
             .http_client
             .post(url)
-            .json(&req.to_body(1))
+            .json(&req_body)
             .send()
             .await
             .map_err(Error::HttpRequest)?;
@@ -128,7 +131,8 @@ impl EthClient {
             _ => {
                 return Err(Error::InvalidRpcResponse(
                     serde_json::to_string_pretty(&rpc_result).unwrap(),
-                ))
+                    req_str,
+                ));
             }
         };
 
@@ -136,6 +140,7 @@ impl EthClient {
             .remove("result")
             .ok_or(Error::InvalidRpcResponse(
                 serde_json::to_string_pretty(&rpc_result).unwrap(),
+                req_str,
             ))?;
 
         let rpc_result = serde_json::from_value(rpc_result).map_err(Error::RpcResultParse)?;
@@ -165,6 +170,7 @@ impl EthClient {
             .map(|(i, req)| req.to_body(i + 1))
             .collect::<Vec<_>>();
         let req_body = JsonValue::Array(req_body);
+        let req_str = serde_json::to_string(&req_body).unwrap();
 
         let resp = self
             .http_client
@@ -189,7 +195,7 @@ impl EthClient {
             JsonValue::Array(resp) => resp,
             _ => {
                 let body = serde_json::to_string_pretty(&resp_body).unwrap();
-                return Err(Error::InvalidRpcResponse(body));
+                return Err(Error::InvalidRpcResponse(body, req_str));
             }
         };
 
@@ -201,6 +207,7 @@ impl EthClient {
                     _ => {
                         return Err(Error::InvalidRpcResponse(
                             serde_json::to_string_pretty(&rpc_response).unwrap(),
+                            req_str.clone(),
                         ))
                     }
                 };
@@ -209,6 +216,7 @@ impl EthClient {
                     .remove("result")
                     .ok_or(Error::InvalidRpcResponse(
                         serde_json::to_string_pretty(&rpc_response).unwrap(),
+                        req_str.clone(),
                     ))?;
 
                 match serde_json::from_value(rpc_result) {
