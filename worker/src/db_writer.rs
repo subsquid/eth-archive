@@ -1,11 +1,12 @@
 use crate::data_ctx::scan_parquet_args;
-use crate::db::{Bloom, DbHandle, ParquetIdx};
+use crate::db::{DbHandle, Filter, ParquetIdx};
 use crate::{Error, Result};
-use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use polars::export::arrow::array::BinaryArray;
 use polars::prelude::*;
+use std::convert::TryFrom;
+use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -88,7 +89,7 @@ impl DbWriter {
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            bloom_filter_from_frame(data_frame)
+            filter_from_frame(data_frame)
         };
 
         let tx_addr_filter = {
@@ -104,7 +105,7 @@ impl DbWriter {
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            bloom_filter_from_frame(data_frame)
+            filter_from_frame(data_frame)
         };
 
         let parquet_idx = ParquetIdx {
@@ -127,7 +128,7 @@ enum Job {
     RunCompaction,
 }
 
-fn bloom_filter_from_frame(data_frame: DataFrame) -> Bloom {
+fn filter_from_frame(data_frame: DataFrame) -> Filter {
     let mut addrs = Vec::new();
 
     for chunk in data_frame.iter_chunks() {
@@ -138,19 +139,15 @@ fn bloom_filter_from_frame(data_frame: DataFrame) -> Bloom {
             .iter()
             .flatten()
         {
-            addrs.push(Address::new(addr));
+            addrs.push(fnv1a(addr));
         }
     }
 
-    let mut bloom = Bloom::random(
-        addrs.len(),
-        0.000_001,
-        128_000, // 16KB max size
-    );
+    Filter::try_from(&addrs).unwrap()
+}
 
-    for addr in addrs {
-        bloom.add(&addr);
-    }
-
-    bloom
+pub fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hasher = fnv::FnvHasher::default();
+    hasher.write(bytes);
+    hasher.finish()
 }
