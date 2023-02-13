@@ -26,7 +26,7 @@ arrayvec = { version = "0.7", features = ["serde"] }
 eth-archive-core = { path = "../core" }
 
 [dependencies.arrow2]
-version = "0.15"
+version = "0.16"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
 
 [dependencies.polars]
