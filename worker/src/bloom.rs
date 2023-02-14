@@ -22,16 +22,18 @@ pub trait BloomHashIndex {
 pub struct Bloom<T: BloomHashIndex> {
     pub keys: Vec<u64>,
     pub bits: BitMap,
+    num_bits: usize,
     num_bits_set: u64,
     _phantom: PhantomData<T>,
 }
 
 impl<T: BloomHashIndex> Bloom<T> {
-    pub fn new(keys: Vec<u64>) -> Self {
+    pub fn new(num_bits: usize, keys: Vec<u64>) -> Self {
         let bits = BitMap::new();
         Bloom {
             keys,
             bits,
+            num_bits,
             num_bits_set: 0,
             _phantom: PhantomData::default(),
         }
@@ -47,7 +49,7 @@ impl<T: BloomHashIndex> Bloom<T> {
         let num_bits = cmp::max(1, cmp::min(m as usize, max_bits));
         let num_keys = Self::num_keys(num_bits as f64, num_items as f64) as usize;
         let keys: Vec<u64> = (0..num_keys).map(|_| rand::thread_rng().gen()).collect();
-        Self::new(keys)
+        Self::new(num_bits, keys)
     }
     fn num_bits(num_items: f64, false_rate: f64) -> f64 {
         let n = num_items;
@@ -65,7 +67,7 @@ impl<T: BloomHashIndex> Bloom<T> {
         }
     }
     fn pos(&self, key: &T, k: u64) -> u64 {
-        key.hash_at_index(k).wrapping_rem(self.bits.len())
+        key.hash_at_index(k).wrapping_rem(self.num_bits as u64)
     }
     pub fn clear(&mut self) {
         self.bits = BitMap::new();
