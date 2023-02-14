@@ -1,6 +1,5 @@
 use crate::config::Config;
 use crate::db::DbHandle;
-use crate::db_writer::fnv1a;
 use crate::db_writer::DbWriter;
 use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
@@ -24,7 +23,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, io};
-use xorf::Filter;
 
 pub struct DataCtx {
     config: Config,
@@ -218,11 +216,7 @@ impl DataCtx {
 
                             let address = address
                                 .iter()
-                                .filter(|addr| {
-                                    parquet_idx
-                                        .log_addr_filter
-                                        .contains(&fnv1a(addr.0.as_slice()))
-                                })
+                                .filter(|addr| parquet_idx.log_addr_filter.contains(addr))
                                 .cloned()
                                 .collect::<Vec<_>>();
 
@@ -254,11 +248,7 @@ impl DataCtx {
 
                             let address = address
                                 .iter()
-                                .filter(|addr| {
-                                    parquet_idx
-                                        .tx_addr_filter
-                                        .contains(&fnv1a(addr.0.as_slice()))
-                                })
+                                .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
                                 .cloned()
                                 .collect::<Vec<_>>();
 

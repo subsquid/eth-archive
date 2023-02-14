@@ -1,3 +1,4 @@
+mod bloom;
 mod config;
 mod data_ctx;
 mod db;
