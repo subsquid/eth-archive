@@ -980,5 +980,6 @@ pub fn scan_parquet_args() -> ScanArgsParquet {
         rechunk: true,
         row_count: None,
         low_memory: false,
+        cloud_options: None,
     }
 }
