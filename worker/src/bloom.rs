@@ -67,7 +67,7 @@ impl<T: BloomHashIndex> Bloom<T> {
         }
     }
     fn pos(&self, key: &T, k: u64) -> u64 {
-        key.hash_at_index(k).wrapping_rem(self.num_bits)
+        key.hash_at_index(k).wrapping_rem(self.num_bits as u64)
     }
     pub fn clear(&mut self) {
         self.bits = BitMap::new();
