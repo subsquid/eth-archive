@@ -296,6 +296,35 @@ dependencies = [
  "futures",
  "getrandom",
  "hash_hasher",
+ "lexical-core",
+ "multiversion",
+ "num-traits",
+ "parquet2",
+ "rustc_version",
+ "simdutf8",
+ "streaming-iterator",
+ "strength_reduce",
+]
+
+[[package]]
+name = "arrow2"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a4c5b03335bc1cb0fd9f5297f8fd3bbfd6fb04f3cb0bc7d6c91b7128cb8336a"
+dependencies = [
+ "ahash 0.8.3",
+ "arrow-format",
+ "base64 0.13.1",
+ "bytemuck",
+ "chrono",
+ "dyn-clone",
+ "either",
+ "ethnum",
+ "fallible-streaming-iterator",
+ "foreign_vec",
+ "futures",
+ "getrandom",
+ "hash_hasher",
  "hashbrown 0.12.3",
  "itertools",
  "lexical-core",
@@ -1384,7 +1413,7 @@ version = "0.0.1"
 dependencies = [
  "actix-web",
  "arrayvec",
- "arrow2",
+ "arrow2 0.16.0",
  "async-stream",
  "aws-config",
  "aws-sdk-s3",
@@ -2484,7 +2513,7 @@ version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d5e894b6908d288ea24b56c8d99c2944f4b94af51ba662d58631c04806511b7"
 dependencies = [
- "arrow2",
+ "arrow2 0.15.0",
  "hashbrown 0.13.2",
  "num",
  "thiserror",
@@ -2498,7 +2527,7 @@ checksum = "a3ab5c1e10e42a34a44a6e1421869c84ad56fe217c6120cda697c84bc467eb9c"
 dependencies = [
  "ahash 0.8.3",
  "anyhow",
- "arrow2",
+ "arrow2 0.15.0",
  "bitflags",
  "chrono",
  "comfy-table",
@@ -2525,7 +2554,7 @@ checksum = "882e392cbc3e645bfa7ad582065764e21dc271cfeefee904f43a95ccd1b52cb7"
 dependencies = [
  "ahash 0.8.3",
  "anyhow",
- "arrow2",
+ "arrow2 0.15.0",
  "csv-core",
  "dirs",
  "lexical",
@@ -2569,7 +2598,7 @@ version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "771a404f0f84e6801632c534a7b99410a017e227ecc7b9c64bab728c614f05d6"
 dependencies = [
- "arrow2",
+ "arrow2 0.15.0",
  "polars-arrow",
  "polars-core",
  "polars-utils",
