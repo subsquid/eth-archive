@@ -35,6 +35,10 @@ pub struct IngestConfig {
     /// Wait this amount of seconds between rounds
     #[clap(long)]
     pub wait_between_rounds: Option<u64>,
+    /// An rpc endpoint is considered behind and excluded
+    /// if max_best_block - rpc_endpoint.best_block > max_rpc_endpoint_best_block_diff
+    #[clap(long, default_value_t = 5)]
+    pub max_rpc_endpoint_best_block_diff: u32,
 }
 
 #[derive(Parser, Clone, Debug)]

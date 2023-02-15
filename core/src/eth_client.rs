@@ -75,7 +75,7 @@ impl EthClient {
         let best_blocks = best_blocks
             .into_iter()
             .filter(|bb| {
-                if max - bb.0 > 5 {
+                if max - bb.0 > self.cfg.max_rpc_endpoint_best_block_diff {
                     log::warn!("excluding rpc url {} because it is too behind.", bb.1);
                     return false;
                 }
@@ -280,7 +280,11 @@ impl EthClient {
 
         self.metrics.record_chain_height(num);
 
-        let num = if num > offset { num - offset } else { 0 };
+        let num = if num > offset {
+            num - offset
+        } else {
+            return Err(Error::NoBlocksOnNode);
+        };
 
         Ok(num)
     }
