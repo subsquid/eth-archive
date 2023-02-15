@@ -24,7 +24,3 @@ eth-archive-core = { path = "../core" }
 [dependencies.arrow2]
 version = "0.16"
 features = [ "io_parquet", "io_parquet_compression", "compute" ]
-
-[dependencies.polars]
-version = "0.27"
-features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]

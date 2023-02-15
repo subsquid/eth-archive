@@ -1,20 +1,22 @@
 use crate::config::{FormatVersion, ParsedS3Config};
 use crate::dir_name::DirName;
-use crate::parquet_source::{self, ParquetSource};
+use crate::ingest_metrics::IngestMetrics;
+use crate::parquet_source::{self, Columns, ParquetSource};
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, Log};
 use crate::{Error, Result};
 use aws_config::retry::RetryConfig;
-use futures::{Future, Stream};
+use futures::{Future, Stream, TryFutureExt};
 use futures::{StreamExt, TryStreamExt};
-use std::collections::BTreeSet;
-use std::io;
+use polars::export::arrow::datatypes::Field;
+use polars::export::arrow::io::parquet::read::{read_columns_many, read_metadata};
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::{self, Cursor};
 use std::path::Path;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
@@ -71,14 +73,14 @@ impl S3Client {
         });
     }
 
-    pub fn stream_batches(
+    pub async fn stream_batches(
         self: Arc<Self>,
         ingest_metrics: Arc<IngestMetrics>,
         start_block: u32,
         s3_src_bucket: &str,
         format_version: FormatVersion,
-    ) -> Result<Data> {
-        let dir_names = Self::get_dir_names_from_list(&self.get_list().await?);
+    ) -> Result<BatchStream> {
+        let dir_names = Self::get_dir_names_from_list(start_block, &self.clone().get_list().await?);
         let source = parquet_source::get(format_version);
 
         let batch_stream = self.stream_batches_impl(
@@ -92,13 +94,13 @@ impl S3Client {
         Ok(Box::pin(batch_stream))
     }
 
-    async fn stream_batches_impl(
+    fn stream_batches_impl(
         self: Arc<Self>,
         ingest_metrics: Arc<IngestMetrics>,
         start_block: u32,
         s3_src_bucket: &str,
-        dir_names: Vec<DirName>,
         source: Box<dyn ParquetSource>,
+        dir_names: Vec<DirName>,
     ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
         let num_files = dir_names.len();
 
@@ -106,6 +108,8 @@ impl S3Client {
 
         let mut block_num = start_block;
         let mut start_time = Instant::now();
+
+        let s3_src_bucket: Arc<str> = s3_src_bucket.into();
 
         async_stream::try_stream! {
             for (i, dir_name) in dir_names.into_iter().enumerate() {
@@ -120,36 +124,37 @@ impl S3Client {
 
                 let start = Instant::now();
 
-                let read_fut = |kind, fields, read| {
+                let read_fut = |kind, fields: Vec<Field>| {
                     let s3_key = format!("{dir_name}/{kind}.parquet");
                     let s3_client = self.clone();
+                    let s3_src_bucket = s3_src_bucket.clone();
 
                     async move {
-                        let file = self.clone().get_bytes(s3_key.into(), s3_src_bucket.into()).await?;
+                        let file = s3_client.clone().get_bytes(s3_key.into(), s3_src_bucket).await?;
                         let file: Arc<[u8]> = file.into();
                         let mut cursor = Cursor::new(file);
                         let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
-                        let columns = metadata.row_groups.iter().map(|row_group_meta| {
+                        let columns = metadata.row_groups.into_iter().map(move |row_group_meta| {
                             read_columns_many(
                                 &mut cursor,
-                                row_group_meta,
-                                fields,
+                                &row_group_meta,
+                                fields.clone(),
                                 None,
                                 None,
                                 None,
                             )
                             .map_err(Error::ReadParquet)
-                        });
+                        }).collect::<Result<Vec<_>>>()?;
 
-                        read(columns)
+                        Ok::<Columns, Error>(columns)
                     }
                 };
 
-                let block_fut = read_fut("block", source.block_fields(), source.read_blocks);
-                let tx_fut = read_fut("tx", source.tx_fields(), source.read_txs);
-                let log_fut = read_fut("log", source.log_fields(), source.read_logs);
+                let block_fut = read_fut("block", source.block_fields()).map_ok(|columns| source.read_blocks(columns));
+                let tx_fut = read_fut("tx", source.tx_fields()).map_ok(|columns| source.read_txs(columns));
+                let log_fut = read_fut("log", source.log_fields()).map_ok(|columns| source.read_logs(columns));
 
-                let (mut blocks, txs, logs) = futures::future::try_join3(block_fut, tx_fut, log_fut).await.map_err(Error::Retry)?;
+                let (mut blocks, txs, logs) = futures::future::try_join3(block_fut, tx_fut, log_fut).await?;
 
                 let block_range = BlockRange {
                     from: *blocks.first_key_value().unwrap().0,
@@ -338,7 +343,7 @@ impl S3Client {
         Ok(futs)
     }
 
-    fn get_dir_names_from_list(list: &BTreeSet<String>) -> Vec<DirName> {
+    fn get_dir_names_from_list(start_block: u32, list: &BTreeSet<String>) -> Vec<DirName> {
         let mut dir_names: BTreeMap<u32, (u8, DirName)> = BTreeMap::new();
 
         for s3_name in list.iter() {
@@ -349,14 +354,12 @@ impl S3Client {
                 .0 += 1;
         }
 
-        let dir_names = dir_names
+        dir_names
             .into_iter()
             // Check that this dir has all parquet files in s3 and is relevant considering our start_block
             .filter(|(_, (val, dir_name))| *val == 3 && dir_name.range.to > start_block)
             .map(|(_, (_, dir_name))| dir_name)
-            .collect::<Vec<_>>();
-
-        dir_names
+            .collect::<Vec<_>>()
     }
 
     async fn get_bytes(

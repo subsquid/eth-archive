@@ -1,3 +1,9 @@
+use crate::config::FormatVersion;
+use crate::types::{Block, Log, Transaction};
+use polars::export::arrow::datatypes::Field;
+use polars::export::arrow::io::parquet::read::ArrayIter;
+use std::collections::BTreeMap;
+
 mod util;
 mod ver0_0_39;
 
@@ -7,18 +13,18 @@ pub fn get(ver: FormatVersion) -> Box<dyn ParquetSource> {
     }
 }
 
-trait ParquetSource {
-    fn read_blocks(
-        columns: impl Iterator<Item = Result<Vec<ArrayIter<'_>>>>,
-    ) -> BTreeMap<u32, Block>;
+pub type Columns = Vec<Vec<ArrayIter<'static>>>;
 
-    fn read_txs(columns: impl Iterator<Item = Result<Vec<ArrayIter<'_>>>>) -> Vec<Transaction>;
+pub trait ParquetSource {
+    fn read_blocks(&self, columns: Columns) -> BTreeMap<u32, Block>;
 
-    fn read_logs(columns: impl Iterator<Item = Result<Vec<ArrayIter<'_>>>>) -> Vec<Log>;
+    fn read_txs(&self, columns: Columns) -> Vec<Transaction>;
 
-    fn block_fields() -> Vec<Field>;
+    fn read_logs(&self, columns: Columns) -> Vec<Log>;
 
-    fn tx_fields() -> Vec<Field>;
+    fn block_fields(&self) -> Vec<Field>;
 
-    fn log_fields() -> Vec<Field>;
+    fn tx_fields(&self) -> Vec<Field>;
+
+    fn log_fields(&self) -> Vec<Field>;
 }

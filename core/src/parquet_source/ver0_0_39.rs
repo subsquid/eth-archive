@@ -1,14 +1,25 @@
 use super::util::{
     define_cols, i64_to_big_unsigned, i64_to_bytes, map_from_arrow, map_from_arrow_opt,
 };
-use super::ParquetSource;
+use super::{Columns, ParquetSource};
+use crate::deserialize::{Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index};
+use crate::types::{Block, Log, Transaction};
+use arrayvec::ArrayVec;
+use polars::export::arrow::array::{self, BooleanArray, Int64Array, UInt32Array, UInt64Array};
+use polars::export::arrow::compute::cast::cast;
+use polars::export::arrow::compute::concatenate::concatenate;
+use polars::export::arrow::datatypes::{DataType, Field};
+use polars::prelude::ArrowGetItem;
+use std::collections::BTreeMap;
+
+type BinaryArray = array::BinaryArray<i64>;
 
 pub struct Ver0_0_39;
 
 impl ParquetSource for Ver0_0_39 {
-    async fn read_blocks(
-        columns: impl Iterator<Item = Result<Vec<ArrayIter<'_>>>>,
-    ) -> Result<BTreeMap<u32, Block>> {
+    fn read_blocks(&self, columns: Columns) -> BTreeMap<u32, Block> {
+        let mut blocks = BTreeMap::new();
+
         for columns in columns {
             #[rustfmt::skip]
             define_cols!(
@@ -79,12 +90,12 @@ impl ParquetSource for Ver0_0_39 {
             }
         }
 
-        Ok(blocks)
+        blocks
     }
 
-    async fn read_txs(
-        columns: impl Iterator<Item = Result<Vec<ArrayIter<'_>>>>,
-    ) -> Result<Vec<Transaction>> {
+    fn read_txs(&self, columns: Columns) -> Vec<Transaction> {
+        let mut txs = Vec::new();
+
         for columns in columns {
             #[rustfmt::skip]
             define_cols!(
@@ -142,12 +153,12 @@ impl ParquetSource for Ver0_0_39 {
             }
         }
 
-        Ok(txs)
+        txs
     }
 
-    async fn read_logs(
-        columns: impl Iterator<Item = Result<Vec<ArrayIter<'_>>>>,
-    ) -> Result<Vec<Log>> {
+    fn read_logs(&self, columns: Columns) -> Vec<Log> {
+        let mut logs = Vec::new();
+
         for columns in columns {
             #[rustfmt::skip]
             define_cols!(
@@ -203,10 +214,10 @@ impl ParquetSource for Ver0_0_39 {
             }
         }
 
-        Ok(logs)
+        logs
     }
 
-    fn block_fields() -> Vec<Field> {
+    fn block_fields(&self) -> Vec<Field> {
         vec![
             Field::new("parent_hash", DataType::Binary, false),
             Field::new("sha3_uncles", DataType::Binary, false),
@@ -230,7 +241,7 @@ impl ParquetSource for Ver0_0_39 {
         ]
     }
 
-    fn tx_fields() -> Vec<Field> {
+    fn tx_fields(&self) -> Vec<Field> {
         vec![
             Field::new("kind", DataType::UInt32, false),
             Field::new("nonce", DataType::UInt64, false),
@@ -255,7 +266,7 @@ impl ParquetSource for Ver0_0_39 {
         ]
     }
 
-    fn log_fields() -> Vec<Field> {
+    fn log_fields(&self) -> Vec<Field> {
         vec![
             Field::new("address", DataType::Binary, false),
             Field::new("block_hash", DataType::Binary, false),

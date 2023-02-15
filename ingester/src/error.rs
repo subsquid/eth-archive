@@ -1,11 +1,8 @@
 use actix_web::{HttpResponse, ResponseError};
 use arrow2::error::Error as ArrowError;
-use aws_sdk_s3::types::SdkError as S3Err;
 use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
-
-type S3Get = S3Err<aws_sdk_s3::error::GetObjectError>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {

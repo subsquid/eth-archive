@@ -14,7 +14,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::s3_client::S3Client;
+use eth_archive_core::s3_client::{Direction, S3Client};
 use eth_archive_core::types::{Block, BlockRange, Log};
 use futures::channel::mpsc;
 use futures::pin_mut;
@@ -116,7 +116,7 @@ impl Ingester {
                 .await
                 .map_err(Error::BuildS3Client)?;
 
-            s3_client.spawn_s3_sync(s3_sync::Direction::Up, &self.cfg_data_path);
+            s3_client.spawn_s3_sync(Direction::Up, &self.cfg_data_path);
 
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
