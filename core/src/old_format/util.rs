@@ -27,3 +27,19 @@ macro_rules! map_from_arrow_opt {
         (&$src_field).get($idx).map($map_type)
     };
 }
+
+pub fn i64_to_bytes(num: i64) -> Bytes {
+    let bytes = num.to_be_bytes();
+    let idx = bytes
+        .iter()
+        .enumerate()
+        .find(|(_, b)| **b != 0)
+        .map(|b| b.0)
+        .unwrap_or(bytes.len() - 1);
+    let bytes = &bytes[idx..];
+    Bytes::new(bytes)
+}
+
+pub fn i64_to_big_unsigned(num: i64) -> BigUnsigned {
+    BigUnsigned(num.try_into().unwrap())
+}

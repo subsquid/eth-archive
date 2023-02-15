@@ -42,7 +42,7 @@ impl S3Client {
         })
     }
 
-    pub fn spawn_sync(self: Arc<Self>, direction: Direction, data_path: &Path) {
+    pub fn spawn_s3_sync(self: Arc<Self>, direction: Direction, data_path: &Path) {
         let data_path = data_path.to_owned();
 
         tokio::spawn(async move {

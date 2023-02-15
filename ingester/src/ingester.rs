@@ -116,15 +116,16 @@ impl Ingester {
                 .await
                 .map_err(Error::BuildS3Client)?;
 
-            s3_client.spawn_sync(s3_sync::Direction::Up, &self.cfg_data_path);
+            s3_client.spawn_s3_sync(s3_sync::Direction::Up, &self.cfg_data_path);
 
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
             {
                 log::info!("starting to stream data from s3");
 
-                let batches =
-                    s3_client.stream_old_data(block_num, s3_src_bucket, s3_src_format_ver);
+                let batches = s3_client
+                    .stream_batches(block_num, s3_src_bucket, s3_src_format_ver)
+                    .map_err(Error::GetS3Batch);
 
                 block_num = self.ingest_batches(&mut sender, batches).await?;
 
