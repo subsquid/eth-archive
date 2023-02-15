@@ -27,3 +27,7 @@ arrayvec = { version = "0.7", features = ["serde"] }
 version = "0.11"
 default-features = false
 features = ["json", "rustls-tls", "gzip"]
+
+[dependencies.polars]
+version = "0.27"
+features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]

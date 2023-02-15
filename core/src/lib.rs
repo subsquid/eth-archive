@@ -5,9 +5,10 @@ pub mod error;
 pub mod eth_client;
 pub mod eth_request;
 pub mod ingest_metrics;
+mod parquet_source;
 pub mod rayon_async;
 pub mod retry;
-pub mod s3_sync;
+pub mod s3_client;
 pub mod types;
 
 pub use error::{Error, Result};

@@ -11,7 +11,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::s3_sync;
+use eth_archive_core::s3_client::{Direction, S3Client};
 use eth_archive_core::types::{
     BlockRange, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
 };
@@ -115,9 +115,12 @@ impl DataCtx {
 
         if let Some(data_path) = &config.data_path {
             if let Some(s3_config) = config.s3.into_parsed() {
-                s3_sync::start(s3_sync::Direction::Down, data_path, &s3_config)
+                let s3_client = S3Client::new(retry, &s3_config)
                     .await
-                    .map_err(Error::StartS3Sync)?;
+                    .map_err(Error::BuildS3Client)?;
+                let s3_client = Arc::new(s3_client);
+
+                s3_client.spawn_s3_sync(Direction::Down, data_path);
             } else {
                 log::info!("no s3 config, disabling s3 sync");
             }

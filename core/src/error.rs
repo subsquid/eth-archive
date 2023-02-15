@@ -1,4 +1,5 @@
 use aws_sdk_s3::types::SdkError as S3Err;
+use polars::error::ArrowError;
 use std::result::Result as StdResult;
 use std::string::FromUtf8Error;
 use std::{fmt, io};
@@ -64,6 +65,12 @@ pub enum Error {
     RenameFile(io::Error),
     #[error("no healthy rpc url found.")]
     NoHealthyUrl,
+    #[error("failed to read parquet file:\n{0}")]
+    ReadParquet(ArrowError),
+    #[error("block {0} not found while streaming batches from s3")]
+    BlockNotFoundInS3(u32),
+    #[error("unknown format: {0}")]
+    UnknownFormat(String),
 }
 
 pub type Result<T> = StdResult<T, Error>;
