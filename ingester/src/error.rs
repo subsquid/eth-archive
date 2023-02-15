@@ -54,6 +54,8 @@ pub enum Error {
     Retry(Vec<Error>),
     #[error("failed to build s3 client:\n{0}")]
     BuildS3Client(eth_archive_core::Error),
+    #[error("failed to start streaming data from s3:\n{0}")]
+    StartS3BatchStream(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

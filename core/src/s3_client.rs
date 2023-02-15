@@ -1,9 +1,9 @@
-use crate::config::{FormatVersion, ParsedS3Config};
+use crate::config::ParsedS3Config;
 use crate::dir_name::DirName;
 use crate::ingest_metrics::IngestMetrics;
 use crate::parquet_source::{self, Columns, ParquetSource};
 use crate::retry::Retry;
-use crate::types::{Block, BlockRange, Log};
+use crate::types::{Block, BlockRange, FormatVersion, Log};
 use crate::{Error, Result};
 use aws_config::retry::RetryConfig;
 use futures::{Future, Stream, TryFutureExt};
@@ -78,10 +78,10 @@ impl S3Client {
         ingest_metrics: Arc<IngestMetrics>,
         start_block: u32,
         s3_src_bucket: &str,
-        format_version: FormatVersion,
+        format_version: &str,
     ) -> Result<BatchStream> {
         let dir_names = Self::get_dir_names_from_list(start_block, &self.clone().get_list().await?);
-        let source = parquet_source::get(format_version);
+        let source = parquet_source::get(FormatVersion::from_str(format_version)?);
 
         let batch_stream = self.stream_batches_impl(
             ingest_metrics,

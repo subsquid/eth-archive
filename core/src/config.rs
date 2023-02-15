@@ -37,11 +37,6 @@ pub struct IngestConfig {
     pub wait_between_rounds: Option<u64>,
 }
 
-#[derive(Parser, Clone, Copy, Debug)]
-pub enum FormatVersion {
-    Ver0_0_39,
-}
-
 #[derive(Parser, Clone, Debug)]
 pub struct S3Config {
     #[clap(long)]

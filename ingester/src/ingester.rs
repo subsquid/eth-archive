@@ -115,8 +115,11 @@ impl Ingester {
             let s3_client = S3Client::new(self.retry, &s3_config)
                 .await
                 .map_err(Error::BuildS3Client)?;
+            let s3_client = Arc::new(s3_client);
 
-            s3_client.spawn_s3_sync(Direction::Up, &self.cfg_data_path);
+            s3_client
+                .clone()
+                .spawn_s3_sync(Direction::Up, &self.cfg.data_path);
 
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
@@ -124,7 +127,14 @@ impl Ingester {
                 log::info!("starting to stream data from s3");
 
                 let batches = s3_client
-                    .stream_batches(block_num, s3_src_bucket, s3_src_format_ver)
+                    .stream_batches(
+                        self.metrics.clone(),
+                        block_num,
+                        s3_src_bucket,
+                        s3_src_format_ver,
+                    )
+                    .await
+                    .map_err(Error::StartS3BatchStream)?
                     .map_err(Error::GetS3Batch);
 
                 block_num = self.ingest_batches(&mut sender, batches).await?;

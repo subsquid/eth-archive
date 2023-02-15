@@ -69,6 +69,8 @@ pub enum Error {
     ReadParquet(ArrowError),
     #[error("block {0} not found while streaming batches from s3")]
     BlockNotFoundInS3(u32),
+    #[error("unknown format: {0}")]
+    UnknownFormat(String),
 }
 
 pub type Result<T> = StdResult<T, Error>;

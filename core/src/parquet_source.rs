@@ -1,5 +1,4 @@
-use crate::config::FormatVersion;
-use crate::types::{Block, Log, Transaction};
+use crate::types::{Block, FormatVersion, Log, Transaction};
 use polars::export::arrow::datatypes::Field;
 use polars::export::arrow::io::parquet::read::ArrayIter;
 use std::collections::BTreeMap;

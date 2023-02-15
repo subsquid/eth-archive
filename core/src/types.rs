@@ -1,5 +1,7 @@
 use crate::deserialize::{Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index};
+use crate::{Error, Result};
 use arrayvec::ArrayVec;
+use core::str::FromStr;
 use serde::{Deserialize, Serialize};
 use std::cmp;
 
@@ -230,5 +232,21 @@ impl std::ops::AddAssign for BlockRange {
     fn add_assign(&mut self, other: Self) {
         self.from = cmp::min(self.from, other.from);
         self.to = cmp::max(self.to, other.to);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum FormatVersion {
+    Ver0_0_39,
+}
+
+impl FromStr for FormatVersion {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "0.0.39" => Ok(FormatVersion::Ver0_0_39),
+            _ => Err(Error::UnknownFormat(s.to_owned())),
+        }
     }
 }
