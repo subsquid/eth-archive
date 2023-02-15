@@ -71,6 +71,8 @@ pub enum Error {
     BlockNotFoundInS3(u32),
     #[error("unknown format: {0}")]
     UnknownFormat(String),
+    #[error("no blocks to ingest from rpc node.")]
+    NoBlocksOnNode,
 }
 
 pub type Result<T> = StdResult<T, Error>;
