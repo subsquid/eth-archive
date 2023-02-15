@@ -23,7 +23,8 @@ pub struct MiniLogSelection {
 
 #[derive(Clone)]
 pub struct MiniTransactionSelection {
-    pub address: Option<Vec<Address>>,
+    pub source: Option<Vec<Address>>,
+    pub dest: Option<Vec<Address>>,
     pub sighash: Option<Vec<Sighash>>,
     pub status: Option<u32>,
 }
@@ -41,15 +42,9 @@ impl MiniQuery {
         })
     }
 
-    pub fn matches_tx_dest(&self, dest: &Option<Address>) -> bool {
-        self.transactions
-            .iter()
-            .any(|selection| selection.matches_dest(dest))
-    }
-
     pub fn matches_tx(&self, tx: &Transaction) -> bool {
         self.transactions.iter().any(|selection| {
-            selection.matches_dest(&tx.dest)
+            (selection.matches_dest(&tx.dest) || selection.matches_source(&tx.source))
                 && selection.matches_sighash(&tx.input)
                 && selection.matches_status(tx.status)
         })
@@ -111,13 +106,27 @@ impl MiniLogSelection {
 
 impl MiniTransactionSelection {
     pub fn to_expr(&self) -> Option<Expr> {
-        let mut expr = match &self.address {
+        let mut expr = match &self.dest {
             Some(addr) if !addr.is_empty() => {
                 let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
                 let series = Series::new("", address).lit();
                 Some(col("tx_dest").is_in(series))
             }
             _ => None,
+        };
+
+        match &self.source {
+            Some(addr) if !addr.is_empty() => {
+                let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
+                let series = Series::new("", address).lit();
+                let inner_expr = col("tx_source").is_in(series);
+
+                expr = match expr {
+                    Some(expr) => Some(expr.or(inner_expr)),
+                    None => Some(inner_expr),
+                };
+            }
+            _ => (),
         };
 
         match &self.sighash {
@@ -146,8 +155,23 @@ impl MiniTransactionSelection {
     }
 
     pub fn matches_dest(&self, dest: &Option<Address>) -> bool {
-        if let Some(address) = &self.address {
+        if let Some(address) = &self.dest {
             let tx_addr = match dest.as_ref() {
+                Some(addr) => addr,
+                None => return false,
+            };
+
+            if !address.is_empty() && !address.iter().any(|addr| addr == tx_addr) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn matches_source(&self, source: &Option<Address>) -> bool {
+        if let Some(address) = &self.source {
+            let tx_addr = match source.as_ref() {
                 Some(addr) => addr,
                 None => return false,
             };
@@ -234,6 +258,7 @@ impl Query {
         field_selection.transaction.block_number = true;
         field_selection.transaction.transaction_index = true;
         field_selection.transaction.dest = true;
+        field_selection.transaction.source = true;
         field_selection.transaction.status = true;
         field_selection.log.block_number = true;
         field_selection.log.log_index = true;
@@ -258,7 +283,8 @@ impl Query {
         self.transactions
             .iter()
             .map(|transaction| MiniTransactionSelection {
-                address: transaction.address.clone(),
+                source: transaction.source.clone(),
+                dest: transaction.dest.clone(),
                 sighash: transaction.sighash.clone(),
                 status: transaction.status,
             })
@@ -277,7 +303,10 @@ pub struct LogSelection {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionSelection {
-    pub address: Option<Vec<Address>>,
+    #[serde(rename = "from")]
+    pub source: Option<Vec<Address>>,
+    #[serde(rename = "to")]
+    pub dest: Option<Vec<Address>>,
     pub sighash: Option<Vec<Sighash>>,
     pub status: Option<u32>,
     pub field_selection: FieldSelection,

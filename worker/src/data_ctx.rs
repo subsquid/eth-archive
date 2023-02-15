@@ -238,31 +238,29 @@ impl DataCtx {
                         .transactions
                         .iter()
                         .filter_map(|tx_selection| {
-                            let address = match &tx_selection.address {
-                                Some(address) if !address.is_empty() => address,
-                                _ => {
-                                    return Some(MiniTransactionSelection {
-                                        address: tx_selection.address.clone(),
-                                        sighash: tx_selection.sighash.clone(),
-                                        status: tx_selection.status,
-                                    });
-                                }
-                            };
+                            let source = tx_selection.source.as_ref().map(|source| {
+                                source
+                                    .iter()
+                                    .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                            });
 
-                            let address = address
-                                .iter()
-                                .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
-                                .cloned()
-                                .collect::<Vec<_>>();
+                            let dest = tx_selection.dest.as_ref().map(|dest| {
+                                dest.iter()
+                                    .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                            });
 
-                            if !address.is_empty() {
-                                Some(MiniTransactionSelection {
-                                    address: Some(address),
+                            match (source, dest) {
+                                (None, None) => None,
+                                (source, dest) => Some(MiniTransactionSelection {
+                                    source,
+                                    dest,
                                     sighash: tx_selection.sighash.clone(),
                                     status: tx_selection.status,
-                                })
-                            } else {
-                                None
+                                }),
                             }
                         })
                         .collect::<Vec<_>>();
