@@ -51,6 +51,7 @@ pub struct S3Config {
     pub s3_concurrency: Option<NonZeroUsize>,
 }
 
+#[derive(Clone)]
 pub struct ParsedS3Config {
     pub s3_endpoint: String,
     pub s3_bucket_name: String,
