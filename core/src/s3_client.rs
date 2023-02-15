@@ -221,6 +221,23 @@ impl S3Client {
         Ok(futs)
     }
 
+    pub async fn get_bytes(
+        self: Arc<Self>,
+        s3_path: Arc<str>,
+        s3_src_bucket: Arc<str>,
+    ) -> Result<Vec<u8>> {
+        self.retry
+            .retry(|| {
+                let s3_client = self.clone();
+                let s3_path = s3_path.clone();
+                let s3_src_bucket = s3_src_bucket.clone();
+
+                async move { s3_client.get_bytes_impl(&s3_path, &s3_src_bucket).await }
+            })
+            .await
+            .map_err(Error::Retry)
+    }
+
     async fn get_file(self: Arc<Self>, path: Arc<Path>, s3_path: Arc<str>) -> Result<File> {
         self.retry
             .retry(|| {
@@ -255,6 +272,26 @@ impl S3Client {
             })
             .await
             .map_err(Error::Retry)
+    }
+
+    async fn get_bytes_impl(&self, s3_path: &str, s3_src_bucket: &str) -> Result<Vec<u8>> {
+        let data = self
+            .client
+            .get_object()
+            .bucket(s3_src_bucket)
+            .key(s3_path)
+            .send()
+            .await
+            .map_err(Error::S3Get)?
+            .body
+            .map_err(|_| Error::S3GetObjChunk)
+            .try_fold(Vec::new(), |mut data, chunk| async move {
+                data.extend_from_slice(&chunk);
+                Ok(data)
+            })
+            .await?;
+
+        Ok(data)
     }
 
     async fn get_file_impl(&self, path: &Path, s3_path: &str) -> Result<File> {
