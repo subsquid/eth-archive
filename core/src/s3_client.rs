@@ -1,9 +1,10 @@
-use crate::config::ParsedS3Config;
+use crate::config::{FormatVersion, ParsedS3Config};
 use crate::dir_name::DirName;
 use crate::retry::Retry;
+use crate::types::{Block, BlockRange, Log};
 use crate::{Error, Result};
 use aws_config::retry::RetryConfig;
-use futures::Future;
+use futures::{Future, Stream};
 use futures::{StreamExt, TryStreamExt};
 use std::collections::BTreeSet;
 use std::io;
@@ -41,7 +42,7 @@ impl S3Client {
         })
     }
 
-    pub async fn spawn_sync(self: Arc<Self>, direction: Direction, data_path: &Path) -> Result<()> {
+    pub fn spawn_sync(self: Arc<Self>, direction: Direction, data_path: &Path) {
         let data_path = data_path.to_owned();
 
         tokio::spawn(async move {
@@ -67,8 +68,15 @@ impl S3Client {
                 }
             }
         });
+    }
 
-        Ok(())
+    pub fn stream_batches(
+        self: Arc<Self>,
+        start_block: u32,
+        s3_src_bucket: &str,
+        format_version: FormatVersion,
+    ) -> impl Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>> {
+        todo!()
     }
 
     async fn execute(self: Arc<Self>, direction: Direction, data_path: &Path) -> Result<()> {
@@ -221,7 +229,7 @@ impl S3Client {
         Ok(futs)
     }
 
-    pub async fn get_bytes(
+    async fn get_bytes(
         self: Arc<Self>,
         s3_path: Arc<str>,
         s3_src_bucket: Arc<str>,
@@ -264,7 +272,7 @@ impl S3Client {
             .map_err(Error::Retry)
     }
 
-    pub async fn get_list(self: Arc<Self>) -> Result<BTreeSet<String>> {
+    async fn get_list(self: Arc<Self>) -> Result<BTreeSet<String>> {
         self.retry
             .retry(|| {
                 let s3_client = self.clone();
@@ -363,7 +371,7 @@ pub enum Direction {
 
 type FileFutures = Vec<Pin<Box<dyn Future<Output = Result<()>> + Send>>>;
 
-pub fn parse_s3_name(s3_name: &str) -> (DirName, String) {
+fn parse_s3_name(s3_name: &str) -> (DirName, String) {
     let mut s3_name_parts = s3_name.split('/');
     let dir_name = s3_name_parts.next().unwrap();
     let dir_name = DirName::from_str(dir_name).unwrap();

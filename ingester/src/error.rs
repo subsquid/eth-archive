@@ -49,22 +49,12 @@ pub enum Error {
     RunHttpServer(io::Error),
     #[error("failed to bind http server:\n{0}")]
     BindHttpServer(io::Error),
-    #[error("failed to start s3 sync:\n{0}")]
-    StartS3Sync(eth_archive_core::Error),
-    #[error("failed to list s3 bucket contents:\n{0}")]
-    ListS3BucketContents(eth_archive_core::Error),
-    #[error("unknown format version: {0}")]
-    UnknownFormatVersion(String),
-    #[error("block {0} not found while trying to sync from s3")]
-    BlockNotFoundInS3(u32),
-    #[error("failed to get object chunk when downloading from s3.")]
-    S3GetObjChunk,
-    #[error("failed get object from s3:\n{0}")]
-    S3Get(S3Get),
     #[error("failed to read parquet file:\n{0}")]
     ReadParquet(arrow2::error::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
     Retry(Vec<Error>),
+    #[error("failed to build s3 client:\n{0}")]
+    BuildS3Client(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

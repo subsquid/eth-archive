@@ -1,5 +1,5 @@
 use clap::Parser;
-use eth_archive_core::config::{IngestConfig, RetryConfig, S3Config};
+use eth_archive_core::config::{FormatVersion, IngestConfig, RetryConfig, S3Config};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
@@ -42,7 +42,7 @@ pub struct Config {
     pub s3_src_bucket: Option<String>,
     /// Source data format version
     #[clap(long)]
-    pub s3_src_format_ver: Option<String>,
+    pub s3_src_format_ver: Option<FormatVersion>,
     #[command(flatten)]
     pub s3: S3Config,
 }

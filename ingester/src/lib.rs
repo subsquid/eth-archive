@@ -1,7 +1,6 @@
 mod config;
 mod error;
 mod ingester;
-mod parquet_src;
 mod schema;
 mod server;
 

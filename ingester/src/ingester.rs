@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::parquet_src;
 use crate::schema::{
     block_schema, log_schema, parquet_write_options, tx_schema, Blocks, IntoChunks, Logs,
     Transactions,
@@ -15,7 +14,7 @@ use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
-use eth_archive_core::s3_sync;
+use eth_archive_core::s3_client::S3Client;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use futures::channel::mpsc;
 use futures::pin_mut;
@@ -113,28 +112,23 @@ impl Ingester {
 
         let mut block_num = block_num;
         if let Some(s3_config) = self.cfg.s3.into_parsed() {
-            s3_sync::start(s3_sync::Direction::Up, &self.cfg.data_path, &s3_config)
+            let s3_client = S3Client::new(self.retry, &s3_config)
                 .await
-                .map_err(Error::StartS3Sync)?;
+                .map_err(Error::BuildS3Client)?;
+
+            s3_client.spawn_sync(s3_sync::Direction::Up, &self.cfg_data_path);
 
             if let (Some(s3_src_bucket), Some(s3_src_format_ver)) =
                 (&self.cfg.s3_src_bucket, &self.cfg.s3_src_format_ver)
             {
-                log::info!("starting s3_sync_ingest");
+                log::info!("starting to stream data from s3");
 
-                let batches = parquet_src::stream_batches(
-                    self.retry,
-                    self.metrics.clone(),
-                    block_num,
-                    &s3_config,
-                    s3_src_bucket,
-                    s3_src_format_ver,
-                )
-                .await?;
+                let batches =
+                    s3_client.stream_old_data(block_num, s3_src_bucket, s3_src_format_ver);
 
                 block_num = self.ingest_batches(&mut sender, batches).await?;
 
-                log::info!("finished s3_sync_ingest");
+                log::info!("finished streaming data from s3");
             }
         } else {
             log::info!("no s3 config, disabling s3 sync");
