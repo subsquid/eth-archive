@@ -237,10 +237,6 @@ impl DbHandle {
                 break;
             }
 
-            if !query.matches_tx_dest(&tx_key_to_dest(&tx_key)) {
-                continue;
-            }
-
             let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
 
             if !query.matches_tx(&tx) {
@@ -580,35 +576,13 @@ fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
     key
 }
 
-fn tx_key(tx: &Transaction) -> [u8; 28] {
-    tx_key_from_parts(
-        tx.block_number.0,
-        tx.transaction_index.0,
-        match &tx.dest {
-            Some(dest) => dest.as_slice(),
-            None => &[],
-        },
-    )
-}
+fn tx_key(tx: &Transaction) -> [u8; 8] {
+    let mut key = [0; 8];
 
-fn tx_key_from_parts(block_number: u32, transaction_index: u32, dest: &[u8]) -> [u8; 28] {
-    let mut key = [0; 28];
-
-    key[..4].copy_from_slice(&block_number.to_be_bytes());
-    key[4..8].copy_from_slice(&transaction_index.to_be_bytes());
-    if !dest.is_empty() {
-        key[8..].copy_from_slice(dest);
-    }
+    key[..4].copy_from_slice(&tx.block_number.0.to_be_bytes());
+    key[4..].copy_from_slice(&tx.transaction_index.0.to_be_bytes());
 
     key
-}
-
-fn tx_key_to_dest(key: &[u8]) -> Option<Address> {
-    if key.len() == 8 {
-        return None;
-    }
-
-    Some(Address::new(&key[8..]))
 }
 
 fn log_key(log: &Log) -> [u8; 28] {

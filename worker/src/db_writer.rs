@@ -88,7 +88,7 @@ impl DbWriter {
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            bloom_filter_from_frame(data_frame)
+            bloom_filter_from_frames(&[data_frame])
         };
 
         let tx_addr_filter = {
@@ -98,13 +98,20 @@ impl DbWriter {
 
             let lazy_frame =
                 LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
-            let data_frame = lazy_frame
+            let data_frame0 = lazy_frame
+                .clone()
                 .select(vec![col("dest")])
                 .unique(None, UniqueKeepStrategy::First)
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            bloom_filter_from_frame(data_frame)
+            let data_frame1 = lazy_frame
+                .select(vec![col("source")])
+                .unique(None, UniqueKeepStrategy::First)
+                .collect()
+                .map_err(Error::ExecuteQuery)?;
+
+            bloom_filter_from_frames(&[data_frame0, data_frame1])
         };
 
         let parquet_idx = ParquetIdx {
@@ -127,18 +134,20 @@ enum Job {
     RunCompaction,
 }
 
-fn bloom_filter_from_frame(data_frame: DataFrame) -> Bloom {
+fn bloom_filter_from_frames(data_frames: &[DataFrame]) -> Bloom {
     let mut addrs = Vec::new();
 
-    for chunk in data_frame.iter_chunks() {
-        for addr in chunk.columns()[0]
-            .as_any()
-            .downcast_ref::<BinaryArray<i64>>()
-            .unwrap()
-            .iter()
-            .flatten()
-        {
-            addrs.push(Address::new(addr));
+    for data_frame in data_frames.iter() {
+        for chunk in data_frame.iter_chunks() {
+            for addr in chunk.columns()[0]
+                .as_any()
+                .downcast_ref::<BinaryArray<i64>>()
+                .unwrap()
+                .iter()
+                .flatten()
+            {
+                addrs.push(Address::new(addr));
+            }
         }
     }
 
