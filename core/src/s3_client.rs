@@ -80,7 +80,10 @@ impl S3Client {
         s3_src_bucket: &str,
         format_version: &str,
     ) -> Result<BatchStream> {
-        let dir_names = Self::get_dir_names_from_list(start_block, &self.clone().get_list().await?);
+        let dir_names = Self::get_dir_names_from_list(
+            start_block,
+            &self.clone().get_list(s3_src_bucket.into()).await?,
+        );
         let source = parquet_source::get(FormatVersion::from_str(format_version)?);
 
         let batch_stream = self.stream_batches_impl(
@@ -244,7 +247,12 @@ impl S3Client {
     async fn sync_files_from_s3(self: Arc<Self>, data_path: &Path) -> Result<FileFutures> {
         let mut futs: FileFutures = Vec::new();
 
-        for s3_name in self.clone().get_list().await?.iter() {
+        for s3_name in self
+            .clone()
+            .get_list(self.config.s3_bucket_name.as_str().into())
+            .await?
+            .iter()
+        {
             let (dir_name, file_name) = parse_s3_name(s3_name);
 
             let mut path = data_path.to_owned();
@@ -313,7 +321,10 @@ impl S3Client {
 
     async fn sync_files_to_s3(self: Arc<Self>, data_path: &Path) -> Result<FileFutures> {
         let dir_names = DirName::list_sorted(data_path).await?;
-        let s3_names = self.clone().get_list().await?;
+        let s3_names = self
+            .clone()
+            .get_list(self.config.s3_bucket_name.as_str().into())
+            .await?;
 
         let mut futs: FileFutures = Vec::new();
 
@@ -405,11 +416,12 @@ impl S3Client {
             .map_err(Error::Retry)
     }
 
-    async fn get_list(self: Arc<Self>) -> Result<BTreeSet<String>> {
+    async fn get_list(self: Arc<Self>, bucket_name: Arc<str>) -> Result<BTreeSet<String>> {
         self.retry
             .retry(|| {
                 let s3_client = self.clone();
-                async move { s3_client.get_list_impl().await }
+                let bucket_name = bucket_name.clone();
+                async move { s3_client.get_list_impl(&bucket_name).await }
             })
             .await
             .map_err(Error::Retry)
@@ -473,12 +485,12 @@ impl S3Client {
         Ok(())
     }
 
-    async fn get_list_impl(&self) -> Result<BTreeSet<String>> {
+    async fn get_list_impl(&self, bucket_name: &str) -> Result<BTreeSet<String>> {
         let mut s3_names = BTreeSet::new();
         let mut stream = self
             .client
             .list_objects_v2()
-            .bucket(&self.config.s3_bucket_name)
+            .bucket(bucket_name)
             .into_paginator()
             .send();
         while let Some(res) = stream.next().await {
