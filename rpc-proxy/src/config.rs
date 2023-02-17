@@ -20,6 +20,12 @@ pub struct Config {
     /// Maximum requests per second when sending requests to target rpc
     #[clap(long)]
     pub max_requests_per_sec: Option<usize>,
+    /// Maximum block range on a eth_getLogs request
+    #[clap(long)]
+    pub max_get_logs_block_range: Option<u32>,
+    /// Maximum rpc request batch size
+    #[clap(long)]
+    pub max_batch_size: Option<usize>,
 }
 
 fn default_server_addr() -> SocketAddr {
