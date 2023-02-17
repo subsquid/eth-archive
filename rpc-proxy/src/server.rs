@@ -1,8 +1,8 @@
 use crate::config::Config;
-use crate::data_ctx::DataCtx;
+use crate::handler::Handler;
 use crate::error::{Error, Result};
-use crate::types::Query;
-use eth_archive_core::ingest_metrics::IngestMetrics;
+use crate::types::{RpcResponse, RpcRequest};
+use crate::metrics::Metrics;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpResponse, HttpServer};
@@ -11,8 +11,8 @@ pub struct Server {}
 
 #[derive(Clone)]
 struct AppData {
-    ingest_metrics: Arc<IngestMetrics>,
-    data_ctx: Arc<DataCtx>,
+    metrics: Arc<Metrics>,
+    handler: Arc<Handler>,
 }
 
 impl Server {
@@ -33,10 +33,9 @@ impl Server {
         HttpServer::new(move || {
             App::new()
                 .app_data(web::Data::new(app_data.clone()))
-                .service(web::resource("/query").route(web::post().to(query)))
-                .service(web::resource("/height").route(web::get().to(height)))
+                .service(web::resource("/").route(web::post().to(rpc_handler)))
                 .service(
-                    web::resource("/ingest-metrics").route(web::get().to(ingest_metrics_handler)),
+                    web::resource("/metrics").route(web::get().to(metrics_handler)),
                 )
         })
         .bind(server_addr)
@@ -47,23 +46,15 @@ impl Server {
     }
 }
 
-async fn height(app_data: web::Data<AppData>) -> Result<web::Json<serde_json::Value>> {
-    let height = app_data.data_ctx.inclusive_height();
+async fn rpc_handler(req: web::Json<RpcRequest>, app_data: web::Data<AppData>) -> Result<web::Json<RpcResponse>> {
+    let res = app_data.handler.clone().handle(req)?;
 
-    Ok(web::Json(serde_json::json!({ "height": height })))
+    Ok(HttpResponse::Ok().json(res))
 }
 
-async fn query(query: web::Json<Query>, app_data: web::Data<AppData>) -> Result<HttpResponse> {
-    let res = app_data.data_ctx.clone().query(query.into_inner()).await?;
-
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(res))
-}
-
-async fn ingest_metrics_handler(app_data: web::Data<AppData>) -> Result<HttpResponse> {
+async fn metrics_handler(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let body = app_data
-        .ingest_metrics
+        .metrics
         .encode()
         .map_err(Error::EncodeMetrics)?;
 
