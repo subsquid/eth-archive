@@ -17,17 +17,17 @@ struct AppData {
 
 impl Server {
     pub async fn run(config: Config) -> Result<()> {
-        let ingest_metrics = IngestMetrics::new();
-        let ingest_metrics = Arc::new(ingest_metrics);
+        let metrics = Metrics::new();
+        let metrics = Arc::new(metrics);
 
         let server_addr = config.server_addr;
 
-        let data_ctx = DataCtx::new(config, ingest_metrics.clone()).await?;
-        let data_ctx = Arc::new(data_ctx);
+        let handler = Handler::new(config, metrics.clone()).await?;
+        let handler = Arc::new(handler);
 
         let app_data = AppData {
-            ingest_metrics,
-            data_ctx,
+            metrics,
+            handler,
         };
 
         HttpServer::new(move || {
