@@ -3,4 +3,5 @@ members = [
     "ingester",
     "core",
     "worker",
+    "rpc-proxy",
 ]
