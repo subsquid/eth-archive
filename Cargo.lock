@@ -1350,7 +1350,7 @@ dependencies = [
 
 [[package]]
 name = "eth-archive-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "arrayvec",
  "async-stream",
@@ -1397,8 +1397,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "eth-archive-rpc-proxy"
+version = "0.0.1"
+dependencies = [
+ "actix-web",
+ "clap",
+ "env_logger",
+ "eth-archive-core",
+ "log",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "eth-archive-worker"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "actix-web",
  "arrayvec",

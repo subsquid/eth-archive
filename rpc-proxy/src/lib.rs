@@ -1,8 +1,8 @@
 mod config;
 mod error;
 mod handler;
-mod server;
 mod metrics;
+mod server;
 mod types;
 
 pub use config::Config;
