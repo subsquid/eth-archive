@@ -469,11 +469,10 @@ impl EthClient {
                 let block_ranges = (0..num_batches).map(|i| {
                     let start = block_num + i * batch_size;
                     let end = cmp::min(start + batch_size, to_block);
-                    let block_range = BlockRange {
+                    BlockRange {
                         from: start,
                         to: end,
-                    };
-                    block_range
+                    }
                 }).collect();
 
                 block_num = ended_block;
