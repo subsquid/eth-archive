@@ -112,7 +112,7 @@ impl MiniTransactionSelection {
                 let series = Series::new("", address).lit();
                 Some(col("tx_dest").is_in(series))
             }
-            None => None, // match nothing
+            None => None,           // match nothing
             _ => Some(true.into()), // match all
         };
 
@@ -127,7 +127,7 @@ impl MiniTransactionSelection {
                     None => Some(inner_expr),
                 };
             }
-            None => (), // match nothing
+            None => (),       // match nothing
             _ => expr = None, // match all
         };
 
