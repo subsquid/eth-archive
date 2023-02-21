@@ -219,7 +219,7 @@ impl DataCtx {
 
                             let address = address
                                 .iter()
-                                .filter(|addr| parquet_idx.log_addr_filter.contains(addr))
+                                .filter(|addr| parquet_idx.contains(addr))
                                 .cloned()
                                 .collect::<Vec<_>>();
 
@@ -238,20 +238,37 @@ impl DataCtx {
                         .transactions
                         .iter()
                         .filter_map(|tx_selection| {
-                            let source = tx_selection.source.as_ref().map(|source| {
-                                source
-                                    .iter()
-                                    .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
-                                    .cloned()
-                                    .collect::<Vec<_>>()
-                            });
+                            let source = match tx_selection.source.as_ref() {
+                                Some(source) => {
+                                    let source = source
+                                        .iter()
+                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .cloned()
+                                        .collect::<Vec<_>>();
+                                    if source.is_empty() {
+                                        None
+                                    } else {
+                                        Some(source)
+                                    }
+                                }
+                                None => None,
+                            };
 
-                            let dest = tx_selection.dest.as_ref().map(|dest| {
-                                dest.iter()
-                                    .filter(|addr| parquet_idx.tx_addr_filter.contains(addr))
-                                    .cloned()
-                                    .collect::<Vec<_>>()
-                            });
+                            let dest = match tx_selection.dest.as_ref() {
+                                Some(dest) => {
+                                    let dest = dest
+                                        .iter()
+                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .cloned()
+                                        .collect::<Vec<_>>();
+                                    if dest.is_empty() {
+                                        None
+                                    } else {
+                                        Some(dest)
+                                    }
+                                }
+                                None => None,
+                            };
 
                             match (source, dest) {
                                 (None, None) => None,
@@ -264,6 +281,10 @@ impl DataCtx {
                             }
                         })
                         .collect::<Vec<_>>();
+
+                    if logs.is_empty() && transactions.is_empty() && !query.include_all_blocks {
+                        continue;
+                    }
 
                     let from_block = cmp::max(dir_name.range.from, query.from_block);
                     let to_block = match to_block {

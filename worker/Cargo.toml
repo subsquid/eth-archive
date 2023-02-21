@@ -23,8 +23,8 @@ mimalloc = { version = "0.1.34", default-features = false }
 crossbeam-channel = "0.5"
 derive_more = "0.99"
 fnv = "1"
+bv = { version = "0.11", features = [ "serde" ] }
 rand = "0.8"
-roaring = { version = "0.10", features = ["serde"] }
 
 eth-archive-core = { path = "../core" }
 

@@ -1,11 +1,12 @@
 use crate::data_ctx::scan_parquet_args;
-use crate::db::{Bloom, DbHandle, ParquetIdx};
+use crate::db::{Bloom, DbHandle};
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use polars::export::arrow::array::BinaryArray;
 use polars::prelude::*;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -75,7 +76,9 @@ impl DbWriter {
         data_path: &Path,
         dir_name: DirName,
     ) -> Result<()> {
-        let log_addr_filter = {
+        let mut addrs = HashSet::new();
+
+        {
             let mut path = data_path.to_owned();
             path.push(dir_name.to_string());
             path.push("log.parquet");
@@ -88,38 +91,76 @@ impl DbWriter {
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            bloom_filter_from_frames(&[data_frame])
-        };
+            for chunk in data_frame.iter_chunks() {
+                for addr in chunk.columns()[0]
+                    .as_any()
+                    .downcast_ref::<BinaryArray<i64>>()
+                    .unwrap()
+                    .iter()
+                    .flatten()
+                {
+                    addrs.insert(Address::new(addr));
+                }
+            }
+        }
 
-        let tx_addr_filter = {
+        {
             let mut path = data_path.to_owned();
             path.push(dir_name.to_string());
             path.push("tx.parquet");
 
             let lazy_frame =
                 LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
-            let data_frame0 = lazy_frame
-                .clone()
+            let data_frame = lazy_frame
                 .select(vec![col("dest")])
                 .unique(None, UniqueKeepStrategy::First)
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            let data_frame1 = lazy_frame
+            for chunk in data_frame.iter_chunks() {
+                for addr in chunk.columns()[0]
+                    .as_any()
+                    .downcast_ref::<BinaryArray<i64>>()
+                    .unwrap()
+                    .iter()
+                    .flatten()
+                {
+                    addrs.insert(Address::new(addr));
+                }
+            }
+
+            let lazy_frame =
+                LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
+            let data_frame = lazy_frame
                 .select(vec![col("source")])
                 .unique(None, UniqueKeepStrategy::First)
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
-            bloom_filter_from_frames(&[data_frame0, data_frame1])
+            for chunk in data_frame.iter_chunks() {
+                for addr in chunk.columns()[0]
+                    .as_any()
+                    .downcast_ref::<BinaryArray<i64>>()
+                    .unwrap()
+                    .iter()
+                    .flatten()
+                {
+                    addrs.insert(Address::new(addr));
+                }
+            }
         };
 
-        let parquet_idx = ParquetIdx {
-            log_addr_filter,
-            tx_addr_filter,
-        };
+        let mut bloom = Bloom::random(
+            addrs.len(),
+            0.000_001,
+            128_000, // 16KB max size
+        );
 
-        db.insert_parquet_idx(dir_name, &parquet_idx)?;
+        for addr in addrs {
+            bloom.add(&addr);
+        }
+
+        db.insert_parquet_idx(dir_name, &bloom)?;
 
         db.delete_up_to(dir_name.range.to)?;
 
@@ -132,34 +173,4 @@ enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
     RunCompaction,
-}
-
-fn bloom_filter_from_frames(data_frames: &[DataFrame]) -> Bloom {
-    let mut addrs = Vec::new();
-
-    for data_frame in data_frames.iter() {
-        for chunk in data_frame.iter_chunks() {
-            for addr in chunk.columns()[0]
-                .as_any()
-                .downcast_ref::<BinaryArray<i64>>()
-                .unwrap()
-                .iter()
-                .flatten()
-            {
-                addrs.push(Address::new(addr));
-            }
-        }
-    }
-
-    let mut bloom = Bloom::random(
-        addrs.len(),
-        0.000_001,
-        128_000, // 16KB max size
-    );
-
-    for addr in addrs {
-        bloom.add(&addr);
-    }
-
-    bloom
 }
