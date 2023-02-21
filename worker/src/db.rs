@@ -39,7 +39,6 @@ impl DbHandle {
 
             block_opts.set_block_size(32 * 1024);
             block_opts.set_format_version(5);
-            block_opts.set_ribbon_filter(10.0);
 
             let mut opts = rocksdb::Options::default();
 
