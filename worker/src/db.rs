@@ -1,4 +1,3 @@
-use crate::bloom::Bloom as BloomFilter;
 use crate::types::MiniQuery;
 use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
@@ -15,7 +14,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, iter, mem};
 
-pub type Bloom = BloomFilter<Address>;
 pub type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + 'a>;
 
 pub struct DbHandle {
@@ -559,7 +557,7 @@ mod cf_name {
     pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
 }
 
-pub type ParquetIdx = Bloom;
+pub type ParquetIdx = xorf::BinaryFuse16;
 
 fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
     let mut key = [0; 8];
