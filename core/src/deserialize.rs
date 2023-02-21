@@ -8,7 +8,7 @@ use std::result::Result as StdResult;
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
 pub struct Address(pub Box<[u8; 20]>);
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]

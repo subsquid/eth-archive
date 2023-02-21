@@ -1,7 +1,6 @@
 use crate::data_ctx::scan_parquet_args;
-use crate::db::{Bloom, DbHandle};
+use crate::db::DbHandle;
 use crate::{Error, Result};
-use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use polars::export::arrow::array::BinaryArray;
@@ -11,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use xorf::BinaryFuse16;
 
 pub struct DbWriter {
     tx: mpsc::Sender<Job>,
@@ -99,7 +99,7 @@ impl DbWriter {
                     .iter()
                     .flatten()
                 {
-                    addrs.insert(Address::new(addr));
+                    addrs.insert(addr.to_vec());
                 }
             }
         }
@@ -125,7 +125,7 @@ impl DbWriter {
                     .iter()
                     .flatten()
                 {
-                    addrs.insert(Address::new(addr));
+                    addrs.insert(addr.to_vec());
                 }
             }
 
@@ -145,27 +145,29 @@ impl DbWriter {
                     .iter()
                     .flatten()
                 {
-                    addrs.insert(Address::new(addr));
+                    addrs.insert(addr.to_vec());
                 }
             }
         };
 
-        let mut bloom = Bloom::random(
-            addrs.len(),
-            0.000_001,
-            128_000, // 16KB max size
-        );
+        let filter =
+            BinaryFuse16::try_from(&addrs.iter().map(|addr| hash_addr(addr)).collect::<Vec<_>>())
+                .unwrap();
 
-        for addr in addrs {
-            bloom.add(&addr);
-        }
-
-        db.insert_parquet_idx(dir_name, &bloom)?;
+        db.insert_parquet_idx(dir_name, &filter)?;
 
         db.delete_up_to(dir_name.range.to)?;
 
         Ok(())
     }
+}
+
+pub fn hash_addr(addr: &[u8]) -> u64 {
+    assert_eq!(addr.len(), 20);
+
+    u64::from_be_bytes(addr[..8].try_into().unwrap())
+        ^ u64::from_be_bytes(addr[8..16].try_into().unwrap())
+        ^ u64::from(u32::from_be_bytes(addr[16..].try_into().unwrap()))
 }
 
 #[derive(Clone)]

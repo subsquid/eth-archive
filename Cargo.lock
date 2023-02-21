@@ -835,16 +835,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d261e256854913907f67ed06efbc3338dfe6179796deefc1ff763fc1aee5535"
 
 [[package]]
-name = "bv"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8834bb1d8ee5dc048ee3124f2c7c1afcc6bc9aed03f11e9dfd8c69470a5db340"
-dependencies = [
- "feature-probe",
- "serde",
-]
-
-[[package]]
 name = "bytemuck"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1412,21 +1402,18 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "arrayvec",
- "bv",
  "bytes",
  "clap",
  "crossbeam-channel",
  "derive_more",
  "env_logger",
  "eth-archive-core",
- "fnv",
  "futures",
  "itertools",
  "log",
  "mimalloc",
  "polars",
  "prefix-hex",
- "rand",
  "rayon",
  "rmp-serde",
  "rocksdb",
@@ -1434,6 +1421,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "xorf",
 ]
 
 [[package]]
@@ -1468,12 +1456,6 @@ checksum = "e51093e27b0797c359783294ca4f0a911c270184cb10f85783b118614a1501be"
 dependencies = [
  "instant",
 ]
-
-[[package]]
-name = "feature-probe"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "835a3dc7d1ec9e75e2b5fb4ba75396837112d2060b03f7d43bc1897c7f7211da"
 
 [[package]]
 name = "flate2"
@@ -3924,6 +3906,17 @@ name = "xmlparser"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d25c75bf9ea12c4040a97f829154768bbbce366287e2dc044af160cd79a13fd"
+
+[[package]]
+name = "xorf"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57901b00e3f8e14f4d20b8955bf8087ecb545cfe2ed8741c2a2dbc89847a1a29"
+dependencies = [
+ "libm",
+ "rand",
+ "serde",
+]
 
 [[package]]
 name = "xxhash-rust"

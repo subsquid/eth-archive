@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::db::DbHandle;
-use crate::db_writer::DbWriter;
+use crate::db_writer::{hash_addr, DbWriter};
 use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
@@ -23,6 +23,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, io};
+use xorf::Filter;
 
 pub struct DataCtx {
     config: Config,
@@ -219,7 +220,7 @@ impl DataCtx {
 
                             let address = address
                                 .iter()
-                                .filter(|addr| parquet_idx.contains(addr))
+                                .filter(|addr| parquet_idx.contains(&hash_addr(addr.as_slice())))
                                 .cloned()
                                 .collect::<Vec<_>>();
 
@@ -242,7 +243,9 @@ impl DataCtx {
                                 Some(source) if !source.is_empty() => {
                                     let source = source
                                         .iter()
-                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .filter(|addr| {
+                                            parquet_idx.contains(&hash_addr(addr.as_slice()))
+                                        })
                                         .cloned()
                                         .collect::<Vec<_>>();
                                     if source.is_empty() {
@@ -258,7 +261,9 @@ impl DataCtx {
                                 Some(dest) if !dest.is_empty() => {
                                     let dest = dest
                                         .iter()
-                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .filter(|addr| {
+                                            parquet_idx.contains(&hash_addr(addr.as_slice()))
+                                        })
                                         .cloned()
                                         .collect::<Vec<_>>();
                                     if dest.is_empty() {
