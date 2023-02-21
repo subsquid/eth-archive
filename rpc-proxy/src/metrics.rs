@@ -1,95 +1,41 @@
 use crate::{Error, Result};
-use core::sync::atomic::{AtomicI64, AtomicU64};
+use core::sync::atomic::{AtomicI64};
 use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::Gauge as GaugeImpl;
 use prometheus_client::registry::Registry;
 
-type HeightGauge = GaugeImpl<i64, AtomicI64>;
-type IngestGauge = GaugeImpl<f64, AtomicU64>;
+type RPSGauge = GaugeImpl<i64, AtomicI64>;
 
 pub struct Metrics {
-    ingest: Family<Label, IngestGauge>,
-    height: Family<Label, HeightGauge>,
+    rps: Family<Label, RPSGauge>,
     registry: Registry,
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq, EncodeLabelValue)]
-enum LabelKind {
-    Download,
-    Write,
-    Chain,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct Label {
-    kind: LabelKind,
+    kind: String,
 }
 
-impl IngestMetrics {
+impl Metrics {
     pub fn new() -> Self {
-        let ingest = Family::<Label, IngestGauge>::default();
-        let height = Family::<Label, HeightGauge>::default();
+        let rps = Family::<Label, RPSGauge>::default();
         let mut registry = <Registry>::default();
 
         registry.register(
-            "sqd_archive_ingest_speed",
-            "Blocks processed per second",
-            ingest.clone(),
+            "sqd_archive_requests_per_sec",
+            "Requests per second",
+            rps.clone(),
         );
 
-        registry.register(
-            "sqd_archive_block_height",
-            "Number of the latest processed block",
-            height.clone(),
-        );
-
-        Self {
-            ingest,
-            height,
-            registry,
-        }
+        Self { rps, registry }
     }
 
-    pub fn record_download_speed(&self, blocks_per_second: f64) {
-        self.ingest
-            .get_or_create(&Label {
-                kind: LabelKind::Download,
-            })
-            .set(blocks_per_second);
-    }
-
-    pub fn record_write_speed(&self, blocks_per_second: f64) {
-        self.ingest
-            .get_or_create(&Label {
-                kind: LabelKind::Write,
-            })
-            .set(blocks_per_second);
-    }
-
-    pub fn record_download_height(&self, height: u32) {
-        self.height
-            .get_or_create(&Label {
-                kind: LabelKind::Download,
-            })
-            .set(i64::from(height));
-    }
-
-    pub fn record_write_height(&self, height: u32) {
-        self.height
-            .get_or_create(&Label {
-                kind: LabelKind::Write,
-            })
-            .set(i64::from(height));
-    }
-
-    pub fn record_chain_height(&self, height: u32) {
-        self.height
-            .get_or_create(&Label {
-                kind: LabelKind::Chain,
-            })
-            .set(i64::from(height));
+    pub fn record_rps(&self, endpoint: &str, rps: usize) {
+        self.rps.get_or_create(&Label {
+                kind: endpoint.to_owned(),
+        }).set(rps as i64);
     }
 
     pub fn encode(&self) -> Result<String> {
@@ -101,7 +47,7 @@ impl IngestMetrics {
     }
 }
 
-impl Default for IngestMetrics {
+impl Default for Metrics {
     fn default() -> Self {
         Self::new()
     }

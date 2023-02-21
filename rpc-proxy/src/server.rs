@@ -5,7 +5,7 @@ use crate::metrics::Metrics;
 use crate::types::{RpcRequest, RpcResponse};
 use std::sync::Arc;
 
-use actix_web::{web, App, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 
 pub struct Server {}
 
@@ -25,10 +25,7 @@ impl Server {
         let handler = Handler::new(config, metrics.clone()).await?;
         let handler = Arc::new(handler);
 
-        let app_data = AppData {
-            metrics,
-            handler,
-        };
+        let app_data = AppData { metrics, handler };
 
         HttpServer::new(move || {
             App::new()
@@ -45,16 +42,16 @@ impl Server {
 }
 
 async fn rpc_handler(
-    req: web::Json<RpcRequest>,
+    req: HttpRequest,
     app_data: web::Data<AppData>,
 ) -> Result<web::Json<RpcResponse>> {
-    let res = app_data.handler.clone().handle(req)?;
+    let res = app_data.handler.clone().handle(req).await?;
 
-    Ok(HttpResponse::Ok().json(res))
+    Ok(web::Json(res))
 }
 
 async fn metrics_handler(app_data: web::Data<AppData>) -> Result<HttpResponse> {
-    let body = app_data.metrics.encode().map_err(Error::EncodeMetrics)?;
+    let body = app_data.metrics.encode()?;
 
     Ok(HttpResponse::Ok()
         .content_type("application/openmetrics-text; version=1.0.0; charset=utf-8")

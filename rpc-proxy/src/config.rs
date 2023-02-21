@@ -1,7 +1,6 @@
 use clap::Parser;
-use eth_archive_core::config::{IngestConfig, RetryConfig, S3Config};
+use eth_archive_core::config::RetryConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
 
 #[derive(Clone, Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -26,6 +25,8 @@ pub struct Config {
     /// Maximum rpc request batch size
     #[clap(long)]
     pub max_batch_size: Option<usize>,
+    #[command(flatten)]
+    pub retry: RetryConfig,
 }
 
 fn default_server_addr() -> SocketAddr {

@@ -1406,6 +1406,7 @@ dependencies = [
  "eth-archive-core",
  "log",
  "mimalloc",
+ "prometheus-client",
  "serde",
  "serde_json",
  "thiserror",
