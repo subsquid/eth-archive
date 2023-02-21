@@ -112,7 +112,8 @@ impl MiniTransactionSelection {
                 let series = Series::new("", address).lit();
                 Some(col("tx_dest").is_in(series))
             }
-            _ => None,
+            None => None, // match nothing
+            _ => Some(true.into()), // match all
         };
 
         match &self.source {
@@ -126,8 +127,12 @@ impl MiniTransactionSelection {
                     None => Some(inner_expr),
                 };
             }
-            _ => (),
+            None => (), // match nothing
+            _ => expr = None, // match all
         };
+
+        // we know both dest and source can't be "match nothing" at the same time because those ones are filtered out
+        // in bloom filter stage
 
         match &self.sighash {
             Some(sig) if !sig.is_empty() => {
