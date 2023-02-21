@@ -40,13 +40,11 @@ impl Handler {
 
         // TODO: impl separate_batches config
 
-        {
-            if let CountResult::Limited = self.limiter.lock().unwrap().count_req(&endpoint) {
-                return Err(Error::RateLimited);
-            }
-        }
+        
+    }
 
-        todo!()
+    fn count_req(&self) {
+        self.limiter.lock().unwrap().count_req(&endpoint)
     }
 }
 
@@ -74,7 +72,7 @@ impl Limiter {
         }
     }
 
-    fn count_req(&mut self, endpoint: &str) -> CountResult {
+    fn count_req(&mut self, endpoint: &str) -> Result<()> {
         if self.time.elapsed().as_millis() >= 1000 {
             for (endpoint, val) in self.reqs.iter() {
                 self.metrics.record_rps(endpoint, *val);
@@ -87,13 +85,13 @@ impl Limiter {
         }
         if let Some(rps_limit) = self.rps_limit {
             if self.reqs_total >= rps_limit {
-                return CountResult::Limited;
+                return Err(Error::RateLimited);
             }
         }
 
         self.reqs_total += 1;
         *self.reqs.entry(endpoint.to_owned()).or_default() += 1;
 
-        CountResult::Counted
+        Ok(())
     }
 }
