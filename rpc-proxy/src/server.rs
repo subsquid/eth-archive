@@ -43,9 +43,14 @@ impl Server {
 
 async fn rpc_handler(
     req: HttpRequest,
+    rpc_req: web::Json<RpcRequest>,
     app_data: web::Data<AppData>,
 ) -> Result<web::Json<RpcResponse>> {
-    let res = app_data.handler.clone().handle(req).await?;
+    let res = app_data
+        .handler
+        .clone()
+        .handle(req, rpc_req.into_inner())
+        .await?;
 
     Ok(web::Json(res))
 }

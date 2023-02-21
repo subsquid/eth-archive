@@ -22,7 +22,11 @@ impl Handler {
         Ok(Self { limiter, config })
     }
 
-    pub async fn handle(self: Arc<Self>, req: HttpRequest) -> Result<RpcResponse> {
+    pub async fn handle(
+        self: Arc<Self>,
+        req: HttpRequest,
+        rpc_req: RpcRequest,
+    ) -> Result<RpcResponse> {
         let endpoint = match req.headers().get(TARGET_ENDPOINT_HEADER_NAME) {
             Some(endpoint) => endpoint
                 .to_str()

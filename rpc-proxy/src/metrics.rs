@@ -1,7 +1,7 @@
 use crate::{Error, Result};
-use core::sync::atomic::{AtomicI64};
+use core::sync::atomic::AtomicI64;
 use prometheus_client::encoding::text::encode;
-use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::Gauge as GaugeImpl;
 use prometheus_client::registry::Registry;
@@ -33,9 +33,11 @@ impl Metrics {
     }
 
     pub fn record_rps(&self, endpoint: &str, rps: usize) {
-        self.rps.get_or_create(&Label {
+        self.rps
+            .get_or_create(&Label {
                 kind: endpoint.to_owned(),
-        }).set(rps as i64);
+            })
+            .set(rps as i64);
     }
 
     pub fn encode(&self) -> Result<String> {

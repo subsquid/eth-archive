@@ -1,8 +1,8 @@
 use actix_web::http::header::ToStrError;
 use actix_web::{HttpResponse, ResponseError};
 use std::result::Result as StdResult;
-use thiserror::Error as ThisError;
 use std::{fmt, io};
+use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
