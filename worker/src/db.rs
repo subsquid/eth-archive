@@ -7,7 +7,6 @@ use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
     Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
@@ -40,7 +39,6 @@ impl DbHandle {
 
             block_opts.set_block_size(32 * 1024);
             block_opts.set_format_version(5);
-            block_opts.set_ribbon_filter(10.0);
 
             let mut opts = rocksdb::Options::default();
 
@@ -561,11 +559,7 @@ mod cf_name {
     pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct ParquetIdx {
-    pub log_addr_filter: Bloom,
-    pub tx_addr_filter: Bloom,
-}
+pub type ParquetIdx = Bloom;
 
 fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
     let mut key = [0; 8];
