@@ -239,7 +239,7 @@ impl DataCtx {
                         .iter()
                         .filter_map(|tx_selection| {
                             let source = match tx_selection.source.as_ref() {
-                                Some(source) => {
+                                Some(source) if !source.is_empty() => {
                                     let source = source
                                         .iter()
                                         .filter(|addr| parquet_idx.contains(addr))
@@ -251,11 +251,11 @@ impl DataCtx {
                                         Some(source)
                                     }
                                 }
-                                None => None,
+                                _ => Some(Vec::new()), // empty or null means catch all
                             };
 
                             let dest = match tx_selection.dest.as_ref() {
-                                Some(dest) => {
+                                Some(dest) if !dest.is_empty() => {
                                     let dest = dest
                                         .iter()
                                         .filter(|addr| parquet_idx.contains(addr))
@@ -267,7 +267,7 @@ impl DataCtx {
                                         Some(dest)
                                     }
                                 }
-                                None => None,
+                                _ => Some(Vec::new()), // empty or null means catch all
                             };
 
                             match (source, dest) {
