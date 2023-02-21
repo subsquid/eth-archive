@@ -231,7 +231,7 @@ impl From<BlockEntry> for BlockEntryVec {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Query {
     pub from_block: u32,
@@ -292,7 +292,7 @@ impl Query {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {
     pub address: Option<Vec<Address>>,
@@ -300,12 +300,12 @@ pub struct LogSelection {
     pub field_selection: FieldSelection,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionSelection {
     #[serde(rename = "from")]
     pub source: Option<Vec<Address>>,
-    #[serde(rename = "to")]
+    #[serde(rename = "to", alias = "address")]
     pub dest: Option<Vec<Address>>,
     pub sighash: Option<Vec<Sighash>>,
     pub status: Option<u32>,
