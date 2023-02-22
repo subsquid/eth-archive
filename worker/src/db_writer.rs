@@ -1,5 +1,5 @@
 use crate::data_ctx::scan_parquet_args;
-use crate::db::DbHandle;
+use crate::db::{DbHandle, ParquetIdx};
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use xorf::BinaryFuse16;
 
 pub struct DbWriter {
     tx: mpsc::Sender<Job>,
@@ -150,11 +149,11 @@ impl DbWriter {
             }
         };
 
-        let filter =
-            BinaryFuse16::try_from(&addrs.iter().map(|addr| hash_addr(addr)).collect::<Vec<_>>())
+        let idx =
+            ParquetIdx::try_from(&addrs.iter().map(|addr| hash_addr(addr)).collect::<Vec<_>>())
                 .unwrap();
 
-        db.insert_parquet_idx(dir_name, &filter)?;
+        db.insert_parquet_idx(dir_name, &idx)?;
 
         db.delete_up_to(dir_name.range.to)?;
 
