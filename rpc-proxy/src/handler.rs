@@ -82,8 +82,8 @@ impl Handler {
 
     async fn handle_separate_batches(
         self: Arc<Self>,
-        endpoint: Arc<str>,
-        reqs: Vec<RpcRequest>,
+        _endpoint: Arc<str>,
+        _reqs: Vec<RpcRequest>,
     ) -> Result<Vec<RpcResponse>> {
         todo!()
     }
@@ -93,7 +93,26 @@ impl Handler {
         endpoint: Arc<str>,
         reqs: Vec<RpcRequest>,
     ) -> Result<Vec<RpcResponse>> {
-        todo!()
+        let chunk_size = self.config.max_batch_size.unwrap_or(reqs.len());
+
+        let mut resps = Vec::new();
+
+        for chunk in reqs.chunks(chunk_size) {
+            let req = Arc::new(MaybeBatch::Batch(chunk.to_vec()));
+            match self.clone().send(endpoint.clone(), req.clone()).await? {
+                MaybeBatch::Batch(resp_vec) => {
+                    resps.extend_from_slice(&resp_vec);
+                }
+                MaybeBatch::Single(resps) => {
+                    return Err(Error::InvalidRpcResponse(
+                        serde_json::to_string(req.as_ref()).unwrap(),
+                        serde_json::to_string(&resps).unwrap(),
+                    ))
+                }
+            }
+        }
+
+        Ok(resps)
     }
 
     async fn handle_single(
@@ -101,8 +120,6 @@ impl Handler {
         endpoint: Arc<str>,
         req: RpcRequest,
     ) -> Result<RpcResponse> {
-        self.count_req(&endpoint)?;
-
         let req = Arc::new(MaybeBatch::Single(req));
 
         match self.send(endpoint, req.clone()).await? {
@@ -135,6 +152,8 @@ impl Handler {
         endpoint: &str,
         req: &MaybeBatch<RpcRequest>,
     ) -> Result<MaybeBatch<RpcResponse>> {
+        self.count_req(endpoint)?;
+
         let resp = self
             .http_client
             .post(endpoint)
