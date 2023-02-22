@@ -13,6 +13,8 @@ use std::time::Duration;
 use std::time::Instant;
 use url::Url;
 
+pub const TARGET_ENDPOINT_HEADER_NAME: &str = "eth_archive_rpc_proxy_target";
+
 pub struct EthClient {
     http_client: reqwest::Client,
     cfg: IngestConfig,
@@ -108,9 +110,17 @@ impl EthClient {
         let req_body = req.to_body(1);
         let req_str = serde_json::to_string(&req_body).unwrap();
 
+        let target_endpoint_header_val = self
+            .cfg
+            .target_rpc_endpoint
+            .as_ref()
+            .map(url::Url::to_string)
+            .unwrap_or_default();
+
         let resp = self
             .http_client
-            .post(url)
+            .post(url.clone())
+            .header(TARGET_ENDPOINT_HEADER_NAME, target_endpoint_header_val)
             .json(&req_body)
             .send()
             .await
@@ -172,9 +182,17 @@ impl EthClient {
         let req_body = JsonValue::Array(req_body);
         let req_str = serde_json::to_string(&req_body).unwrap();
 
+        let target_endpoint_header_val = self
+            .cfg
+            .target_rpc_endpoint
+            .as_ref()
+            .map(url::Url::to_string)
+            .unwrap_or_default();
+
         let resp = self
             .http_client
-            .post(url)
+            .post(url.clone())
+            .header(TARGET_ENDPOINT_HEADER_NAME, target_endpoint_header_val)
             .json(&req_body)
             .send()
             .await

@@ -39,6 +39,9 @@ pub struct IngestConfig {
     /// if max_best_block - rpc_endpoint.best_block > max_rpc_endpoint_best_block_diff
     #[clap(long, default_value_t = 5)]
     pub max_rpc_endpoint_best_block_diff: u32,
+    /// The real target rpc endpoint. This is useful when using the rpc_proxy
+    #[clap(long)]
+    pub target_rpc_endpoint: Option<url::Url>,
 }
 
 #[derive(Parser, Clone, Debug)]
