@@ -13,6 +13,8 @@ use std::time::Duration;
 use std::time::Instant;
 use url::Url;
 
+pub const TARGET_ENDPOINT_HEADER_NAME: &str = "eth_archive_rpc_proxy_target";
+
 pub struct EthClient {
     http_client: reqwest::Client,
     cfg: IngestConfig,
@@ -110,7 +112,8 @@ impl EthClient {
 
         let resp = self
             .http_client
-            .post(url)
+            .post(url.clone())
+            .header(TARGET_ENDPOINT_HEADER_NAME, url.to_string())
             .json(&req_body)
             .send()
             .await
@@ -174,7 +177,8 @@ impl EthClient {
 
         let resp = self
             .http_client
-            .post(url)
+            .post(url.clone())
+            .header(TARGET_ENDPOINT_HEADER_NAME, url.to_string())
             .json(&req_body)
             .send()
             .await

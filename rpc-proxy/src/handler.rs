@@ -3,12 +3,11 @@ use crate::metrics::Metrics;
 use crate::types::{MaybeBatch, RpcRequest, RpcResponse};
 use crate::{Error, Result};
 use actix_web::HttpRequest;
+use eth_archive_core::eth_client::TARGET_ENDPOINT_HEADER_NAME;
 use eth_archive_core::retry::Retry;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-
-pub const TARGET_ENDPOINT_HEADER_NAME: &str = "eth_archive_rpc_proxy_target";
 
 pub struct Handler {
     limiter: Arc<Mutex<Limiter>>,
