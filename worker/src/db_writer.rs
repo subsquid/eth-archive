@@ -163,11 +163,7 @@ impl DbWriter {
 }
 
 pub fn hash_addr(addr: &[u8]) -> u64 {
-    assert_eq!(addr.len(), 20);
-
-    u64::from_be_bytes(addr[..8].try_into().unwrap())
-        ^ u64::from_be_bytes(addr[8..16].try_into().unwrap())
-        ^ u64::from(u32::from_be_bytes(addr[16..].try_into().unwrap()))
+    fastmurmur3::hash(addr) as u64
 }
 
 #[derive(Clone)]
