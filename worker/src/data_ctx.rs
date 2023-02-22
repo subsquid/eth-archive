@@ -287,15 +287,26 @@ impl DataCtx {
                         })
                         .collect::<Vec<_>>();
 
-                    if logs.is_empty() && transactions.is_empty() && !query.include_all_blocks {
-                        continue;
-                    }
-
                     let from_block = cmp::max(dir_name.range.from, query.from_block);
                     let to_block = match to_block {
                         Some(to_block) => cmp::min(dir_name.range.to, to_block),
                         None => dir_name.range.to,
                     };
+
+                    let block_range = BlockRange {
+                        from: from_block,
+                        to: to_block,
+                    };
+
+                    if logs.is_empty() && transactions.is_empty() && !query.include_all_blocks {
+                        // early return if there are no queries
+
+                        if !serialize_task.send((QueryResult { data: Vec::new() }, block_range)) {
+                            return Ok(serialize_task);
+                        }
+
+                        continue;
+                    }
 
                     let mini_query = MiniQuery {
                         from_block,
@@ -304,11 +315,6 @@ impl DataCtx {
                         transactions,
                         field_selection,
                         include_all_blocks: query.include_all_blocks,
-                    };
-
-                    let block_range = BlockRange {
-                        from: from_block,
-                        to: to_block,
                     };
 
                     if jobs.len() == concurrency {
