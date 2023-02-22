@@ -24,6 +24,12 @@ pub enum Error {
     Retry(Vec<Error>),
     #[error("failed to execute http request:\n{0}")]
     HttpRequest(reqwest::Error),
+    #[error("invalid rpc response:\n{0}\nrequest was:\n{1}")]
+    InvalidRpcResponse(String, String),
+    #[error("error: rpc response status is {0}. payload:\n{1:?}")]
+    RpcResponseStatus(u16, Option<String>),
+    #[error("failed to parse rpc response:\n{0}")]
+    RpcResponseParse(reqwest::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

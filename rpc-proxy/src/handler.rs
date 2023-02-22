@@ -3,10 +3,10 @@ use crate::metrics::Metrics;
 use crate::types::{MaybeBatch, RpcRequest, RpcResponse};
 use crate::{Error, Result};
 use actix_web::HttpRequest;
+use eth_archive_core::retry::Retry;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use eth_archive_core::retry::Retry;
 
 pub const TARGET_ENDPOINT_HEADER_NAME: &str = "eth_archive_rpc_proxy_target";
 
@@ -103,25 +103,55 @@ impl Handler {
     ) -> Result<RpcResponse> {
         self.count_req(&endpoint)?;
 
-        self.send(endpoint, req).await
+        let req = Arc::new(MaybeBatch::Single(req));
+
+        match self.send(endpoint, req.clone()).await? {
+            MaybeBatch::Single(resp) => Ok(resp),
+            MaybeBatch::Batch(resps) => Err(Error::InvalidRpcResponse(
+                serde_json::to_string(req.as_ref()).unwrap(),
+                serde_json::to_string(&resps).unwrap(),
+            )),
+        }
     }
 
-    async fn send(self: Arc<Self>, endpoint: Arc<str>, req: RpcRequest) -> Result<RpcResponse> {
-        let body: Arc<str> = serde_json::to_string(&req).unwrap().into();
-
+    async fn send(
+        self: Arc<Self>,
+        endpoint: Arc<str>,
+        req: Arc<MaybeBatch<RpcRequest>>,
+    ) -> Result<MaybeBatch<RpcResponse>> {
         self.retry
             .retry(|| {
                 let handler = self.clone();
-                let body = body.clone();
+                let req = req.clone();
                 let endpoint = endpoint.clone();
-                async move { handler.send_impl(&endpoint, &body).await }
+                async move { handler.send_impl(&endpoint, &req).await }
             })
             .await
             .map_err(Error::Retry)
     }
 
-    async fn send_impl(&self, endpoint: &str, body: &str) -> Result<RpcResponse> {
-        todo!()
+    async fn send_impl(
+        &self,
+        endpoint: &str,
+        req: &MaybeBatch<RpcRequest>,
+    ) -> Result<MaybeBatch<RpcResponse>> {
+        let resp = self
+            .http_client
+            .post(endpoint)
+            .json(req)
+            .send()
+            .await
+            .map_err(Error::HttpRequest)?;
+
+        let resp_status = resp.status();
+        if !resp_status.is_success() {
+            return Err(Error::RpcResponseStatus(
+                resp_status.as_u16(),
+                resp.text().await.ok(),
+            ));
+        }
+
+        resp.json().await.map_err(Error::RpcResponseParse)
     }
 
     // this is a function to make sure the lock is released as soon as the request is counted
@@ -136,11 +166,6 @@ struct Limiter {
     reqs: HashMap<String, usize>,
     rps_limit: Option<usize>,
     metrics: Arc<Metrics>,
-}
-
-enum CountResult {
-    Counted,
-    Limited,
 }
 
 impl Limiter {
