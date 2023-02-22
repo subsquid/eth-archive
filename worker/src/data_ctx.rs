@@ -298,16 +298,6 @@ impl DataCtx {
                         to: to_block,
                     };
 
-                    if logs.is_empty() && transactions.is_empty() && !query.include_all_blocks {
-                        // early return if there are no queries
-
-                        if !serialize_task.send((QueryResult { data: Vec::new() }, block_range)) {
-                            return Ok(serialize_task);
-                        }
-
-                        continue;
-                    }
-
                     let mini_query = MiniQuery {
                         from_block,
                         to_block,
