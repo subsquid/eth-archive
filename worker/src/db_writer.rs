@@ -163,7 +163,7 @@ impl DbWriter {
 }
 
 pub fn hash_addr(addr: &[u8]) -> u64 {
-    fastmurmur3::hash(addr) as u64
+    xxhash_rust::xxh64::xxh64(addr, 0)
 }
 
 #[derive(Clone)]
