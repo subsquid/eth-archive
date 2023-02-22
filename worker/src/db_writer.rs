@@ -163,11 +163,7 @@ impl DbWriter {
 }
 
 pub fn hash_addr(addr: &[u8]) -> u64 {
-    assert_eq!(addr.len(), 20);
-
-    u64::from_be_bytes(addr[..8].try_into().unwrap())
-        ^ u64::from_be_bytes(addr[8..16].try_into().unwrap())
-        ^ u64::from(u32::from_be_bytes(addr[16..].try_into().unwrap()))
+    xxhash_rust::xxh64::xxh64(addr, 0)
 }
 
 #[derive(Clone)]
