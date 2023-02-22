@@ -557,7 +557,7 @@ mod cf_name {
     pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
 }
 
-pub type ParquetIdx = xorf::BinaryFuse16;
+pub type ParquetIdx = xorf::Xor8;
 
 fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
     let mut key = [0; 8];
