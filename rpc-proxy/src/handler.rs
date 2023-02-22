@@ -1,18 +1,20 @@
 use crate::config::Config;
 use crate::metrics::Metrics;
-use crate::types::{RpcRequest, RpcResponse, MaybeBatch};
+use crate::types::{MaybeBatch, RpcRequest, RpcResponse};
 use crate::{Error, Result};
 use actix_web::HttpRequest;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use eth_archive_core::retry::Retry;
 
 pub const TARGET_ENDPOINT_HEADER_NAME: &str = "eth_archive_rpc_proxy_target";
 
 pub struct Handler {
     limiter: Arc<Mutex<Limiter>>,
     config: Config,
-    http_client: reqwest::Client,
+    http_client: Arc<reqwest::Client>,
+    retry: Retry,
 }
 
 impl Handler {
@@ -29,11 +31,15 @@ impl Handler {
             .connect_timeout(connect_timeout)
             .build()
             .map_err(Error::BuildHttpClient)?;
+        let http_client = Arc::new(http_client);
+
+        let retry = Retry::new(config.retry);
 
         Ok(Self {
             limiter,
             config,
             http_client,
+            retry,
         })
     }
 
@@ -52,6 +58,8 @@ impl Handler {
                 None => return Err(Error::NoEndpointSpecified),
             },
         };
+
+        let endpoint: Arc<str> = endpoint.into();
 
         match rpc_req {
             MaybeBatch::Batch(reqs) => {
@@ -74,7 +82,7 @@ impl Handler {
 
     async fn handle_separate_batches(
         self: Arc<Self>,
-        endpoint: String,
+        endpoint: Arc<str>,
         reqs: Vec<RpcRequest>,
     ) -> Result<Vec<RpcResponse>> {
         todo!()
@@ -82,7 +90,7 @@ impl Handler {
 
     async fn handle_batches(
         self: Arc<Self>,
-        endpoint: String,
+        endpoint: Arc<str>,
         reqs: Vec<RpcRequest>,
     ) -> Result<Vec<RpcResponse>> {
         todo!()
@@ -90,11 +98,29 @@ impl Handler {
 
     async fn handle_single(
         self: Arc<Self>,
-        endpoint: String,
+        endpoint: Arc<str>,
         req: RpcRequest,
     ) -> Result<RpcResponse> {
         self.count_req(&endpoint)?;
 
+        self.send(endpoint, req).await
+    }
+
+    async fn send(self: Arc<Self>, endpoint: Arc<str>, req: RpcRequest) -> Result<RpcResponse> {
+        let body: Arc<str> = serde_json::to_string(&req).unwrap().into();
+
+        self.retry
+            .retry(|| {
+                let handler = self.clone();
+                let body = body.clone();
+                let endpoint = endpoint.clone();
+                async move { handler.send_impl(&endpoint, &body).await }
+            })
+            .await
+            .map_err(Error::Retry)
+    }
+
+    async fn send_impl(&self, endpoint: &str, body: &str) -> Result<RpcResponse> {
         todo!()
     }
 

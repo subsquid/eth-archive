@@ -20,6 +20,10 @@ pub enum Error {
     BindHttpServer(io::Error),
     #[error("failed to build http client:\n{0}")]
     BuildHttpClient(reqwest::Error),
+    #[error("failed operation after retrying:\n{0:#?}")]
+    Retry(Vec<Error>),
+    #[error("failed to execute http request:\n{0}")]
+    HttpRequest(reqwest::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
