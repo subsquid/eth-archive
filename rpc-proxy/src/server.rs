@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::handler::Handler;
 use crate::metrics::Metrics;
-use crate::types::{RpcRequest, RpcResponse};
+use crate::types::{MaybeBatch, RpcRequest, RpcResponse};
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
@@ -43,9 +43,9 @@ impl Server {
 
 async fn rpc_handler(
     req: HttpRequest,
-    rpc_req: web::Json<RpcRequest>,
+    rpc_req: web::Json<MaybeBatch<RpcRequest>>,
     app_data: web::Data<AppData>,
-) -> Result<web::Json<RpcResponse>> {
+) -> Result<web::Json<MaybeBatch<RpcResponse>>> {
     let res = app_data
         .handler
         .clone()

@@ -1,10 +1,13 @@
 use clap::Parser;
 use eth_archive_core::config::RetryConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::num::NonZeroU64;
 
 #[derive(Clone, Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
+    #[command(flatten)]
+    pub retry: RetryConfig,
     /// Address to be used for running server
     #[clap(long, default_value_t = default_server_addr())]
     pub server_addr: SocketAddr,
@@ -25,8 +28,12 @@ pub struct Config {
     /// Maximum rpc request batch size
     #[clap(long)]
     pub max_batch_size: Option<usize>,
-    #[command(flatten)]
-    pub retry: RetryConfig,
+    /// Http request timeout in seconds
+    #[clap(long)]
+    pub request_timeout_secs: NonZeroU64,
+    /// Http connect timeout in milliseconds
+    #[clap(long)]
+    pub connect_timeout_ms: NonZeroU64,
 }
 
 fn default_server_addr() -> SocketAddr {

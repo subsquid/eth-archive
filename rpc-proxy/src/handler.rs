@@ -1,17 +1,18 @@
 use crate::config::Config;
 use crate::metrics::Metrics;
-use crate::types::{RpcRequest, RpcResponse};
+use crate::types::{RpcRequest, RpcResponse, MaybeBatch};
 use crate::{Error, Result};
 use actix_web::HttpRequest;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub const TARGET_ENDPOINT_HEADER_NAME: &str = "eth_archive_rpc_proxy_target";
 
 pub struct Handler {
     limiter: Arc<Mutex<Limiter>>,
     config: Config,
+    http_client: reqwest::Client,
 }
 
 impl Handler {
@@ -19,14 +20,28 @@ impl Handler {
         let limiter = Limiter::new(config.max_requests_per_sec, metrics);
         let limiter = Arc::new(Mutex::new(limiter));
 
-        Ok(Self { limiter, config })
+        let request_timeout = Duration::from_secs(config.request_timeout_secs.get());
+        let connect_timeout = Duration::from_millis(config.connect_timeout_ms.get());
+
+        let http_client = reqwest::ClientBuilder::new()
+            .gzip(true)
+            .timeout(request_timeout)
+            .connect_timeout(connect_timeout)
+            .build()
+            .map_err(Error::BuildHttpClient)?;
+
+        Ok(Self {
+            limiter,
+            config,
+            http_client,
+        })
     }
 
     pub async fn handle(
         self: Arc<Self>,
         req: HttpRequest,
-        rpc_req: RpcRequest,
-    ) -> Result<RpcResponse> {
+        rpc_req: MaybeBatch<RpcRequest>,
+    ) -> Result<MaybeBatch<RpcResponse>> {
         let endpoint = match req.headers().get(TARGET_ENDPOINT_HEADER_NAME) {
             Some(endpoint) => endpoint
                 .to_str()
@@ -38,13 +53,54 @@ impl Handler {
             },
         };
 
-        // TODO: impl separate_batches config
-
-        
+        match rpc_req {
+            MaybeBatch::Batch(reqs) => {
+                if self.config.separate_batches {
+                    self.handle_separate_batches(endpoint, reqs)
+                        .await
+                        .map(MaybeBatch::Batch)
+                } else {
+                    self.handle_batches(endpoint, reqs)
+                        .await
+                        .map(MaybeBatch::Batch)
+                }
+            }
+            MaybeBatch::Single(req) => self
+                .handle_single(endpoint, req)
+                .await
+                .map(MaybeBatch::Single),
+        }
     }
 
-    fn count_req(&self) {
-        self.limiter.lock().unwrap().count_req(&endpoint)
+    async fn handle_separate_batches(
+        self: Arc<Self>,
+        endpoint: String,
+        reqs: Vec<RpcRequest>,
+    ) -> Result<Vec<RpcResponse>> {
+        todo!()
+    }
+
+    async fn handle_batches(
+        self: Arc<Self>,
+        endpoint: String,
+        reqs: Vec<RpcRequest>,
+    ) -> Result<Vec<RpcResponse>> {
+        todo!()
+    }
+
+    async fn handle_single(
+        self: Arc<Self>,
+        endpoint: String,
+        req: RpcRequest,
+    ) -> Result<RpcResponse> {
+        self.count_req(&endpoint)?;
+
+        todo!()
+    }
+
+    // this is a function to make sure the lock is released as soon as the request is counted
+    fn count_req(&self, endpoint: &str) -> Result<()> {
+        self.limiter.lock().unwrap().count_req(endpoint)
     }
 }
 
