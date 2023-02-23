@@ -28,6 +28,7 @@ impl Handler {
             .gzip(true)
             .timeout(request_timeout)
             .connect_timeout(connect_timeout)
+            .tcp_keepalive(Some(Duration::from_secs(60)))
             .build()
             .map_err(Error::BuildHttpClient)?;
         let http_client = Arc::new(http_client);

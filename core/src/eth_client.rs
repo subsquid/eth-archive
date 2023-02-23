@@ -42,6 +42,7 @@ impl EthClient {
             .gzip(true)
             .timeout(request_timeout)
             .connect_timeout(connect_timeout)
+            .tcp_keepalive(Some(Duration::from_secs(60)))
             .build()
             .map_err(Error::BuildHttpClient)?;
 
