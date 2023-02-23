@@ -42,8 +42,9 @@ impl DbHandle {
 
             let mut opts = rocksdb::Options::default();
 
-            opts.set_compaction_style(rocksdb::DBCompactionStyle::Fifo);
+            opts.set_level_compaction_dynamic_level_bytes(true);
             opts.set_compaction_readahead_size(10 * 1024 * 1024);
+            opts.set_optimize_filters_for_hits(true);
             opts.create_if_missing(true);
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
@@ -522,6 +523,28 @@ impl DbHandle {
             db_tail: AtomicU32::new(db_tail),
             db_height: AtomicU32::new(db_height),
         })
+    }
+
+    pub fn compact(&self) {
+        let start = Instant::now();
+
+        log::info!("starting compaction...");
+
+        let compact = |name| {
+            self.inner.compact_range_cf(
+                self.inner.cf_handle(name).unwrap(),
+                None::<&[u8]>,
+                None::<&[u8]>,
+            );
+        };
+
+        compact(cf_name::BLOCK);
+        compact(cf_name::TX);
+        compact(cf_name::LOG);
+        compact(cf_name::LOG_TX);
+        compact(cf_name::PARQUET_IDX);
+
+        log::info!("finished compaction in {}ms", start.elapsed().as_millis());
     }
 }
 
