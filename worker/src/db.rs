@@ -42,9 +42,8 @@ impl DbHandle {
 
             let mut opts = rocksdb::Options::default();
 
-            opts.set_level_compaction_dynamic_level_bytes(true);
+            opts.set_compaction_style(rocksdb::DBCompactionStyle::Fifo);
             opts.set_compaction_readahead_size(10 * 1024 * 1024);
-            opts.set_optimize_filters_for_hits(true);
             opts.create_if_missing(true);
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
