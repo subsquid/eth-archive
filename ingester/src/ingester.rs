@@ -5,10 +5,8 @@ use crate::schema::{
 };
 use crate::server::Server;
 use crate::{Error, Result};
-use arrow2::datatypes::{DataType, Schema};
-use arrow2::io::parquet::write::transverse;
-use arrow2::io::parquet::write::Encoding;
-use arrow2::io::parquet::write::FileSink;
+use arrow2::datatypes::Schema;
+use arrow2::io::parquet::write::{transverse, Encoding, FileWriter, RowGroupIterator};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
@@ -25,9 +23,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, mem};
-use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
-use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct Ingester {
     eth_client: Arc<EthClient>,
@@ -333,19 +329,6 @@ impl Data {
     }
 }
 
-fn encodings(schema: &Schema) -> Vec<Vec<Encoding>> {
-    let encoding_map = |data_type: &DataType| match data_type {
-        DataType::Binary | DataType::LargeBinary => Encoding::DeltaLengthByteArray,
-        _ => Encoding::Plain,
-    };
-
-    schema
-        .fields
-        .iter()
-        .map(|f| transverse(&f.data_type, encoding_map))
-        .collect::<Vec<_>>()
-}
-
 async fn write_file<T: IntoChunks + Send + 'static>(
     temp_path: PathBuf,
     chunks: Box<T>,
@@ -353,32 +336,38 @@ async fn write_file<T: IntoChunks + Send + 'static>(
     items_per_chunk: usize,
     page_size: Option<usize>,
 ) -> Result<()> {
-    let chunks = rayon_async::spawn(move || chunks.into_chunks(items_per_chunk)).await;
-    let mut file = tokio::fs::File::create(&temp_path)
+    let buf = rayon_async::spawn(move || {
+        let encodings = schema
+            .fields
+            .iter()
+            .map(|f| transverse(&f.data_type, |_| Encoding::Plain))
+            .collect();
+
+        let chunks = chunks.into_chunks(items_per_chunk);
+        let row_groups = RowGroupIterator::try_new(
+            chunks.into_iter(),
+            &schema,
+            parquet_write_options(page_size),
+            encodings,
+        )
+        .map_err(Error::CreateFileSink)?;
+        let mut buf = Vec::new();
+        let mut writer = FileWriter::try_new(&mut buf, schema, parquet_write_options(page_size))
+            .map_err(Error::CreateFileSink)?;
+
+        for group in row_groups {
+            writer
+                .write(group.map_err(Error::WriteFileData)?)
+                .map_err(Error::WriteFileData)?;
+        }
+
+        Ok(buf)
+    })
+    .await?;
+
+    tokio::fs::write(&temp_path, &buf)
         .await
-        .map_err(Error::CreateFile)?
-        .compat();
-    let encodings = encodings(&schema);
-    let mut writer = FileSink::try_new(
-        &mut file,
-        schema,
-        encodings,
-        parquet_write_options(page_size),
-    )
-    .map_err(Error::CreateFileSink)?;
-    let mut chunk_stream = futures::stream::iter(chunks);
-    writer
-        .send_all(&mut chunk_stream)
-        .await
-        .map_err(Error::WriteFileData)?;
-    writer.close().await.map_err(Error::CloseFileSink)?;
-
-    mem::drop(writer);
-
-    let mut file = file.into_inner();
-
-    file.flush().await.map_err(Error::CreateFile)?;
-    file.sync_all().await.map_err(Error::CreateFile)?;
+        .map_err(Error::CreateFile)?;
 
     Ok(())
 }
