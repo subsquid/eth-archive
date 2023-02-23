@@ -1394,6 +1394,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "zstd 0.11.2+zstd.1.5.2",
 ]
 
 [[package]]
@@ -2030,8 +2031,8 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
- "lz4-sys",
  "tikv-jemalloc-sys",
+ "zstd-sys",
 ]
 
 [[package]]

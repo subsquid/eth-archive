@@ -8,7 +8,7 @@ use arrow2::compute::sort::{lexsort_to_indices, sort_to_indices, SortColumn, Sor
 use arrow2::compute::take::take as arrow_take;
 use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::error::Result as ArrowResult;
-use arrow2::io::parquet::write::{CompressionOptions, Version, WriteOptions};
+use arrow2::io::parquet::write::{CompressionOptions, Version, WriteOptions, ZstdLevel};
 use eth_archive_core::types::{Block, Log, Transaction};
 use std::cmp;
 
@@ -404,7 +404,9 @@ impl Logs {
 pub fn parquet_write_options(page_size: Option<usize>) -> WriteOptions {
     WriteOptions {
         write_statistics: true,
-        compression: CompressionOptions::Lz4Raw,
+        compression: CompressionOptions::Zstd(Some(
+            ZstdLevel::try_new(*zstd::compression_level_range().end()).unwrap(),
+        )),
         version: Version::V2,
         data_pagesize_limit: page_size,
     }
