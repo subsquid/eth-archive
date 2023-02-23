@@ -404,7 +404,7 @@ impl Logs {
 pub fn parquet_write_options(page_size: Option<usize>) -> WriteOptions {
     WriteOptions {
         write_statistics: true,
-        compression: CompressionOptions::Zstd(Some(ZstdLevel::try_new(8).unwrap())),
+        compression: CompressionOptions::Zstd(Some(ZstdLevel::try_new(9).unwrap())),
         version: Version::V2,
         data_pagesize_limit: page_size,
     }
