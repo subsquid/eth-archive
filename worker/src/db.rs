@@ -523,28 +523,6 @@ impl DbHandle {
             db_height: AtomicU32::new(db_height),
         })
     }
-
-    pub fn compact(&self) {
-        let start = Instant::now();
-
-        log::info!("starting compaction...");
-
-        let compact = |name| {
-            self.inner.compact_range_cf(
-                self.inner.cf_handle(name).unwrap(),
-                None::<&[u8]>,
-                None::<&[u8]>,
-            );
-        };
-
-        compact(cf_name::BLOCK);
-        compact(cf_name::TX);
-        compact(cf_name::LOG);
-        compact(cf_name::LOG_TX);
-        compact(cf_name::PARQUET_IDX);
-
-        log::info!("finished compaction in {}ms", start.elapsed().as_millis());
-    }
 }
 
 /// Column Family Names
