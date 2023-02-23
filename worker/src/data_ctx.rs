@@ -106,14 +106,6 @@ impl DataCtx {
             });
         }
 
-        // this task runs periodical compactions on the database
-        tokio::spawn(async move {
-            loop {
-                db_writer.run_compaction().await;
-                tokio::time::sleep(Duration::from_secs(config.db_compaction_interval)).await;
-            }
-        });
-
         if let Some(data_path) = &config.data_path {
             if let Some(s3_config) = config.s3.into_parsed() {
                 let s3_client = S3Client::new(retry, &s3_config)

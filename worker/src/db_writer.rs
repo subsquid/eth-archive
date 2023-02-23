@@ -33,10 +33,6 @@ impl DbWriter {
                                 dir_name,
                             )
                         }
-                        Job::RunCompaction => {
-                            db.compact();
-                            break;
-                        }
                     };
 
                     match res {
@@ -63,10 +59,6 @@ impl DbWriter {
             .await
             .ok()
             .unwrap();
-    }
-
-    pub async fn run_compaction(&self) {
-        self.tx.send(Job::RunCompaction).await.ok().unwrap();
     }
 
     #[allow(clippy::manual_flatten)]
@@ -173,5 +165,4 @@ pub fn hash_addr(addr: &[u8]) -> u64 {
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
-    RunCompaction,
 }
