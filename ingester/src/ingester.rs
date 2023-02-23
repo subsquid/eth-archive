@@ -361,6 +361,8 @@ async fn write_file<T: IntoChunks + Send + 'static>(
                 .map_err(Error::WriteFileData)?;
         }
 
+        writer.end(None).map_err(Error::WriteFileData)?;
+
         Ok(buf)
     })
     .await?;
