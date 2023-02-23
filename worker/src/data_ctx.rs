@@ -321,13 +321,22 @@ impl DataCtx {
 
                     let (tx, rx) = crossbeam_channel::bounded(1);
 
-                    rayon::spawn({
-                        let ctx = self.clone();
-                        move || {
-                            tx.send((ctx.query_parquet(dir_name, mini_query), block_range))
-                                .ok();
-                        }
-                    });
+                    // don't spawn a thread if there is nothing to query
+                    if !mini_query.include_all_blocks
+                        && mini_query.logs.is_empty()
+                        && mini_query.transactions.is_empty()
+                    {
+                        tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
+                            .ok();
+                    } else {
+                        rayon::spawn({
+                            let ctx = self.clone();
+                            move || {
+                                tx.send((ctx.query_parquet(dir_name, mini_query), block_range))
+                                    .ok();
+                            }
+                        });
+                    }
 
                     jobs.push_back(rx);
                 }
@@ -999,7 +1008,7 @@ pub fn scan_parquet_args() -> ScanArgsParquet {
     ScanArgsParquet {
         n_rows: None,
         cache: true,
-        parallel: ParallelStrategy::RowGroups,
+        parallel: ParallelStrategy::Auto,
         rechunk: true,
         row_count: None,
         low_memory: false,

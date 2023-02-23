@@ -26,7 +26,7 @@ pub struct Config {
     /// Response body might be bigger than this amount of MBs.
     #[clap(long)]
     pub max_resp_body_size: usize,
-    #[clap(long, default_value_t = NonZeroUsize::new(1).unwrap())]
+    #[clap(long, default_value_t = NonZeroUsize::new(2).unwrap())]
     pub query_concurrency: NonZeroUsize,
     /// Response time limit in milliseconds.
     /// The query will stop and found data will be returned
@@ -39,7 +39,7 @@ pub struct Config {
     pub db_query_batch_size: u32,
     #[command(flatten)]
     pub s3: S3Config,
-    #[clap(long, default_value_t = 1800)]
+    #[clap(long, default_value_t = 60 * 10)]
     /// Period in seconds to run manual compaction on the database
     pub db_compaction_interval: u64,
 }

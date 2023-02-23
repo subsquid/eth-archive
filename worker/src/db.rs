@@ -35,17 +35,19 @@ impl DbHandle {
         let (inner, status) = tokio::task::spawn_blocking(move || {
             let mut block_opts = rocksdb::BlockBasedOptions::default();
 
-            block_opts.set_block_size(32 * 1024);
+            block_opts.set_block_size(512 * 1024);
             block_opts.set_format_version(5);
+            block_opts.set_bloom_filter(10.0, true);
+            block_opts.set_cache_index_and_filter_blocks(true);
 
             let mut opts = rocksdb::Options::default();
 
+            opts.set_level_compaction_dynamic_level_bytes(true);
+            opts.set_compaction_readahead_size(10 * 1024 * 1024);
+            opts.set_optimize_filters_for_hits(true);
             opts.create_if_missing(true);
             opts.create_missing_column_families(true);
-            opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-            opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Lz4);
-            opts.set_level_compaction_dynamic_level_bytes(true);
-            opts.set_max_background_jobs(6);
+            opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
             opts.set_bytes_per_sync(1048576);
             opts.set_max_open_files(10000);
             opts.set_block_based_table_factory(&block_opts);
