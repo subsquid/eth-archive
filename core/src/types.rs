@@ -238,6 +238,7 @@ impl std::ops::AddAssign for BlockRange {
 #[derive(Clone, Copy, Debug)]
 pub enum FormatVersion {
     Ver0_0_39,
+    Ver0_1_0,
 }
 
 impl FromStr for FormatVersion {
@@ -246,6 +247,7 @@ impl FromStr for FormatVersion {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "0.0.39" => Ok(FormatVersion::Ver0_0_39),
+            "0.1.0" => Ok(FormatVersion::Ver0_1_0),
             _ => Err(Error::UnknownFormat(s.to_owned())),
         }
     }

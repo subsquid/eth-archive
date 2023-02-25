@@ -5,10 +5,12 @@ use std::collections::BTreeMap;
 
 mod util;
 mod ver0_0_39;
+mod ver0_1_0;
 
 pub fn get(ver: FormatVersion) -> Box<dyn ParquetSource> {
     match ver {
         FormatVersion::Ver0_0_39 => Box::new(ver0_0_39::Ver0_0_39),
+        FormatVersion::Ver0_1_0 => Box::new(ver0_1_0::Ver0_1_0),
     }
 }
 
