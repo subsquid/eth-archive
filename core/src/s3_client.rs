@@ -1,7 +1,7 @@
 use crate::config::ParsedS3Config;
 use crate::dir_name::DirName;
 use crate::ingest_metrics::IngestMetrics;
-use crate::parquet_source::{self, Columns, ParquetSource};
+use crate::parquet_source::{self, read_parquet_buf, ParquetSource};
 use crate::retry::Retry;
 use crate::types::{Block, BlockRange, FormatVersion, Log};
 use crate::{Error, Result};
@@ -9,9 +9,8 @@ use aws_config::retry::RetryConfig;
 use futures::{Future, Stream, TryFutureExt};
 use futures::{StreamExt, TryStreamExt};
 use polars::export::arrow::datatypes::Field;
-use polars::export::arrow::io::parquet::read::{read_columns_many, read_metadata};
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{self, Cursor};
+use std::io;
 use std::path::Path;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -80,11 +79,11 @@ impl S3Client {
         s3_src_bucket: &str,
         format_version: &str,
     ) -> Result<BatchStream> {
+        let source = parquet_source::get(FormatVersion::from_str(format_version)?);
         let dir_names = Self::get_dir_names_from_list(
             start_block,
             &self.clone().get_list(s3_src_bucket.into()).await?,
         );
-        let source = parquet_source::get(FormatVersion::from_str(format_version)?);
 
         let batch_stream = self.stream_batches_impl(
             ingest_metrics,
@@ -121,7 +120,7 @@ impl S3Client {
                     fn block_not_found_err(block_num: u32) -> Result<()> {
                         Err(Error::BlockNotFoundInS3(block_num))
                     }
-                    // This is a function a call to make the macro work
+                    // This is a function call to make the macro work
                     block_not_found_err(block_num)?;
                 }
 
@@ -134,22 +133,7 @@ impl S3Client {
 
                     async move {
                         let file = s3_client.clone().get_bytes(s3_key.into(), s3_src_bucket).await?;
-                        let file: Arc<[u8]> = file.into();
-                        let mut cursor = Cursor::new(file);
-                        let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
-                        let columns = metadata.row_groups.into_iter().map(move |row_group_meta| {
-                            read_columns_many(
-                                &mut cursor,
-                                &row_group_meta,
-                                fields.clone(),
-                                None,
-                                None,
-                                None,
-                            )
-                            .map_err(Error::ReadParquet)
-                        }).collect::<Result<Vec<_>>>()?;
-
-                        Ok::<Columns, Error>(columns)
+                        read_parquet_buf(&file, fields)
                     }
                 };
 
@@ -525,5 +509,5 @@ fn parse_s3_name(s3_name: &str) -> (DirName, String) {
     (dir_name, file_name)
 }
 
-type BatchStream =
+pub type BatchStream =
     Pin<Box<dyn Stream<Item = Result<(Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)>>>>;

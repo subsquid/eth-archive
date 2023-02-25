@@ -59,6 +59,8 @@ pub enum Error {
     S3GetObjChunk,
     #[error("failed to write file:\n{0}")]
     WriteFile(io::Error),
+    #[error("failed to read file:\n{0}")]
+    ReadFile(io::Error),
     #[error("failed to check if parquet directory is valid.")]
     CheckParquetDir,
     #[error("failed to rename file:\n{0}")]
