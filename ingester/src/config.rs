@@ -43,6 +43,12 @@ pub struct Config {
     /// Source data format version
     #[clap(long)]
     pub s3_src_format_ver: Option<String>,
+    /// Local file system path to sync from
+    #[clap(long)]
+    pub local_src_path: Option<PathBuf>,
+    /// Local source data format version
+    #[clap(long)]
+    pub local_src_format_ver: Option<String>,
     #[command(flatten)]
     pub s3: S3Config,
 }
