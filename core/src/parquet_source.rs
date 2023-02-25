@@ -1,7 +1,10 @@
 use crate::types::{Block, FormatVersion, Log, Transaction};
+use crate::{Error, Result};
 use polars::export::arrow::datatypes::Field;
 use polars::export::arrow::io::parquet::read::ArrayIter;
+use polars::export::arrow::io::parquet::read::{read_columns_many, read_metadata};
 use std::collections::BTreeMap;
+use std::io::Cursor;
 
 mod util;
 mod ver0_0_39;
@@ -15,6 +18,28 @@ pub fn get(ver: FormatVersion) -> Box<dyn ParquetSource> {
 }
 
 pub type Columns = Vec<Vec<ArrayIter<'static>>>;
+
+pub fn read_parquet_buf(buf: &[u8], fields: Vec<Field>) -> Result<Columns> {
+    let mut cursor = Cursor::new(&buf);
+    let metadata = read_metadata(&mut cursor).map_err(Error::ReadParquet)?;
+    let columns = metadata
+        .row_groups
+        .into_iter()
+        .map(move |row_group_meta| {
+            read_columns_many(
+                &mut cursor,
+                &row_group_meta,
+                fields.clone(),
+                None,
+                None,
+                None,
+            )
+            .map_err(Error::ReadParquet)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(columns)
+}
 
 pub trait ParquetSource {
     fn read_blocks(&self, columns: Columns) -> BTreeMap<u32, Block>;
