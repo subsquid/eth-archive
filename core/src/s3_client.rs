@@ -16,8 +16,6 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 
 pub struct S3Client {
     retry: Retry,
@@ -374,7 +372,7 @@ impl S3Client {
             .map_err(Error::Retry)
     }
 
-    async fn get_file(self: Arc<Self>, path: Arc<Path>, s3_path: Arc<str>) -> Result<File> {
+    async fn get_file(self: Arc<Self>, path: Arc<Path>, s3_path: Arc<str>) -> Result<()> {
         self.retry
             .retry(|| {
                 let s3_client = self.clone();
@@ -431,10 +429,9 @@ impl S3Client {
         Ok(data)
     }
 
-    async fn get_file_impl(&self, path: &Path, s3_path: &str) -> Result<File> {
-        let file = File::create(&path).await.map_err(Error::OpenFile)?;
-
-        self.client
+    async fn get_file_impl(&self, path: &Path, s3_path: &str) -> Result<()> {
+        let bytes = self
+            .client
             .get_object()
             .bucket(&self.config.s3_bucket_name)
             .key(s3_path)
@@ -443,11 +440,17 @@ impl S3Client {
             .map_err(Error::S3Get)?
             .body
             .map_err(|_| Error::S3GetObjChunk)
-            .try_fold(file, |mut file, chunk| async move {
-                file.write_all(&chunk).await.map_err(Error::WriteFile)?;
-                Ok(file)
+            .try_fold(Vec::new(), |mut bytes, chunk| async move {
+                bytes.extend_from_slice(&chunk);
+                Ok(bytes)
             })
+            .await?;
+
+        tokio::fs::write(path, &bytes)
             .await
+            .map_err(Error::WriteFile)?;
+
+        Ok(())
     }
 
     async fn put_file_impl(&self, path: &Path, s3_path: &str) -> Result<()> {
