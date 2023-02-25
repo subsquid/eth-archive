@@ -10,6 +10,7 @@ use arrow2::io::parquet::write::{transverse, Encoding, FileWriter, RowGroupItera
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
+use eth_archive_core::local_sync;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_client::{Direction, S3Client};
@@ -107,6 +108,28 @@ impl Ingester {
         });
 
         let mut block_num = block_num;
+
+        if let (Some(local_src_path), Some(local_src_format_ver)) = (
+            self.cfg.local_src_path.as_ref(),
+            self.cfg.local_src_format_ver.as_ref(),
+        ) {
+            log::info!("starting to stream data from local file system");
+
+            let batches = local_sync::stream_batches(
+                self.metrics.clone(),
+                block_num,
+                local_src_path,
+                local_src_format_ver,
+            )
+            .await
+            .map_err(Error::StartLocalBatchStream)?
+            .map_err(Error::GetLocalBatch);
+
+            block_num = self.ingest_batches(&mut sender, batches).await?;
+
+            log::info!("finished streaming data from local file system");
+        }
+
         if let Some(s3_config) = self.cfg.s3.into_parsed() {
             let s3_client = S3Client::new(self.retry, &s3_config)
                 .await

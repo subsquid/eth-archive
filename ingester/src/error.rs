@@ -22,6 +22,8 @@ pub enum Error {
     GetBatch(eth_archive_core::Error),
     #[error("failed to get data batch from s3:\n{0}")]
     GetS3Batch(eth_archive_core::Error),
+    #[error("failed to get data batch from local file system:\n{0}")]
+    GetLocalBatch(eth_archive_core::Error),
     #[error("failed to list folder names:\n{0}")]
     ListFolderNames(eth_archive_core::Error),
     #[error("failed to create missing directories:\n{0}")]
@@ -56,6 +58,8 @@ pub enum Error {
     BuildS3Client(eth_archive_core::Error),
     #[error("failed to start streaming data from s3:\n{0}")]
     StartS3BatchStream(eth_archive_core::Error),
+    #[error("failed to start streaming data from local file system:\n{0}")]
+    StartLocalBatchStream(eth_archive_core::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
