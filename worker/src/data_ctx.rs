@@ -1005,5 +1005,6 @@ pub fn scan_parquet_args() -> ScanArgsParquet {
         row_count: None,
         low_memory: false,
         cloud_options: None,
+        use_statistics: true,
     }
 }

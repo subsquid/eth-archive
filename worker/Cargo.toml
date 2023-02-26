@@ -28,7 +28,8 @@ xxhash-rust = { version = "0.8.6", features = ["xxh3"] }
 eth-archive-core = { path = "../core" }
 
 [dependencies.polars]
-version = "0.27"
+git = "https://github.com/ozgrakkurt/polars"
+branch = "parquet-binary-min-max"
 features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 
 [dependencies.rocksdb]
