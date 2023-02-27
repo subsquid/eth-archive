@@ -2059,6 +2059,7 @@ dependencies = [
  "libc",
  "libz-sys",
  "lz4-sys",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]
@@ -2268,69 +2269,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "num"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
-dependencies = [
- "num-bigint",
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
-name = "num-bigint"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f93ab6289c7b344a8a9f60f88d80aa20032336fe78da341afc91c8a2341fc75f"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02e0d21255c828d6f128a1e41534206671e8c3ea0c62f32291e808dc82cff17d"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "num-integer"
 version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
 dependencies = [
  "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
-dependencies = [
- "autocfg",
- "num-bigint",
- "num-integer",
  "num-traits",
 ]
 
@@ -2531,7 +2475,7 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "getrandom",
  "polars-core",
@@ -2545,11 +2489,11 @@ dependencies = [
 [[package]]
 name = "polars-arrow"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
  "hashbrown 0.13.2",
- "num",
+ "num-traits",
  "polars-error",
  "thiserror",
 ]
@@ -2557,7 +2501,7 @@ dependencies = [
 [[package]]
 name = "polars-core"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "ahash 0.8.3",
  "anyhow",
@@ -2567,7 +2511,7 @@ dependencies = [
  "comfy-table",
  "hashbrown 0.13.2",
  "indexmap",
- "num",
+ "num-traits",
  "once_cell",
  "polars-arrow",
  "polars-error",
@@ -2586,7 +2530,7 @@ dependencies = [
 [[package]]
 name = "polars-error"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "anyhow",
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
@@ -2597,7 +2541,7 @@ dependencies = [
 [[package]]
 name = "polars-io"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "ahash 0.8.3",
  "anyhow",
@@ -2609,7 +2553,7 @@ dependencies = [
  "lexical-core",
  "memchr",
  "memmap2",
- "num",
+ "num-traits",
  "once_cell",
  "polars-arrow",
  "polars-core",
@@ -2623,7 +2567,7 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "ahash 0.8.3",
  "bitflags",
@@ -2642,7 +2586,7 @@ dependencies = [
 [[package]]
 name = "polars-ops"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
  "memchr",
@@ -2654,12 +2598,12 @@ dependencies = [
 [[package]]
 name = "polars-pipe"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "crossbeam-channel",
  "enum_dispatch",
  "hashbrown 0.13.2",
- "num",
+ "num-traits",
  "polars-arrow",
  "polars-core",
  "polars-io",
@@ -2673,7 +2617,7 @@ dependencies = [
 [[package]]
 name = "polars-plan"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "ahash 0.8.3",
  "once_cell",
@@ -2689,7 +2633,7 @@ dependencies = [
 [[package]]
 name = "polars-row"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
  "polars-error",
@@ -2699,7 +2643,7 @@ dependencies = [
 [[package]]
 name = "polars-time"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "chrono",
  "lexical",
@@ -2715,7 +2659,7 @@ dependencies = [
 [[package]]
 name = "polars-utils"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#ffc4f6432775144f1255a88f55bd855a15e93684"
+source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
 dependencies = [
  "once_cell",
  "rayon",
@@ -3439,6 +3383,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tikv-jemalloc-sys"
+version = "0.5.3+5.3.0-patched"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a678df20055b43e57ef8cddde41cdfda9a3c1a060b67f4c5836dfb1d78543ba8"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]
