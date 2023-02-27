@@ -279,7 +279,10 @@ impl DataCtx {
                                             Some(source)
                                         }
                                     }
-                                    _ => Some(Vec::new()), // empty or null means catch all
+                                    _ => match tx_selection.dest.as_ref() {
+                                        Some(dest) if !dest.is_empty() => None,
+                                        _ => Some(Vec::new()), // if both null select all
+                                    },
                                 };
 
                                 let dest = match tx_selection.dest.as_ref() {
@@ -295,7 +298,10 @@ impl DataCtx {
                                             Some(dest)
                                         }
                                     }
-                                    _ => Some(Vec::new()), // empty or null means catch all
+                                    _ => match tx_selection.source.as_ref() {
+                                        Some(source) if !source.is_empty() => None,
+                                        _ => Some(Vec::new()), // if both null select all
+                                    },
                                 };
 
                                 match (source, dest) {
