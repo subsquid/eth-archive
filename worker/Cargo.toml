@@ -14,7 +14,6 @@ env_logger = "0.10"
 clap = { version = "4", features = ["derive"] }
 prefix-hex = "0.5"
 rayon = "1"
-itertools = "0.10"
 actix-web = "4"
 rmp-serde = "1.1"
 arrayvec = { version = "0.7.2", features = ["serde"] }
