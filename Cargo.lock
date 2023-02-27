@@ -1419,7 +1419,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "zstd 0.11.2+zstd.1.5.2",
+ "zstd 0.12.3+zstd.1.5.2",
 ]
 
 [[package]]
