@@ -25,8 +25,27 @@ macro_rules! prune_col {
     };
 }
 
+macro_rules! prune_col_opt {
+    ($src:ident, $self:ident, $field:ident) => {
+        if $self.$field {
+            $src.$field
+        } else {
+            None
+        }
+    };
+}
+
 #[derive(
-    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    derive_more::BitOr,
+    derive_more::Not,
+    PartialEq,
+    Eq,
 )]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
@@ -37,7 +56,16 @@ pub struct FieldSelection {
 }
 
 #[derive(
-    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    derive_more::BitOr,
+    derive_more::Not,
+    PartialEq,
+    Eq,
 )]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
@@ -114,10 +142,43 @@ impl BlockFieldSelection {
             hash: prune_col!(block, self, hash).flatten(),
         }
     }
+
+    pub fn prune_opt(&self, block: ResponseBlock) -> ResponseBlock {
+        ResponseBlock {
+            parent_hash: prune_col_opt!(block, self, parent_hash),
+            sha3_uncles: prune_col_opt!(block, self, sha3_uncles),
+            miner: prune_col_opt!(block, self, miner),
+            state_root: prune_col_opt!(block, self, state_root),
+            transactions_root: prune_col_opt!(block, self, transactions_root),
+            receipts_root: prune_col_opt!(block, self, receipts_root),
+            logs_bloom: prune_col_opt!(block, self, logs_bloom),
+            difficulty: prune_col_opt!(block, self, difficulty),
+            number: prune_col_opt!(block, self, number),
+            gas_limit: prune_col_opt!(block, self, gas_limit),
+            gas_used: prune_col_opt!(block, self, gas_used),
+            timestamp: prune_col_opt!(block, self, timestamp),
+            extra_data: prune_col_opt!(block, self, extra_data),
+            mix_hash: prune_col_opt!(block, self, mix_hash),
+            nonce: prune_col_opt!(block, self, nonce),
+            total_difficulty: prune_col_opt!(block, self, total_difficulty),
+            base_fee_per_gas: prune_col_opt!(block, self, base_fee_per_gas),
+            size: prune_col_opt!(block, self, size),
+            hash: prune_col_opt!(block, self, hash),
+        }
+    }
 }
 
 #[derive(
-    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    derive_more::BitOr,
+    derive_more::Not,
+    PartialEq,
+    Eq,
 )]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
@@ -201,10 +262,44 @@ impl TransactionFieldSelection {
             status: prune_col!(tx, self, status).flatten(),
         }
     }
+
+    pub fn prune_opt(&self, tx: ResponseTransaction) -> ResponseTransaction {
+        ResponseTransaction {
+            kind: prune_col_opt!(tx, self, kind),
+            nonce: prune_col_opt!(tx, self, nonce),
+            dest: prune_col_opt!(tx, self, dest),
+            gas: prune_col_opt!(tx, self, gas),
+            value: prune_col_opt!(tx, self, value),
+            input: prune_col_opt!(tx, self, input),
+            max_priority_fee_per_gas: prune_col_opt!(tx, self, max_priority_fee_per_gas),
+            max_fee_per_gas: prune_col_opt!(tx, self, max_fee_per_gas),
+            y_parity: prune_col_opt!(tx, self, y_parity),
+            chain_id: prune_col_opt!(tx, self, chain_id),
+            v: prune_col_opt!(tx, self, v),
+            r: prune_col_opt!(tx, self, r),
+            s: prune_col_opt!(tx, self, s),
+            source: prune_col_opt!(tx, self, source),
+            block_hash: prune_col_opt!(tx, self, block_hash),
+            block_number: prune_col_opt!(tx, self, block_number),
+            transaction_index: prune_col_opt!(tx, self, transaction_index),
+            gas_price: prune_col_opt!(tx, self, gas_price),
+            hash: prune_col_opt!(tx, self, hash),
+            status: prune_col_opt!(tx, self, status),
+        }
+    }
 }
 
 #[derive(
-    Serialize, Deserialize, Debug, Clone, Copy, Default, derive_more::BitOr, derive_more::Not,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    derive_more::BitOr,
+    derive_more::Not,
+    PartialEq,
+    Eq,
 )]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
@@ -257,6 +352,20 @@ impl LogFieldSelection {
             topics: prune_col!(log, self, topics),
             transaction_hash: prune_col!(log, self, transaction_hash),
             transaction_index: prune_col!(log, self, transaction_index),
+        }
+    }
+
+    pub fn prune_opt(&self, log: ResponseLog) -> ResponseLog {
+        ResponseLog {
+            address: prune_col_opt!(log, self, address),
+            block_hash: prune_col_opt!(log, self, block_hash),
+            block_number: prune_col_opt!(log, self, block_number),
+            data: prune_col_opt!(log, self, data),
+            log_index: prune_col_opt!(log, self, log_index),
+            removed: prune_col_opt!(log, self, removed),
+            topics: prune_col_opt!(log, self, topics),
+            transaction_hash: prune_col_opt!(log, self, transaction_hash),
+            transaction_index: prune_col_opt!(log, self, transaction_index),
         }
     }
 }

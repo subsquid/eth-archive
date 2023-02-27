@@ -1,3 +1,4 @@
+use crate::field_selection::FieldSelection;
 use crate::types::{BlockEntry, BlockEntryVec};
 use crate::{Error, Result};
 use eth_archive_core::rayon_async;
@@ -16,7 +17,12 @@ pub struct SerializeTask {
 }
 
 impl SerializeTask {
-    pub fn new(from_block: u32, size_limit: usize, archive_height: Option<u32>) -> Self {
+    pub fn new(
+        from_block: u32,
+        size_limit: usize,
+        archive_height: Option<u32>,
+        field_selection: FieldSelection,
+    ) -> Self {
         let (tx, mut rx): (Sender, _) = mpsc::channel(1);
 
         // convert size limit to bytes from megabytes
@@ -38,8 +44,10 @@ impl SerializeTask {
                     continue;
                 }
 
-                let new_bytes =
-                    rayon_async::spawn(move || process_query_result(bytes, res, is_first)).await;
+                let new_bytes = rayon_async::spawn(move || {
+                    process_query_result(bytes, res, is_first, field_selection)
+                })
+                .await;
 
                 bytes = new_bytes;
 
@@ -85,7 +93,12 @@ impl SerializeTask {
     }
 }
 
-fn process_query_result(mut bytes: Vec<u8>, res: QueryResult, is_first: bool) -> Vec<u8> {
+fn process_query_result(
+    mut bytes: Vec<u8>,
+    res: QueryResult,
+    is_first: bool,
+    field_selection: FieldSelection,
+) -> Vec<u8> {
     use std::collections::btree_map::Entry::{Occupied, Vacant};
 
     let mut data: BTreeMap<u32, BlockEntry> = BTreeMap::new();
@@ -95,7 +108,7 @@ fn process_query_result(mut bytes: Vec<u8>, res: QueryResult, is_first: bool) ->
 
         let block_entry = match data.entry(block_number) {
             Vacant(entry) => entry.insert(BlockEntry {
-                block: row.block,
+                block: Some(row.block),
                 logs: BTreeMap::new(),
                 transactions: BTreeMap::new(),
             }),
@@ -113,6 +126,32 @@ fn process_query_result(mut bytes: Vec<u8>, res: QueryResult, is_first: bool) ->
         if let Some(log) = row.log {
             let log_idx = log.log_index.unwrap().0;
             block_entry.logs.insert(log_idx, log);
+        }
+    }
+
+    for (_, entry) in data.iter_mut() {
+        if field_selection.block == Default::default() {
+            entry.block = None;
+        } else {
+            entry.block = mem::take(&mut entry.block).map(|b| field_selection.block.prune_opt(b));
+        }
+
+        if field_selection.transaction == Default::default() {
+            mem::take(&mut entry.transactions);
+        } else {
+            entry.transactions = mem::take(&mut entry.transactions)
+                .into_iter()
+                .map(|(i, t)| (i, field_selection.transaction.prune_opt(t)))
+                .collect();
+        }
+
+        if field_selection.log == Default::default() {
+            mem::take(&mut entry.logs);
+        } else {
+            entry.logs = mem::take(&mut entry.logs)
+                .into_iter()
+                .map(|(i, l)| (i, field_selection.log.prune_opt(l)))
+                .collect();
         }
     }
 
