@@ -215,7 +215,7 @@ impl MiniTransactionSelection {
 }
 
 pub struct BlockEntry {
-    pub block: ResponseBlock,
+    pub block: Option<ResponseBlock>,
     pub transactions: BTreeMap<u32, ResponseTransaction>,
     pub logs: BTreeMap<u32, ResponseLog>,
 }
@@ -223,7 +223,8 @@ pub struct BlockEntry {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockEntryVec {
-    pub block: ResponseBlock,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<ResponseBlock>,
     pub transactions: Vec<ResponseTransaction>,
     pub logs: Vec<ResponseLog>,
 }
@@ -253,27 +254,11 @@ pub struct Query {
 
 impl Query {
     pub fn field_selection(&self) -> FieldSelection {
-        let mut field_selection: FieldSelection = self
-            .logs
+        self.logs
             .iter()
             .map(|log| log.field_selection)
             .chain(self.transactions.iter().map(|tx| tx.field_selection))
-            .fold(Default::default(), |a, b| a | b);
-
-        field_selection.block.number = true;
-        field_selection.transaction.hash = true;
-        field_selection.transaction.block_number = true;
-        field_selection.transaction.transaction_index = true;
-        field_selection.transaction.dest = true;
-        field_selection.transaction.source = true;
-        field_selection.transaction.status = true;
-        field_selection.log.block_number = true;
-        field_selection.log.log_index = true;
-        field_selection.log.transaction_index = true;
-        field_selection.log.address = true;
-        field_selection.log.topics = true;
-
-        field_selection
+            .fold(Default::default(), |a, b| a | b)
     }
 
     pub fn log_selection(&self) -> Vec<MiniLogSelection> {

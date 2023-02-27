@@ -169,10 +169,13 @@ impl DataCtx {
             num => Some(num - 1),
         };
 
+        let field_selection = query.field_selection();
+
         let serialize_task = SerializeTask::new(
             query.from_block,
             self.config.max_resp_body_size,
             inclusive_height,
+            field_selection,
         );
 
         let query_start = Instant::now();
@@ -184,7 +187,20 @@ impl DataCtx {
 
             let parquet_height = self.db.parquet_height();
 
-            let field_selection = query.field_selection();
+            let mut field_selection = field_selection;
+
+            field_selection.block.number = true;
+            field_selection.transaction.hash = true;
+            field_selection.transaction.block_number = true;
+            field_selection.transaction.transaction_index = true;
+            field_selection.transaction.dest = true;
+            field_selection.transaction.source = true;
+            field_selection.transaction.status = true;
+            field_selection.log.block_number = true;
+            field_selection.log.log_index = true;
+            field_selection.log.transaction_index = true;
+            field_selection.log.address = true;
+            field_selection.log.topics = true;
 
             if query.from_block < parquet_height {
                 let concurrency = self.config.query_concurrency.get();
