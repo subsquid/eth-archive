@@ -1452,21 +1452,22 @@ dependencies = [
  "derive_more",
  "env_logger",
  "eth-archive-core",
+ "fnv",
  "futures",
  "itertools",
  "log",
  "mimalloc",
  "polars",
  "prefix-hex",
+ "rand",
  "rayon",
  "rmp-serde",
+ "roaring",
  "rocksdb",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
- "xorf",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -2960,6 +2961,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "retain_mut"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
+
+[[package]]
 name = "ring"
 version = "0.16.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2993,6 +3000,18 @@ checksum = "c5b13be192e0220b8afb7222aa5813cb62cc269ebb5cac346ca6487681d2913e"
 dependencies = [
  "byteorder",
  "rmp",
+ "serde",
+]
+
+[[package]]
+name = "roaring"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef0fb5e826a8bde011ecae6a8539dd333884335c57ff0f003fbe27c25bbe8f71"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "retain_mut",
  "serde",
 ]
 
@@ -3947,17 +3966,6 @@ name = "xmlparser"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d25c75bf9ea12c4040a97f829154768bbbce366287e2dc044af160cd79a13fd"
-
-[[package]]
-name = "xorf"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57901b00e3f8e14f4d20b8955bf8087ecb545cfe2ed8741c2a2dbc89847a1a29"
-dependencies = [
- "libm",
- "rand",
- "serde",
-]
 
 [[package]]
 name = "xxhash-rust"

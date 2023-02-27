@@ -22,8 +22,9 @@ futures = "0.3"
 mimalloc = { version = "0.1.34", default-features = false }
 crossbeam-channel = "0.5"
 derive_more = "0.99"
-xorf = { version = "0.8.1", features = ["serde"] }
-xxhash-rust = { version = "0.8.6", features = ["xxh3"] }
+fnv = "1"
+rand = "0.8"
+roaring = { version = "0.10", features = ["serde"] }
 
 eth-archive-core = { path = "../core" }
 

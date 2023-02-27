@@ -66,6 +66,8 @@ pub enum Error {
     EncodeMetrics(eth_archive_core::Error),
     #[error("failed to build s3 client:\n{0}")]
     BuildS3Client(eth_archive_core::Error),
+    #[error("empty query")]
+    EmptyQuery,
 }
 
 pub type Result<T> = StdResult<T, Error>;
