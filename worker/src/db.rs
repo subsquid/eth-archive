@@ -139,7 +139,7 @@ impl DbHandle {
             empty_iter()
         };
 
-        let tx_iter: ParquetIdxIterSingle = if iter_log_idxs {
+        let tx_iter: ParquetIdxIterSingle = if iter_tx_idxs {
             Box::new(open_iter(tx_parquet_idx_cf))
         } else {
             empty_iter()
