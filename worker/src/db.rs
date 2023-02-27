@@ -41,9 +41,9 @@ impl DbHandle {
         let (inner, status) = tokio::task::spawn_blocking(move || {
             let mut block_opts = rocksdb::BlockBasedOptions::default();
 
-            block_opts.set_block_size(64 * 1024);
+            block_opts.set_block_size(128 * 1024);
             block_opts.set_format_version(5);
-            block_opts.set_ribbon_filter(10.0);
+            block_opts.set_bloom_filter(10.0, true);
             block_opts.set_cache_index_and_filter_blocks(true);
 
             let mut opts = rocksdb::Options::default();
