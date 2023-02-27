@@ -148,7 +148,9 @@ impl MiniTransactionSelection {
         }
 
         if let Some(status) = self.status {
-            let inner_expr = col("tx_status").eq(status.lit());
+            let inner_expr = col("tx_status")
+                .eq(status.lit())
+                .or(col("tx_status").is_null());
 
             expr = match expr {
                 Some(expr) => Some(expr.and(inner_expr)),
