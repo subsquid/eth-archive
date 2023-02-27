@@ -42,9 +42,24 @@ impl MiniQuery {
         })
     }
 
+    #[allow(clippy::match_like_matches_macro)]
     pub fn matches_tx(&self, tx: &Transaction) -> bool {
         self.transactions.iter().any(|selection| {
-            (selection.matches_dest(&tx.dest) || selection.matches_source(&tx.source))
+            let source_none = match &selection.source {
+                Some(s) if !s.is_empty() => false,
+                _ => true,
+            };
+
+            let dest_none = match &selection.dest {
+                Some(d) if !d.is_empty() => false,
+                _ => true,
+            };
+
+            let match_all_addr = source_none && dest_none;
+
+            (match_all_addr
+                || selection.matches_dest(&tx.dest)
+                || selection.matches_source(&tx.source))
                 && selection.matches_sighash(&tx.input)
                 && selection.matches_status(tx.status)
         })
@@ -173,7 +188,7 @@ impl MiniTransactionSelection {
             }
         }
 
-        true
+        false
     }
 
     pub fn matches_source(&self, source: &Option<Address>) -> bool {
@@ -188,7 +203,7 @@ impl MiniTransactionSelection {
             }
         }
 
-        true
+        false
     }
 
     pub fn matches_sighash(&self, input: &Bytes) -> bool {
