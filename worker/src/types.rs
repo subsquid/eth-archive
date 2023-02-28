@@ -183,8 +183,8 @@ impl MiniTransactionSelection {
                 None => return false,
             };
 
-            if !address.is_empty() && !address.iter().any(|addr| addr == tx_addr) {
-                return false;
+            if address.iter().any(|addr| addr == tx_addr) {
+                return true;
             }
         }
 
@@ -198,8 +198,8 @@ impl MiniTransactionSelection {
                 None => return false,
             };
 
-            if !address.is_empty() && !address.iter().any(|addr| addr == tx_addr) {
-                return false;
+            if address.iter().any(|addr| addr == tx_addr) {
+                return true;
             }
         }
 
