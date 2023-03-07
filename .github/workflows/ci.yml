@@ -1,76 +1,41 @@
+name: CI
+
 on:
   pull_request:
-  push:
     branches:
-      - main
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-name: CI
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Check
+  test_dev:
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get -y install build-essential llvm clang cmake liburing2 liburing-dev curl pkg-config
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --verbose --workspace
+    - name: Test
+      run: cargo test --verbose --workspace
 
-  fmt:
-    name: Rustfmt
+  test_release:
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get -y install build-essential llvm clang cmake liburing2 liburing-dev curl pkg-config
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --release --verbose --workspace
+    - name: Test
+      run: cargo test --release --verbose --workspace
 
-  clippy:
-    name: Clippy
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get -y install build-essential llvm clang cmake liburing2 liburing-dev curl pkg-config
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: clippy
-          override: true
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D clippy::all
-          name: Clippy Output
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - run: sudo apt-get -y install build-essential llvm clang cmake liburing2 liburing-dev curl pkg-config
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+    - uses: actions/checkout@v3
+    - name: Rustfmt
+      run: cargo fmt --check --verbose
+    - name: Clippy
+      run: cargo clippy --verbose --all-features -- -Dwarnings
