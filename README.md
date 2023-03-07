@@ -5,6 +5,8 @@
 ### Requirements
 
 - Latest stable version of Rust. Code is only tested and built using the latest stable version of rustc.
+- Clang and LLVM
+- Tested on windows and ubuntu
 
 #### Install cargo make
 
