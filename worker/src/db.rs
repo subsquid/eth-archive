@@ -7,17 +7,16 @@ use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
     Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
 };
-use libmdbx::Database;
+use libmdbx::{Database, NoWriteMap};
+use std::cmp;
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use std::{cmp, iter, mem};
 
 pub struct DbHandle {
-    inner: Database,
+    inner: Database<NoWriteMap>,
     metrics: Arc<IngestMetrics>,
 }
 
@@ -58,8 +57,8 @@ impl DbHandle {
 
         let iter = cursor
             .into_iter_from(&key)
-            .map(|idx| {
-                let (dir_name, idx) = idx.map_err(Error::Db)?;
+            .map(|res| {
+                let (dir_name, idx): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
 
                 let dir_name = dir_name_from_key(&dir_name);
                 let idx = rmp_serde::decode::from_slice(&idx).unwrap();
@@ -67,8 +66,8 @@ impl DbHandle {
                 Ok((dir_name, idx))
             })
             .take_while(move |res| {
-                let (dir_name, _) = match res.as_ref() {
-                    Ok(a) => a.as_ref().unwrap(),
+                let (dir_name, _) = match res {
+                    Ok(ref a) => a,
                     Err(_) => return true,
                 };
 
@@ -114,9 +113,9 @@ impl DbHandle {
             .map_err(Error::Db)?
             .into_iter_from(&query.from_block.to_be_bytes())
         {
-            let (log_key, log) = res.map_err(Error::Db)?;
+            let (log_key, log): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
 
-            if log_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
+            if log_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
                 break;
             }
 
@@ -141,11 +140,7 @@ impl DbHandle {
 
         let mut txs = BTreeMap::new();
         for key in tx_keys {
-            let tx = self
-                .inner
-                .get(&log_tx_table, &key)
-                .map_err(Error::Db)?
-                .unwrap();
+            let tx: Vec<u8> = txn.get(&log_tx_table, &key).map_err(Error::Db)?.unwrap();
             let tx = rmp_serde::decode::from_slice(&tx).unwrap();
 
             let tx = query.field_selection.transaction.prune(tx);
@@ -193,9 +188,9 @@ impl DbHandle {
             .map_err(Error::Db)?
             .into_iter_from(&query.from_block.to_be_bytes())
         {
-            let (tx_key, tx) = res.map_err(Error::Db)?;
+            let (tx_key, tx): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
 
-            if tx_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
+            if tx_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
                 break;
             }
 
@@ -242,16 +237,13 @@ impl DbHandle {
     ) -> Result<BTreeMap<u32, ResponseBlock>> {
         let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
 
-        let block_table = txn
-            .open_table((Some(table_name::BLOCK)))
-            .map_err(Error::Db)?;
+        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
 
         let mut blocks = BTreeMap::new();
 
         if !query.include_all_blocks {
             for num in block_nums {
-                let block = self
-                    .inner
+                let block: Vec<u8> = txn
                     .get(&block_table, &num.to_be_bytes())
                     .map_err(Error::Db)?
                     .unwrap();
@@ -262,13 +254,12 @@ impl DbHandle {
                 blocks.insert(*num, block);
             }
         } else {
-            for res in self
-                .inner
+            for res in txn
                 .cursor(&block_table)
                 .map_err(Error::Db)?
                 .into_iter_from(&query.from_block.to_be_bytes())
             {
-                let (block_key, block) = res.map_err(Error::Db)?;
+                let (block_key, block): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
 
                 let block_num = u32::from_be_bytes((&*block_key).try_into().unwrap());
 
@@ -290,14 +281,14 @@ impl DbHandle {
         let txn = self.inner.begin_rw_txn().map_err(Error::Db)?;
 
         let parquet_idx_table = txn
-            .open_table(Some(table_name::PARQUET_IDX))?
+            .open_table(Some(table_name::PARQUET_IDX))
             .map_err(Error::Db)?;
 
         let key = key_from_dir_name(dir_name);
 
         let log_val = rmp_serde::encode::to_vec(idx).unwrap();
 
-        txn.put(&parquet_idx_table, &key, &log_val, Default::default())
+        txn.put(&parquet_idx_table, key, &log_val, Default::default())
             .map_err(Error::Db)?;
 
         for table in [
@@ -309,8 +300,8 @@ impl DbHandle {
             let table = txn.open_table(Some(table)).map_err(Error::Db)?;
 
             for res in txn.cursor(&table).map_err(Error::Db)?.into_iter_start() {
-                let (key, _) = res.map_err(Error::Db)?;
-                if key.as_ref() >= dir_name.range.to.to_be_bytes().as_slice() {
+                let (key, _): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
+                if key.as_slice() >= dir_name.range.to.to_be_bytes().as_slice() {
                     break;
                 }
 
@@ -336,12 +327,14 @@ impl DbHandle {
     ) -> Result<()> {
         let txn = self.inner.begin_rw_txn().map_err(Error::Db)?;
 
-        let log_table = txn.open_table(Some(table_name::LOG))?;
-        let tx_table = txn.open_table(Some(table_name::TX))?;
-        let log_tx_table = txn.open_table(Some(table_name::LOG_TX))?;
-        let block_table = txn.open_table(Some(table_name::BLOCK))?;
+        let log_table = txn.open_table(Some(table_name::LOG)).map_err(Error::Db)?;
+        let tx_table = txn.open_table(Some(table_name::TX)).map_err(Error::Db)?;
+        let log_tx_table = txn
+            .open_table(Some(table_name::LOG_TX))
+            .map_err(Error::Db)?;
+        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
 
-        for (block_range, (blocks, logs)) in block_ranges
+        for (_, (blocks, logs)) in block_ranges
             .into_iter()
             .zip(block_batches.into_iter().zip(log_batches.into_iter()))
         {
@@ -353,17 +346,17 @@ impl DbHandle {
                     &val,
                     Default::default(),
                 )
-                .map_err(Error: Db)?;
+                .map_err(Error::Db)?;
 
                 for tx in block.transactions.iter() {
                     let val = rmp_serde::encode::to_vec(tx).unwrap();
-                    let tx_key = tx_key(&tx);
+                    let tx_key = tx_key(tx);
 
                     let log_tx_key = log_tx_key(tx.block_number.0, tx.transaction_index.0);
 
-                    txn.put(&tx_table, &tx_key, &val, Default::default())
+                    txn.put(&tx_table, tx_key, &val, Default::default())
                         .map_err(Error::Db)?;
-                    txn.put(&log_tx_table, &log_tx_key, &val, Default::default())
+                    txn.put(&log_tx_table, log_tx_key, &val, Default::default())
                         .map_err(Error::Db)?;
                 }
             }
@@ -372,7 +365,7 @@ impl DbHandle {
                 let val = rmp_serde::encode::to_vec(&log).unwrap();
                 let log_key = log_key(&log);
                 txn.put(&log_table, log_key, &val, Default::default())
-                    .map_err(Error: Db)?;
+                    .map_err(Error::Db)?;
             }
         }
 
@@ -381,7 +374,15 @@ impl DbHandle {
         Ok(())
     }
 
-    pub fn height(&self) -> u32 {
+    pub fn height(&self) -> Result<u32> {
+        todo!();
+    }
+
+    pub fn hot_data_height(&self) -> Result<u32> {
+        todo!();
+    }
+
+    pub fn parquet_height(&self) -> Result<u32> {
         todo!();
     }
 }

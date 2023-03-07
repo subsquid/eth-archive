@@ -1,6 +1,6 @@
 use crate::data_ctx::scan_parquet_args;
 use crate::db::{DbHandle, ParquetIdx};
-use crate::{bloom, Error, Result};
+use crate::{Error, Result};
 use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};

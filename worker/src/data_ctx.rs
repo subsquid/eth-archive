@@ -45,7 +45,7 @@ impl DataCtx {
         // this task is responsible for downloading tip data from rpc node
         tokio::spawn({
             let db_writer = db_writer.clone();
-            let db_height = db.db_height();
+            let db_height = db.hot_data_height().unwrap();
 
             async move {
                 let best_block = eth_client.clone().get_best_block().await.unwrap();
@@ -71,7 +71,7 @@ impl DataCtx {
         if let Some(data_path) = &config.data_path {
             // this task checks and registers new parquet files to database
             tokio::spawn({
-                let start = db.parquet_height();
+                let start = db.parquet_height().unwrap();
                 let data_path = data_path.clone();
                 let db_writer = db_writer.clone();
 
@@ -140,11 +140,11 @@ impl DataCtx {
         Ok(true)
     }
 
-    pub fn inclusive_height(&self) -> Option<u32> {
-        match self.db.height() {
+    pub fn inclusive_height(&self) -> Result<Option<u32>> {
+        Ok(match self.db.height()? {
             0 => None,
             num => Some(num - 1),
-        }
+        })
     }
 
     pub async fn query(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
@@ -162,7 +162,7 @@ impl DataCtx {
             return Err(Error::EmptyQuery);
         }
 
-        let height = self.db.height();
+        let height = self.db.height()?;
 
         let inclusive_height = match height {
             0 => None,
@@ -185,8 +185,6 @@ impl DataCtx {
                 return Ok(serialize_task);
             }
 
-            let parquet_height = self.db.parquet_height();
-
             let mut field_selection = field_selection;
 
             field_selection.block.number = true;
@@ -201,6 +199,8 @@ impl DataCtx {
             field_selection.log.transaction_index = true;
             field_selection.log.address = true;
             field_selection.log.topics = true;
+
+            let mut next_block = query.from_block;
 
             {
                 let concurrency = self.config.query_concurrency.get();
@@ -338,6 +338,8 @@ impl DataCtx {
 
                     let (tx, rx) = crossbeam_channel::bounded(1);
 
+                    next_block = block_range.to;
+
                     // don't spawn a thread if there is nothing to query
                     if !mini_query.include_all_blocks
                         && mini_query.logs.is_empty()
@@ -370,13 +372,15 @@ impl DataCtx {
             }
 
             {
+                let height = self.db.height()?;
+
                 let to_block = match to_block {
                     Some(to_block) => cmp::min(height, to_block),
                     None => height,
                 };
 
                 let step = usize::try_from(self.config.db_query_batch_size).unwrap();
-                for start in (from_block..to_block).step_by(step) {
+                for start in (next_block..to_block).step_by(step) {
                     if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
                         return Ok(serialize_task);
                     }
