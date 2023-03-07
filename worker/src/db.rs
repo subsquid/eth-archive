@@ -8,12 +8,10 @@ use eth_archive_core::types::{
     Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
 };
 use libmdbx::{Database, NoWriteMap};
-use std::cmp;
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
 
 pub struct DbHandle {
     inner: Database<NoWriteMap>,
@@ -375,15 +373,84 @@ impl DbHandle {
     }
 
     pub fn height(&self) -> Result<u32> {
-        todo!();
+        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+
+        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
+        let parquet_idx_table = txn
+            .open_table(Some(table_name::PARQUET_IDX))
+            .map_err(Error::Db)?;
+
+        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
+            .cursor(&parquet_idx_table)
+            .map_err(Error::Db)?
+            .last()
+            .map_err(Error::Db)?;
+
+        let parquet_height = opt
+            .map(|(dir_name, _)| dir_name_from_key(&dir_name).range.to)
+            .unwrap_or(0);
+
+        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
+            .cursor(&block_table)
+            .map_err(Error::Db)?
+            .first()
+            .map_err(Error::Db)?;
+
+        let hot_data_tail = opt
+            .map(|(hot_data_tail, _)| block_num_from_key(&hot_data_tail))
+            .unwrap_or(0);
+
+        if parquet_height >= hot_data_tail {
+            let opt: Option<(Vec<u8>, Vec<u8>)> = txn
+                .cursor(&block_table)
+                .map_err(Error::Db)?
+                .first()
+                .map_err(Error::Db)?;
+
+            let hot_data_head = opt
+                .map(|(hot_data_head, _)| block_num_from_key(&hot_data_head))
+                .unwrap_or(0);
+
+            Ok(hot_data_head)
+        } else {
+            Ok(parquet_height)
+        }
     }
 
     pub fn hot_data_height(&self) -> Result<u32> {
-        todo!();
+        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
+
+        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
+            .cursor(&block_table)
+            .map_err(Error::Db)?
+            .first()
+            .map_err(Error::Db)?;
+
+        let hot_data_head = opt
+            .map(|(hot_data_head, _)| block_num_from_key(&hot_data_head))
+            .unwrap_or(0);
+
+        Ok(hot_data_head)
     }
 
     pub fn parquet_height(&self) -> Result<u32> {
-        todo!();
+        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+        let parquet_idx_table = txn
+            .open_table(Some(table_name::PARQUET_IDX))
+            .map_err(Error::Db)?;
+
+        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
+            .cursor(&parquet_idx_table)
+            .map_err(Error::Db)?
+            .last()
+            .map_err(Error::Db)?;
+
+        let parquet_height = opt
+            .map(|(dir_name, _)| dir_name_from_key(&dir_name).range.to)
+            .unwrap_or(0);
+
+        Ok(parquet_height)
     }
 }
 
