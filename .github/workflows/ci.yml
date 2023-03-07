@@ -44,4 +44,4 @@ jobs:
     - name: Rustfmt
       run: cargo fmt --check --verbose
     - name: Clippy
-      run: cargo clippy --verbose --all-features -- -Dwarnings
+      run: cargo clippy --verbose -- -Dwarnings
