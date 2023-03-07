@@ -21,9 +21,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose --workspace
+      run: cargo build --workspace
     - name: Test
-      run: cargo test --verbose --workspace
+      run: cargo test --workspace
 
   test_release:
     strategy:
@@ -33,9 +33,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --release --verbose --workspace
+      run: cargo build --release --workspace
     - name: Test
-      run: cargo test --release --verbose --workspace
+      run: cargo test --release --workspace
 
   lint:
     runs-on: ubuntu-latest
@@ -44,4 +44,4 @@ jobs:
     - name: Rustfmt
       run: cargo fmt --check --verbose
     - name: Clippy
-      run: cargo clippy --verbose -- -Dwarnings
+      run: cargo clippy -- -Dwarnings
