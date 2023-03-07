@@ -247,12 +247,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
-
-[[package]]
 name = "array-init-cursor"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -308,36 +302,6 @@ dependencies = [
  "simdutf8",
  "streaming-iterator",
  "strength_reduce",
-]
-
-[[package]]
-name = "arrow2"
-version = "0.16.0"
-source = "git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22#bbeb28ac4384930d342ee8b3152de93fc89dca31"
-dependencies = [
- "ahash 0.8.3",
- "arrow-format",
- "base64 0.21.0",
- "bytemuck",
- "chrono",
- "dyn-clone",
- "either",
- "ethnum",
- "fallible-streaming-iterator",
- "foreign_vec",
- "futures",
- "getrandom",
- "hash_hasher",
- "lexical-core",
- "lz4",
- "multiversion",
- "num-traits",
- "parquet2",
- "rustc_version",
- "simdutf8",
- "streaming-iterator",
- "strength_reduce",
- "zstd 0.11.2+zstd.1.5.2",
 ]
 
 [[package]]
@@ -1406,7 +1370,7 @@ dependencies = [
  "derive_more",
  "futures",
  "log",
- "polars 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
+ "polars",
  "prefix-hex",
  "prometheus-client",
  "rand",
@@ -1476,7 +1440,7 @@ dependencies = [
  "libmdbx",
  "log",
  "mimalloc",
- "polars 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars",
  "prefix-hex",
  "rand",
  "rayon",
@@ -2498,41 +2462,15 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "getrandom",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-io 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-lazy 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-ops 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-time 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "version_check",
-]
-
-[[package]]
-name = "polars"
-version = "0.27.2"
 source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
 dependencies = [
  "getrandom",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-io 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-lazy 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-ops 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-time 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-core",
+ "polars-io",
+ "polars-lazy",
+ "polars-ops",
+ "polars-time",
  "version_check",
-]
-
-[[package]]
-name = "polars-arrow"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
- "hashbrown 0.13.2",
- "num-traits",
- "polars-error 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "thiserror",
 ]
 
 [[package]]
@@ -2543,37 +2481,8 @@ dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
  "hashbrown 0.13.2",
  "num-traits",
- "polars-error 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-error",
  "thiserror",
-]
-
-[[package]]
-name = "polars-core"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "ahash 0.8.3",
- "anyhow",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
- "bitflags",
- "chrono",
- "comfy-table",
- "hashbrown 0.13.2",
- "indexmap",
- "num-traits",
- "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-error 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-row 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "rand",
- "rand_distr",
- "rayon",
- "regex",
- "smartstring",
- "thiserror",
- "wasm-timer",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -2591,10 +2500,10 @@ dependencies = [
  "itoap",
  "num-traits",
  "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-error 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-row 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-arrow",
+ "polars-error",
+ "polars-row",
+ "polars-utils",
  "rand",
  "rand_distr",
  "rayon",
@@ -2608,48 +2517,11 @@ dependencies = [
 [[package]]
 name = "polars-error"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "anyhow",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
- "regex",
- "thiserror",
-]
-
-[[package]]
-name = "polars-error"
-version = "0.27.2"
 source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
 dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
  "regex",
  "thiserror",
-]
-
-[[package]]
-name = "polars-io"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "ahash 0.8.3",
- "anyhow",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
- "bytes",
- "chrono",
- "dirs",
- "lexical",
- "lexical-core",
- "memchr",
- "memmap2",
- "num-traits",
- "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-time 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "rayon",
- "regex",
- "simdutf8",
 ]
 
 [[package]]
@@ -2668,10 +2540,10 @@ dependencies = [
  "memmap2",
  "num-traits",
  "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-time 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-arrow",
+ "polars-core",
+ "polars-time",
+ "polars-utils",
  "rayon",
  "regex",
  "simdutf8",
@@ -2680,52 +2552,21 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "ahash 0.8.3",
- "bitflags",
- "glob",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-io 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-ops 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-pipe 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-plan 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-time 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "rayon",
-]
-
-[[package]]
-name = "polars-lazy"
-version = "0.27.2"
 source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
 dependencies = [
  "ahash 0.8.3",
  "bitflags",
  "glob",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-io 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-ops 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-pipe 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-plan 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-time 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-arrow",
+ "polars-core",
+ "polars-io",
+ "polars-ops",
+ "polars-pipe",
+ "polars-plan",
+ "polars-time",
+ "polars-utils",
  "rayon",
  "smartstring",
-]
-
-[[package]]
-name = "polars-ops"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
- "memchr",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
 ]
 
 [[package]]
@@ -2735,28 +2576,9 @@ source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b708631
 dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
  "memchr",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
- "smartstring",
-]
-
-[[package]]
-name = "polars-pipe"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "crossbeam-channel",
- "enum_dispatch",
- "hashbrown 0.13.2",
- "num-traits",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-io 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-ops 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-plan 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "rayon",
+ "polars-arrow",
+ "polars-core",
+ "polars-utils",
  "smartstring",
 ]
 
@@ -2769,31 +2591,15 @@ dependencies = [
  "enum_dispatch",
  "hashbrown 0.13.2",
  "num-traits",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-io 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-ops 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-plan 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-row 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-arrow",
+ "polars-core",
+ "polars-io",
+ "polars-ops",
+ "polars-plan",
+ "polars-row",
+ "polars-utils",
  "rayon",
  "smartstring",
-]
-
-[[package]]
-name = "polars-plan"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "ahash 0.8.3",
- "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-io 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-ops 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-time 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "rayon",
 ]
 
 [[package]]
@@ -2803,24 +2609,14 @@ source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b708631
 dependencies = [
  "ahash 0.8.3",
  "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-io 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-ops 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-time 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-arrow",
+ "polars-core",
+ "polars-io",
+ "polars-ops",
+ "polars-time",
+ "polars-utils",
  "rayon",
  "smartstring",
-]
-
-[[package]]
-name = "polars-row"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
- "polars-error 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
 ]
 
 [[package]]
@@ -2829,24 +2625,8 @@ version = "0.27.2"
 source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
 dependencies = [
  "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
- "polars-error 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
-]
-
-[[package]]
-name = "polars-time"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "chrono",
- "lexical",
- "now",
- "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-core 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-ops 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "polars-utils 0.27.2 (git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max)",
- "regex",
+ "polars-error",
+ "polars-utils",
 ]
 
 [[package]]
@@ -2858,22 +2638,12 @@ dependencies = [
  "lexical",
  "now",
  "once_cell",
- "polars-arrow 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-core 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-ops 0.27.2 (git+https://github.com/pola-rs/polars)",
- "polars-utils 0.27.2 (git+https://github.com/pola-rs/polars)",
+ "polars-arrow",
+ "polars-core",
+ "polars-ops",
+ "polars-utils",
  "regex",
  "smartstring",
-]
-
-[[package]]
-name = "polars-utils"
-version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
-dependencies = [
- "once_cell",
- "rayon",
- "sysinfo 0.27.8",
 ]
 
 [[package]]
@@ -2884,7 +2654,7 @@ dependencies = [
  "once_cell",
  "rayon",
  "smartstring",
- "sysinfo 0.28.2",
+ "sysinfo",
 ]
 
 [[package]]
@@ -3551,20 +3321,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "sysinfo"
-version = "0.27.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a902e9050fca0a5d6877550b769abd2bd1ce8c04634b941dbe2809735e1a1e33"
-dependencies = [
- "cfg-if",
- "core-foundation-sys",
- "libc",
- "ntapi",
- "once_cell",
- "winapi",
 ]
 
 [[package]]

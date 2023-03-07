@@ -9,7 +9,6 @@ use polars::export::arrow::array::{self, BooleanArray, Int64Array, UInt32Array, 
 use polars::export::arrow::compute::cast::cast;
 use polars::export::arrow::compute::concatenate::concatenate;
 use polars::export::arrow::datatypes::{DataType, Field};
-use polars::prelude::ArrowGetItem;
 use std::collections::BTreeMap;
 
 type BinaryArray = array::BinaryArray<i64>;
@@ -190,19 +189,19 @@ impl ParquetSource for Ver0_0_39 {
                     topics: {
                         let mut topics = ArrayVec::new();
 
-                        if let Some(topic) = (&log_topic0).get(i) {
+                        if let Some(topic) = log_topic0.get(i) {
                             topics.push(Bytes32::new(topic));
                         }
 
-                        if let Some(topic) = (&log_topic1).get(i) {
+                        if let Some(topic) = log_topic1.get(i) {
                             topics.push(Bytes32::new(topic));
                         }
 
-                        if let Some(topic) = (&log_topic2).get(i) {
+                        if let Some(topic) = log_topic2.get(i) {
                             topics.push(Bytes32::new(topic));
                         }
 
-                        if let Some(topic) = (&log_topic3).get(i) {
+                        if let Some(topic) = log_topic3.get(i) {
                             topics.push(Bytes32::new(topic));
                         }
 
