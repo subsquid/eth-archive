@@ -202,29 +202,20 @@ impl DataCtx {
             field_selection.log.address = true;
             field_selection.log.topics = true;
 
-            if query.from_block < parquet_height {
+            {
                 let concurrency = self.config.query_concurrency.get();
 
                 let mut jobs: VecDeque<crossbeam_channel::Receiver<_>> =
                     VecDeque::with_capacity(concurrency);
 
-                for res in self.db.iter_parquet_idxs(
-                    query.from_block,
-                    to_block,
-                    !query.logs.is_empty(),
-                    !query.transactions.is_empty(),
-                )? {
+                for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
                     if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
                         return Ok(serialize_task);
                     }
 
-                    let (log_parquet_idx, tx_parquet_idx) = res?;
+                    let (dir_name, parquet_idx) = res?;
 
-                    let mut dir_name = None;
-
-                    let logs = if let Some((dir, parquet_idx)) = log_parquet_idx {
-                        dir_name = Some(dir);
-
+                    let logs = {
                         query
                             .logs
                             .iter()
@@ -255,13 +246,9 @@ impl DataCtx {
                                 }
                             })
                             .collect::<Vec<_>>()
-                    } else {
-                        query.log_selection()
                     };
 
-                    let transactions = if let Some((dir, parquet_idx)) = tx_parquet_idx {
-                        dir_name = Some(dir);
-
+                    let transactions = {
                         query
                             .transactions
                             .iter()
@@ -315,11 +302,7 @@ impl DataCtx {
                                 }
                             })
                             .collect::<Vec<_>>()
-                    } else {
-                        query.tx_selection()
                     };
-
-                    let dir_name = dir_name.unwrap();
 
                     let from_block = cmp::max(dir_name.range.from, query.from_block);
                     let to_block = match to_block {
@@ -386,9 +369,7 @@ impl DataCtx {
                 }
             }
 
-            let from_block = cmp::max(query.from_block, parquet_height);
-
-            if from_block < height {
+            {
                 let to_block = match to_block {
                     Some(to_block) => cmp::min(height, to_block),
                     None => height,
