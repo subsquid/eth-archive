@@ -57,9 +57,9 @@ pub enum Error {
     #[error("failed to join async task:\n{0}")]
     TaskJoinError(tokio::task::JoinError),
     #[error("failed to open database:\n{0}")]
-    OpenDb(libmdbx::Error),
+    OpenDb(rocksdb::Error),
     #[error("database error:\n{0}")]
-    Db(libmdbx::Error),
+    Db(rocksdb::Error),
     #[error("failed to build ethereum rpc client:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
     #[error("failed to encode metrics:\n{0}")]

@@ -112,6 +112,8 @@ impl DbWriter {
 
         db.insert_parquet_idx(dir_name, &bloom_filter_from_frames(data_frames))?;
 
+        db.delete_up_to(dir_name.range.to)?;
+
         Ok(())
     }
 }

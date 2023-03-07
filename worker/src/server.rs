@@ -48,7 +48,7 @@ impl Server {
 }
 
 async fn height(app_data: web::Data<AppData>) -> Result<web::Json<serde_json::Value>> {
-    let height = app_data.data_ctx.inclusive_height()?;
+    let height = app_data.data_ctx.inclusive_height();
 
     Ok(web::Json(serde_json::json!({ "height": height })))
 }
