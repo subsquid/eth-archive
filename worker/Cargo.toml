@@ -24,19 +24,10 @@ derive_more = "0.99"
 fnv = "1"
 rand = "0.8"
 roaring = { version = "0.10", features = ["serde"] }
+rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
 
 eth-archive-core = { path = "../core" }
 
 [dependencies.polars]
 git = "https://github.com/pola-rs/polars"
 features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
-
-[target.'cfg( target_os = "windows" )'.dependencies.rocksdb]
-version = "0.20"
-default-features = false
-features = ["lz4"]
-
-[target.'cfg( not(target_os = "windows" ))'.dependencies.rocksdb]
-version = "0.20"
-default-features = false
-features = ["lz4", "jemalloc"]
