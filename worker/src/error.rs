@@ -68,6 +68,8 @@ pub enum Error {
     BuildS3Client(eth_archive_core::Error),
     #[error("empty query")]
     EmptyQuery,
+    #[error("max number of queries are running.")]
+    MaxNumberOfQueriesReached,
 }
 
 pub type Result<T> = StdResult<T, Error>;

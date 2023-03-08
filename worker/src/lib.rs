@@ -7,6 +7,7 @@ mod error;
 mod field_selection;
 mod serialize_task;
 mod server;
+mod thread_pool;
 mod types;
 
 pub use config::Config;
