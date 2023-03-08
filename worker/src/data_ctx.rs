@@ -3,13 +3,13 @@ use crate::db::DbHandle;
 use crate::db_writer::DbWriter;
 use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
+use crate::thread_pool::ThreadPool;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::eth_client::EthClient;
 use eth_archive_core::ingest_metrics::IngestMetrics;
-use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_client::{Direction, S3Client};
 use eth_archive_core::types::{
@@ -18,7 +18,6 @@ use eth_archive_core::types::{
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use polars::prelude::*;
-use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -27,6 +26,7 @@ use std::{cmp, io};
 pub struct DataCtx {
     config: Config,
     db: Arc<DbHandle>,
+    thread_pool: ThreadPool,
 }
 
 impl DataCtx {
@@ -41,6 +41,8 @@ impl DataCtx {
         let eth_client = EthClient::new(config.ingest.clone(), retry, ingest_metrics.clone())
             .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
+
+        let thread_pool = ThreadPool::new(config.max_concurrent_queries.get());
 
         // this task is responsible for downloading tip data from rpc node
         tokio::spawn({
@@ -118,7 +120,11 @@ impl DataCtx {
             }
         }
 
-        Ok(Self { config, db })
+        Ok(Self {
+            config,
+            db,
+            thread_pool,
+        })
     }
 
     async fn parquet_folder_is_valid(data_path: &Path, dir_name: DirName) -> Result<bool> {
@@ -180,12 +186,13 @@ impl DataCtx {
 
         let query_start = Instant::now();
 
-        let query_task = rayon_async::spawn(move || {
+        let data_ctx = self.clone();
+        let query_task = self.thread_pool.spawn(move || {
             if query.from_block >= height {
                 return Ok(serialize_task);
             }
 
-            let parquet_height = self.db.parquet_height();
+            let parquet_height = data_ctx.db.parquet_height();
 
             let mut field_selection = field_selection;
 
@@ -203,13 +210,8 @@ impl DataCtx {
             field_selection.log.topics = true;
 
             if query.from_block < parquet_height {
-                let concurrency = self.config.query_concurrency.get();
-
-                let mut jobs: VecDeque<crossbeam_channel::Receiver<_>> =
-                    VecDeque::with_capacity(concurrency);
-
-                for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
-                    if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
+                for res in data_ctx.db.iter_parquet_idxs(query.from_block, to_block)? {
+                    if query_start.elapsed().as_millis() >= data_ctx.config.resp_time_limit {
                         return Ok(serialize_task);
                     }
 
@@ -320,44 +322,14 @@ impl DataCtx {
                         include_all_blocks: query.include_all_blocks,
                     };
 
-                    if jobs.len() == concurrency {
-                        let job = jobs.pop_front().unwrap();
-
-                        let (res, block_range) = job.recv().unwrap();
-
-                        let res = res?;
-
-                        if !serialize_task.send((res, block_range)) {
-                            return Ok(serialize_task);
-                        }
-                    }
-
-                    let (tx, rx) = crossbeam_channel::bounded(1);
-
-                    // don't spawn a thread if there is nothing to query
-                    if !mini_query.include_all_blocks
+                    let res = if !mini_query.include_all_blocks
                         && mini_query.logs.is_empty()
                         && mini_query.transactions.is_empty()
                     {
-                        tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
-                            .ok();
+                        data_ctx.clone().query_parquet(dir_name, mini_query)?
                     } else {
-                        rayon::spawn({
-                            let ctx = self.clone();
-                            move || {
-                                tx.send((ctx.query_parquet(dir_name, mini_query), block_range))
-                                    .ok();
-                            }
-                        });
-                    }
-
-                    jobs.push_back(rx);
-                }
-
-                while let Some(job) = jobs.pop_front() {
-                    let (res, block_range) = job.recv().unwrap();
-
-                    let res = res?;
+                        QueryResult { data: Vec::new() }
+                    };
 
                     if !serialize_task.send((res, block_range)) {
                         return Ok(serialize_task);
@@ -373,13 +345,13 @@ impl DataCtx {
                     None => height,
                 };
 
-                let step = usize::try_from(self.config.db_query_batch_size).unwrap();
+                let step = usize::try_from(data_ctx.config.db_query_batch_size).unwrap();
                 for start in (from_block..to_block).step_by(step) {
-                    if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
+                    if query_start.elapsed().as_millis() >= data_ctx.config.resp_time_limit {
                         return Ok(serialize_task);
                     }
 
-                    let end = cmp::min(to_block, start + self.config.db_query_batch_size);
+                    let end = cmp::min(to_block, start + data_ctx.config.db_query_batch_size);
 
                     let mini_query = MiniQuery {
                         from_block: start,
@@ -394,7 +366,7 @@ impl DataCtx {
                         return Ok(serialize_task);
                     }
 
-                    let res = self.db.query(mini_query)?;
+                    let res = data_ctx.db.query(mini_query)?;
 
                     let block_range = BlockRange {
                         from: start,
@@ -411,7 +383,7 @@ impl DataCtx {
         });
 
         // run query task to end, then run serialization task to end
-        query_task.await?.join().await
+        query_task.await??.join().await
     }
 
     fn query_parquet(&self, dir_name: DirName, query: MiniQuery) -> Result<QueryResult> {

@@ -26,8 +26,9 @@ pub struct Config {
     /// Response body might be bigger than this amount of MBs.
     #[clap(long)]
     pub max_resp_body_size: usize,
-    #[clap(long, default_value_t = NonZeroUsize::new(2).unwrap())]
-    pub query_concurrency: NonZeroUsize,
+    /// Maximum number of concurrent queries
+    #[clap(long, default_value_t = NonZeroUsize::new(64).unwrap())]
+    pub max_concurrent_queries: NonZeroUsize,
     /// Response time limit in milliseconds.
     /// The query will stop and found data will be returned
     /// if the request takes more than this amount of time to handle.
