@@ -408,6 +408,7 @@ impl DataCtx {
         if query.include_all_blocks {
             let blocks = self
                 .open_all_blocks_lazy_frame(dir_name, &query)?
+                .with_streaming(true)
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
@@ -446,7 +447,10 @@ impl DataCtx {
             }
         }
 
-        let result_frame = lazy_frame.collect().map_err(Error::ExecuteQuery)?;
+        let result_frame = lazy_frame
+            .with_streaming(true)
+            .collect()
+            .map_err(Error::ExecuteQuery)?;
 
         let data = response_rows_from_result_frame(result_frame)?;
 
@@ -486,7 +490,10 @@ impl DataCtx {
             }
         }
 
-        let result_frame = lazy_frame.collect().map_err(Error::ExecuteQuery)?;
+        let result_frame = lazy_frame
+            .with_streaming(true)
+            .collect()
+            .map_err(Error::ExecuteQuery)?;
 
         let data = tx_response_rows_from_result_frame(result_frame)?;
 
@@ -992,11 +999,11 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
 pub fn scan_parquet_args() -> ScanArgsParquet {
     ScanArgsParquet {
         n_rows: None,
-        cache: true,
-        parallel: ParallelStrategy::Auto,
-        rechunk: true,
+        cache: false,
+        parallel: ParallelStrategy::None,
+        rechunk: false,
         row_count: None,
-        low_memory: false,
+        low_memory: true,
         cloud_options: None,
         use_statistics: true,
     }
