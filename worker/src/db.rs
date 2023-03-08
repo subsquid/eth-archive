@@ -14,13 +14,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, iter, mem};
 
-pub type ParquetIdxIter<'a> = Box<
-    dyn Iterator<Item = Result<(Option<(DirName, ParquetIdx)>, Option<(DirName, ParquetIdx)>)>>
-        + 'a,
->;
-
-type ParquetIdxIterSingle<'a> =
-    Box<dyn Iterator<Item = Result<Option<(DirName, ParquetIdx)>>> + 'a>;
+type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, ParquetIdx)>> + 'a>;
 
 pub struct DbHandle {
     inner: rocksdb::DB,
@@ -41,7 +35,7 @@ impl DbHandle {
         let (inner, status) = tokio::task::spawn_blocking(move || {
             let mut block_opts = rocksdb::BlockBasedOptions::default();
 
-            block_opts.set_block_size(128 * 1024);
+            block_opts.set_block_size(64 * 1024);
             block_opts.set_format_version(5);
             block_opts.set_bloom_filter(10.0, true);
             block_opts.set_cache_index_and_filter_blocks(true);
@@ -74,17 +68,8 @@ impl DbHandle {
         })
     }
 
-    pub fn iter_parquet_idxs(
-        &self,
-        from: u32,
-        to: Option<u32>,
-        iter_log_idxs: bool,
-        iter_tx_idxs: bool,
-    ) -> Result<ParquetIdxIter<'_>> {
-        assert!(iter_log_idxs || iter_tx_idxs);
-
-        let log_parquet_idx_cf = self.inner.cf_handle(cf_name::LOG_PARQUET_IDX).unwrap();
-        let tx_parquet_idx_cf = self.inner.cf_handle(cf_name::TX_PARQUET_IDX).unwrap();
+    pub fn iter_parquet_idxs(&self, from: u32, to: Option<u32>) -> Result<ParquetIdxIter<'_>> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let key = key_from_dir_name(DirName {
             range: BlockRange {
@@ -95,7 +80,7 @@ impl DbHandle {
         });
 
         let mut iter = self.inner.iterator_cf(
-            log_parquet_idx_cf,
+            parquet_idx_cf,
             rocksdb::IteratorMode::From(&key, rocksdb::Direction::Reverse),
         );
 
@@ -105,49 +90,32 @@ impl DbHandle {
             None => return Ok(Box::new(iter::empty())),
         };
 
-        let open_iter = |cf| {
-            self.inner
-                .iterator_cf(
-                    cf,
-                    rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
-                )
-                .map(|idx| {
-                    let (dir_name, idx) = idx.map_err(Error::Db)?;
-                    let dir_name = dir_name_from_key(&dir_name);
-                    let idx = rmp_serde::decode::from_slice(&idx).unwrap();
+        let iter = self
+            .inner
+            .iterator_cf(
+                parquet_idx_cf,
+                rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
+            )
+            .map(|idx| {
+                let (dir_name, idx) = idx.map_err(Error::Db)?;
+                let dir_name = dir_name_from_key(&dir_name);
+                let idx = rmp_serde::decode::from_slice(&idx).unwrap();
 
-                    Ok(Some((dir_name, idx)))
-                })
-                .take_while(move |res| {
-                    let (dir_name, _) = match res.as_ref() {
-                        Ok(a) => a.as_ref().unwrap(),
-                        Err(_) => return true,
-                    };
+                Ok((dir_name, idx))
+            })
+            .take_while(move |res| {
+                let (dir_name, _) = match res {
+                    Ok(ref a) => a,
+                    Err(_) => return true,
+                };
 
-                    match to {
-                        Some(to) => dir_name.range.from < to,
-                        None => true,
-                    }
-                })
-        };
+                match to {
+                    Some(to) => dir_name.range.from < to,
+                    None => true,
+                }
+            });
 
-        let empty_iter = || Box::new(std::iter::from_fn(|| Some(Ok(None))));
-
-        let log_iter: ParquetIdxIterSingle = if iter_log_idxs {
-            Box::new(open_iter(log_parquet_idx_cf))
-        } else {
-            empty_iter()
-        };
-
-        let tx_iter: ParquetIdxIterSingle = if iter_tx_idxs {
-            Box::new(open_iter(tx_parquet_idx_cf))
-        } else {
-            empty_iter()
-        };
-
-        let iterator = log_iter.zip(tx_iter).map(|(l, r)| Ok((l?, r?)));
-
-        Ok(Box::new(iterator))
+        Ok(Box::new(iter))
     }
 
     pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
@@ -350,25 +318,16 @@ impl DbHandle {
         Ok(blocks)
     }
 
-    pub fn insert_parquet_idx(
-        &self,
-        dir_name: DirName,
-        idx: &(ParquetIdx, ParquetIdx),
-    ) -> Result<()> {
-        let log_parquet_idx_cf = self.inner.cf_handle(cf_name::LOG_PARQUET_IDX).unwrap();
-        let tx_parquet_idx_cf = self.inner.cf_handle(cf_name::TX_PARQUET_IDX).unwrap();
+    pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let key = key_from_dir_name(dir_name);
 
-        let log_val = rmp_serde::encode::to_vec(&idx.0).unwrap();
-        let tx_val = rmp_serde::encode::to_vec(&idx.1).unwrap();
+        let idx = rmp_serde::encode::to_vec(idx).unwrap();
 
-        let mut batch = rocksdb::WriteBatch::default();
-
-        batch.put_cf(log_parquet_idx_cf, key, &log_val);
-        batch.put_cf(tx_parquet_idx_cf, key, &tx_val);
-
-        self.inner.write(batch).map_err(Error::Db)?;
+        self.inner
+            .put_cf(parquet_idx_cf, key, idx)
+            .map_err(Error::Db)?;
 
         self.status
             .parquet_height
@@ -531,10 +490,10 @@ impl DbHandle {
     }
 
     fn get_status(inner: &rocksdb::DB) -> Result<Status> {
-        let log_parquet_idx_cf = inner.cf_handle(cf_name::LOG_PARQUET_IDX).unwrap();
+        let parquet_idx_cf = inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let parquet_height = inner
-            .iterator_cf(log_parquet_idx_cf, rocksdb::IteratorMode::End)
+            .iterator_cf(parquet_idx_cf, rocksdb::IteratorMode::End)
             .next()
             .transpose()
             .map_err(Error::Db)?
@@ -573,10 +532,9 @@ mod cf_name {
     pub const TX: &str = "TX";
     pub const LOG: &str = "LOG";
     pub const LOG_TX: &str = "LOG_TX";
-    pub const LOG_PARQUET_IDX: &str = "LOG_PARQUET_IDX";
-    pub const TX_PARQUET_IDX: &str = "TX_PARQUET_IDX";
+    pub const PARQUET_IDX: &str = "PARQUET_IDX";
 
-    pub const ALL_CF_NAMES: [&str; 6] = [BLOCK, TX, LOG, LOG_TX, LOG_PARQUET_IDX, TX_PARQUET_IDX];
+    pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
 }
 
 pub type ParquetIdx = crate::bloom::Bloom<Address>;

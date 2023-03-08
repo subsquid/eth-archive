@@ -208,118 +208,97 @@ impl DataCtx {
                 let mut jobs: VecDeque<crossbeam_channel::Receiver<_>> =
                     VecDeque::with_capacity(concurrency);
 
-                for res in self.db.iter_parquet_idxs(
-                    query.from_block,
-                    to_block,
-                    !query.logs.is_empty(),
-                    !query.transactions.is_empty(),
-                )? {
+                for res in self.db.iter_parquet_idxs(query.from_block, to_block)? {
                     if query_start.elapsed().as_millis() >= self.config.resp_time_limit {
                         return Ok(serialize_task);
                     }
 
-                    let (log_parquet_idx, tx_parquet_idx) = res?;
+                    let (dir_name, parquet_idx) = res?;
 
-                    let mut dir_name = None;
-
-                    let logs = if let Some((dir, parquet_idx)) = log_parquet_idx {
-                        dir_name = Some(dir);
-
-                        query
-                            .logs
-                            .iter()
-                            .filter_map(|log_selection| {
-                                let address = match &log_selection.address {
-                                    Some(address) if !address.is_empty() => address,
-                                    _ => {
-                                        return Some(MiniLogSelection {
-                                            address: log_selection.address.clone(),
-                                            topics: log_selection.topics.clone(),
-                                        });
-                                    }
-                                };
-
-                                let address = address
-                                    .iter()
-                                    .filter(|addr| parquet_idx.contains(addr))
-                                    .cloned()
-                                    .collect::<Vec<_>>();
-
-                                if !address.is_empty() {
-                                    Some(MiniLogSelection {
-                                        address: Some(address),
+                    let logs = query
+                        .logs
+                        .iter()
+                        .filter_map(|log_selection| {
+                            let address = match &log_selection.address {
+                                Some(address) if !address.is_empty() => address,
+                                _ => {
+                                    return Some(MiniLogSelection {
+                                        address: log_selection.address.clone(),
                                         topics: log_selection.topics.clone(),
-                                    })
-                                } else {
-                                    None
+                                    });
                                 }
-                            })
-                            .collect::<Vec<_>>()
-                    } else {
-                        query.log_selection()
-                    };
+                            };
 
-                    let transactions = if let Some((dir, parquet_idx)) = tx_parquet_idx {
-                        dir_name = Some(dir);
+                            let address = address
+                                .iter()
+                                .filter(|addr| parquet_idx.contains(addr))
+                                .cloned()
+                                .collect::<Vec<_>>();
 
-                        query
-                            .transactions
-                            .iter()
-                            .filter_map(|tx_selection| {
-                                let source = match tx_selection.source.as_ref() {
-                                    Some(source) if !source.is_empty() => {
-                                        let source = source
-                                            .iter()
-                                            .filter(|addr| parquet_idx.contains(addr))
-                                            .cloned()
-                                            .collect::<Vec<_>>();
-                                        if source.is_empty() {
-                                            None
-                                        } else {
-                                            Some(source)
-                                        }
+                            if !address.is_empty() {
+                                Some(MiniLogSelection {
+                                    address: Some(address),
+                                    topics: log_selection.topics.clone(),
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    let transactions = query
+                        .transactions
+                        .iter()
+                        .filter_map(|tx_selection| {
+                            let source = match tx_selection.source.as_ref() {
+                                Some(source) if !source.is_empty() => {
+                                    let source = source
+                                        .iter()
+                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .cloned()
+                                        .collect::<Vec<_>>();
+                                    if source.is_empty() {
+                                        None
+                                    } else {
+                                        Some(source)
                                     }
-                                    _ => match tx_selection.dest.as_ref() {
-                                        Some(dest) if !dest.is_empty() => None,
-                                        _ => Some(Vec::new()), // if both null select all
-                                    },
-                                };
-
-                                let dest = match tx_selection.dest.as_ref() {
-                                    Some(dest) if !dest.is_empty() => {
-                                        let dest = dest
-                                            .iter()
-                                            .filter(|addr| parquet_idx.contains(addr))
-                                            .cloned()
-                                            .collect::<Vec<_>>();
-                                        if dest.is_empty() {
-                                            None
-                                        } else {
-                                            Some(dest)
-                                        }
-                                    }
-                                    _ => match tx_selection.source.as_ref() {
-                                        Some(source) if !source.is_empty() => None,
-                                        _ => Some(Vec::new()), // if both null select all
-                                    },
-                                };
-
-                                match (source, dest) {
-                                    (None, None) => None,
-                                    (source, dest) => Some(MiniTransactionSelection {
-                                        source,
-                                        dest,
-                                        sighash: tx_selection.sighash.clone(),
-                                        status: tx_selection.status,
-                                    }),
                                 }
-                            })
-                            .collect::<Vec<_>>()
-                    } else {
-                        query.tx_selection()
-                    };
+                                _ => match tx_selection.dest.as_ref() {
+                                    Some(dest) if !dest.is_empty() => None,
+                                    _ => Some(Vec::new()), // if both null select all
+                                },
+                            };
 
-                    let dir_name = dir_name.unwrap();
+                            let dest = match tx_selection.dest.as_ref() {
+                                Some(dest) if !dest.is_empty() => {
+                                    let dest = dest
+                                        .iter()
+                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .cloned()
+                                        .collect::<Vec<_>>();
+                                    if dest.is_empty() {
+                                        None
+                                    } else {
+                                        Some(dest)
+                                    }
+                                }
+                                _ => match tx_selection.source.as_ref() {
+                                    Some(source) if !source.is_empty() => None,
+                                    _ => Some(Vec::new()), // if both null select all
+                                },
+                            };
+
+                            match (source, dest) {
+                                (None, None) => None,
+                                (source, dest) => Some(MiniTransactionSelection {
+                                    source,
+                                    dest,
+                                    sighash: tx_selection.sighash.clone(),
+                                    status: tx_selection.status,
+                                }),
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
                     let from_block = cmp::max(dir_name.range.from, query.from_block);
                     let to_block = match to_block {

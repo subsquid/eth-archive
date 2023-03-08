@@ -29,6 +29,5 @@ default-features = false
 features = ["json", "rustls-tls", "gzip"]
 
 [dependencies.polars]
-git = "https://github.com/ozgrakkurt/polars"
-branch = "parquet-binary-min-max"
+git = "https://github.com/pola-rs/polars"
 features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
