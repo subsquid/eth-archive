@@ -307,7 +307,7 @@ dependencies = [
 [[package]]
 name = "arrow2"
 version = "0.16.0"
-source = "git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01#db533042a0129ea9ea26eec4c481126f29b6e631"
+source = "git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46#f258a3e06ac408aebe7a7a497694729dc65a5e46"
 dependencies = [
  "ahash 0.8.3",
  "arrow-format",
@@ -2474,7 +2474,7 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "getrandom",
  "polars-core",
@@ -2488,9 +2488,9 @@ dependencies = [
 [[package]]
 name = "polars-arrow"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
+ "arrow2 0.16.0 (git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46)",
  "hashbrown 0.13.2",
  "num-traits",
  "polars-error",
@@ -2500,10 +2500,10 @@ dependencies = [
 [[package]]
 name = "polars-core"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "ahash 0.8.3",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
+ "arrow2 0.16.0 (git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46)",
  "bitflags",
  "chrono",
  "comfy-table",
@@ -2529,9 +2529,9 @@ dependencies = [
 [[package]]
 name = "polars-error"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
+ "arrow2 0.16.0 (git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46)",
  "regex",
  "thiserror",
 ]
@@ -2539,10 +2539,10 @@ dependencies = [
 [[package]]
 name = "polars-io"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "ahash 0.8.3",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
+ "arrow2 0.16.0 (git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46)",
  "bytes",
  "chrono",
  "dirs",
@@ -2564,7 +2564,7 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "ahash 0.8.3",
  "bitflags",
@@ -2584,9 +2584,9 @@ dependencies = [
 [[package]]
 name = "polars-ops"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
+ "arrow2 0.16.0 (git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46)",
  "memchr",
  "polars-arrow",
  "polars-core",
@@ -2597,7 +2597,7 @@ dependencies = [
 [[package]]
 name = "polars-pipe"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "crossbeam-channel",
  "enum_dispatch",
@@ -2617,7 +2617,7 @@ dependencies = [
 [[package]]
 name = "polars-plan"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "ahash 0.8.3",
  "once_cell",
@@ -2634,9 +2634,9 @@ dependencies = [
 [[package]]
 name = "polars-row"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-01)",
+ "arrow2 0.16.0 (git+https://github.com/jorgecarleitao/arrow2?rev=f258a3e06ac408aebe7a7a497694729dc65a5e46)",
  "polars-error",
  "polars-utils",
 ]
@@ -2644,7 +2644,7 @@ dependencies = [
 [[package]]
 name = "polars-time"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "chrono",
  "lexical",
@@ -2661,7 +2661,7 @@ dependencies = [
 [[package]]
 name = "polars-utils"
 version = "0.27.2"
-source = "git+https://github.com/pola-rs/polars#4feab6d25d755179c5f8e27d6b7086319701e054"
+source = "git+https://github.com/pola-rs/polars#b023c500c5555ae553003d135997a273dcf69eb4"
 dependencies = [
  "once_cell",
  "rayon",
