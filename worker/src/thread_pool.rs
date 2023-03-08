@@ -1,22 +1,23 @@
 use crate::{Error, Result};
-use rayon::{ThreadPool as RayonThreadPool, ThreadPoolBuilder};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
+use threadpool::ThreadPool as ThreadPoolImpl;
 use tokio::sync::oneshot;
 
 pub struct ThreadPool {
-    inner: RayonThreadPool,
+    inner: Arc<Mutex<ThreadPoolImpl>>,
     current_num_queries: AtomicUsize,
     max_num_queries: usize,
 }
 
 impl ThreadPool {
-    pub fn new(max_num_queries: usize) -> ThreadPool {
+    pub fn new(max_num_queries: usize, max_jobs_per_query: usize) -> ThreadPool {
+        let inner = ThreadPoolImpl::new(max_num_queries * max_jobs_per_query);
+        let inner = Arc::new(Mutex::new(inner));
+
         ThreadPool {
-            inner: ThreadPoolBuilder::new()
-                .num_threads(max_num_queries)
-                .build()
-                .unwrap(),
+            inner,
             current_num_queries: AtomicUsize::new(0),
             max_num_queries,
         }
@@ -25,7 +26,7 @@ impl ThreadPool {
     pub async fn spawn<F, T>(&self, func: F) -> Result<T>
     where
         F: 'static + FnOnce() -> T + Send,
-        T: 'static + Send + Sync,
+        T: 'static + Send,
     {
         let max_num_queries = self.max_num_queries;
         if self
@@ -48,10 +49,24 @@ impl ThreadPool {
 
         let (tx, rx) = oneshot::channel();
 
-        self.inner.spawn(move || {
+        self.inner.lock().unwrap().execute(move || {
             tx.send(func()).ok().unwrap();
         });
 
-        Ok(rx.await.unwrap())
+        let res = rx.await.unwrap();
+
+        self.current_num_queries.fetch_sub(1, Ordering::SeqCst);
+
+        Ok(res)
+    }
+
+    pub fn spawn_aux<F, T>(&self, func: F)
+    where
+        F: 'static + FnOnce() -> T + Send,
+        T: 'static + Send,
+    {
+        self.inner.lock().unwrap().execute(|| {
+            func();
+        });
     }
 }

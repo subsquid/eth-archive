@@ -18,6 +18,7 @@ use eth_archive_core::types::{
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use polars::prelude::*;
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -42,7 +43,10 @@ impl DataCtx {
             .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
-        let thread_pool = ThreadPool::new(config.max_concurrent_queries.get());
+        let thread_pool = ThreadPool::new(
+            config.max_concurrent_queries.get(),
+            config.query_concurrency.get() + 1,
+        );
 
         // this task is responsible for downloading tip data from rpc node
         tokio::spawn({
@@ -210,6 +214,11 @@ impl DataCtx {
             field_selection.log.topics = true;
 
             if query.from_block < parquet_height {
+                let concurrency = data_ctx.config.query_concurrency.get();
+
+                let mut jobs: VecDeque<crossbeam_channel::Receiver<_>> =
+                    VecDeque::with_capacity(concurrency);
+
                 for res in data_ctx.db.iter_parquet_idxs(query.from_block, to_block)? {
                     if query_start.elapsed().as_millis() >= data_ctx.config.resp_time_limit {
                         return Ok(serialize_task);
@@ -322,14 +331,44 @@ impl DataCtx {
                         include_all_blocks: query.include_all_blocks,
                     };
 
-                    let res = if !mini_query.include_all_blocks
+                    if jobs.len() == concurrency {
+                        let job = jobs.pop_front().unwrap();
+
+                        let (res, block_range) = job.recv().unwrap();
+
+                        let res = res?;
+
+                        if !serialize_task.send((res, block_range)) {
+                            return Ok(serialize_task);
+                        }
+                    }
+
+                    let (tx, rx) = crossbeam_channel::bounded(1);
+
+                    // don't spawn a thread if there is nothing to query
+                    if !mini_query.include_all_blocks
                         && mini_query.logs.is_empty()
                         && mini_query.transactions.is_empty()
                     {
-                        data_ctx.clone().query_parquet(dir_name, mini_query)?
+                        tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
+                            .ok();
                     } else {
-                        QueryResult { data: Vec::new() }
-                    };
+                        data_ctx.thread_pool.spawn_aux({
+                            let ctx = data_ctx.clone();
+                            move || {
+                                tx.send((ctx.query_parquet(dir_name, mini_query), block_range))
+                                    .ok();
+                            }
+                        });
+                    }
+
+                    jobs.push_back(rx);
+                }
+
+                while let Some(job) = jobs.pop_front() {
+                    let (res, block_range) = job.recv().unwrap();
+
+                    let res = res?;
 
                     if !serialize_task.send((res, block_range)) {
                         return Ok(serialize_task);
