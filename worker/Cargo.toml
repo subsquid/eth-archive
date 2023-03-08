@@ -25,13 +25,13 @@ fnv = "1"
 rand = "0.8"
 roaring = { version = "0.10", features = ["serde"] }
 rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
-threadpool = "1.8.1"
+threadpool = "1"
 
 eth-archive-core = { path = "../core" }
 
 [dependencies.polars]
 git = "https://github.com/pola-rs/polars"
-features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
+features = [ "streaming", "lazy", "is_in", "dtype-full", "parquet" ]
 
 [features]
 rocksdb-unix = ["rocksdb/jemalloc", "rocksdb/io-uring"]
