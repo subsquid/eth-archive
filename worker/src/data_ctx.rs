@@ -18,6 +18,7 @@ use eth_archive_core::types::{
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use polars::prelude::*;
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -330,11 +331,27 @@ impl DataCtx {
                         include_all_blocks: query.include_all_blocks,
                     };
 
-                    let res = if !mini_query.include_all_blocks
+                    if jobs.len() == concurrency {
+                        let job = jobs.pop_front().unwrap();
+
+                        let (res, block_range) = job.recv().unwrap();
+
+                        let res = res?;
+
+                        if !serialize_task.send((res, block_range)) {
+                            return Ok(serialize_task);
+                        }
+                    }
+
+                    let (tx, rx) = crossbeam_channel::bounded(1);
+
+                    // don't spawn a thread if there is nothing to query
+                    if !mini_query.include_all_blocks
                         && mini_query.logs.is_empty()
                         && mini_query.transactions.is_empty()
                     {
-                        data_ctx.clone().query_parquet(dir_name, mini_query)?
+                        tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
+                            .ok();
                     } else {
                         data_ctx.thread_pool.spawn_aux({
                             let ctx = data_ctx.clone();
