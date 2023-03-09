@@ -6,6 +6,7 @@ use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
     Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
 };
+use futures::channel::mpsc;
 use libmdbx::{Database, NoWriteMap};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -20,7 +21,12 @@ pub struct DbHandle {
 impl DbHandle {
     pub async fn new(path: &Path, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
         let path = path.to_owned();
+        tokio::task::spawn_blocking(move || Self::new_impl(path, metrics))
+            .await
+            .unwrap()
+    }
 
+    fn new_impl(path: PathBuf, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
         let inner = Database::new()
             .set_max_tables(table_name::ALL_TABLE_NAMES.len())
             .open(&path)
@@ -36,7 +42,29 @@ impl DbHandle {
         Ok(Self { inner, metrics })
     }
 
-    pub fn iter_parquet_idxs(
+    pub async fn iter_parquet_idxs(
+        self: Arc<Self>,
+        from: u32,
+        to: Option<u32>,
+    ) -> Result<impl Stream<Item = Result<(DirName, ParquetIdx)>>> {
+        let iter = tokio::task::spawn_blocking(move || self.iter_parquet_idxs(from, to))
+            .await
+            .unwrap()?;
+
+        let (tx, rx) = mpsc::channel(1);
+
+        std::thread::spawn(move || {
+            for res in iter {
+                if let Err(_) = tx.send_blocking(res) {
+                    break;
+                }
+            }
+        });
+
+        Ok(rx)
+    }
+
+    fn iter_parquet_idxs_impl(
         &self,
         from: u32,
         to: Option<u32>,
@@ -77,7 +105,13 @@ impl DbHandle {
         Ok(Box::new(iter))
     }
 
-    pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
+    pub async fn query(self: Arc<Self>, query: MiniQuery) -> Result<QueryResult> {
+        tokio::task::spawn_blocking(move || self.query_impl(query))
+            .await
+            .unwrap()
+    }
+
+    fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
         let mut data = vec![];
 
         if !query.logs.is_empty() {
@@ -371,7 +405,13 @@ impl DbHandle {
         Ok(())
     }
 
-    pub fn height(&self) -> Result<u32> {
+    pub async fn height(self: Arc<Self>) -> Result<u32> {
+        tokio::task::spawn_blocking(move || self.height_impl())
+            .await
+            .unwrap()
+    }
+
+    fn height_impl(&self) -> Result<u32> {
         let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
 
         let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
@@ -416,7 +456,13 @@ impl DbHandle {
         }
     }
 
-    pub fn hot_data_height(&self) -> Result<u32> {
+    pub async fn hot_data_height(self: Arc<Self>) -> Result<u32> {
+        tokio::task::spawn_blocking(move || self.hot_data_height_impl())
+            .await
+            .unwrap()
+    }
+
+    fn hot_data_height_impl(&self) -> Result<u32> {
         let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
         let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
 
@@ -433,7 +479,13 @@ impl DbHandle {
         Ok(hot_data_head)
     }
 
-    pub fn parquet_height(&self) -> Result<u32> {
+    pub async fn parquet_height(self: Arc<Self>) -> Result<u32> {
+        tokio::task::spawn_blocking(move || self.parquet_height_impl())
+            .await
+            .unwrap()
+    }
+
+    fn parquet_height_impl(&self) -> Result<u32> {
         let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
         let parquet_idx_table = txn
             .open_table(Some(table_name::PARQUET_IDX))

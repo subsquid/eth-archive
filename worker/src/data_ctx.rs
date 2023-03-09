@@ -46,10 +46,17 @@ impl DataCtx {
             config.query_concurrency.get() + 1,
         );
 
+        let hot_data_height = db.hot_data_height()?;
+        let parquet_height = db.parquet_height()?;
+
         // this task is responsible for downloading tip data from rpc node
         tokio::spawn({
             let db_writer = db_writer.clone();
-            let db_height = db.hot_data_height().unwrap();
+            let start_height = if hot_data_height == 0 {
+                parquet_height
+            } else {
+                hot_data_height
+            };
 
             async move {
                 let best_block = eth_client.clone().get_best_block().await.unwrap();
@@ -58,8 +65,8 @@ impl DataCtx {
                     _ => 0,
                 };
 
-                if db_height > start {
-                    start = db_height;
+                if start_height > start {
+                    start = start_height;
                 }
 
                 let batches = eth_client.clone().stream_batches(Some(start), None);
