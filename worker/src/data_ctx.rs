@@ -1036,7 +1036,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
 pub fn scan_parquet_args() -> ScanArgsParquet {
     ScanArgsParquet {
         n_rows: None,
-        cache: true,
+        cache: false,
         parallel: ParallelStrategy::None,
         rechunk: false,
         row_count: None,
