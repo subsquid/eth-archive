@@ -23,14 +23,11 @@ crossbeam-channel = "0.5"
 derive_more = "0.99"
 xorf = { version = "0.8.1", features = ["serde"] }
 xxhash-rust = { version = "0.8.6", features = ["xxh3"] }
-rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
 threadpool = "1"
+libmdbx = { version = "0.2.5", default-features = false }
 
 eth-archive-core = { path = "../core" }
 
 [dependencies.polars]
 git = "https://github.com/pola-rs/polars"
 features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
-
-[features]
-rocksdb-unix = ["rocksdb/jemalloc", "rocksdb/io-uring"]
