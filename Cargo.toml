@@ -22,4 +22,5 @@ features = [
     "http2",
     "server",
     "runtime",
+    "stream",
 ]

@@ -2,9 +2,9 @@ use crate::config::Config;
 use crate::metrics::Metrics;
 use crate::types::{MaybeBatch, RpcRequest, RpcResponse};
 use crate::{Error, Result};
-use actix_web::HttpRequest;
 use eth_archive_core::eth_client::TARGET_ENDPOINT_HEADER_NAME;
 use eth_archive_core::retry::Retry;
+use hyper::header::HeaderMap;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -45,10 +45,10 @@ impl Handler {
 
     pub async fn handle(
         self: Arc<Self>,
-        req: HttpRequest,
+        headers: &HeaderMap,
         rpc_req: MaybeBatch<RpcRequest>,
     ) -> Result<MaybeBatch<RpcResponse>> {
-        let endpoint = match req.headers().get(TARGET_ENDPOINT_HEADER_NAME) {
+        let endpoint = match headers.get(TARGET_ENDPOINT_HEADER_NAME) {
             Some(endpoint) => endpoint
                 .to_str()
                 .map_err(|e| Error::InvalidHeaderValue(TARGET_ENDPOINT_HEADER_NAME, e))?

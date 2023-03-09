@@ -1,7 +1,6 @@
-use actix_web::http::header::ToStrError;
-use actix_web::{HttpResponse, ResponseError};
+use hyper::header::ToStrError;
+use std::fmt;
 use std::result::Result as StdResult;
-use std::{fmt, io};
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
@@ -15,9 +14,7 @@ pub enum Error {
     #[error("failed to encode metrics:\n{0}")]
     EncodeMetrics(fmt::Error),
     #[error("failed to run http server:\n{0}")]
-    RunHttpServer(io::Error),
-    #[error("failed to bind http server:\n{0}")]
-    BindHttpServer(io::Error),
+    RunHttpServer(hyper::Error),
     #[error("failed to build http client:\n{0}")]
     BuildHttpClient(reqwest::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
@@ -30,16 +27,8 @@ pub enum Error {
     RpcResponseStatus(u16, Option<String>),
     #[error("failed to parse rpc response:\n{0}")]
     RpcResponseParse(reqwest::Error),
+    #[error("invalid request body:\n{0:?}")]
+    InvalidRequestBody(Option<serde_json::Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;
-
-impl ResponseError for Error {
-    fn error_response(&self) -> HttpResponse {
-        log::debug!("error while serving request:\n{}", self);
-
-        HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": self.to_string(),
-        }))
-    }
-}
