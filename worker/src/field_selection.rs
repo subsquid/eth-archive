@@ -1,7 +1,6 @@
 use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
-use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 
 macro_rules! append_col {
@@ -92,7 +91,7 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
-    pub fn to_cols(self) -> Vec<Expr> {
+    pub fn to_cols(self) -> Vec<String> {
         let mut cols = Vec::new();
 
         let table_name = "block";
@@ -210,7 +209,7 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
-    pub fn to_cols(self) -> Vec<Expr> {
+    pub fn to_cols(self) -> Vec<String> {
         let mut cols = Vec::new();
 
         let table_name = "tx";
@@ -317,7 +316,7 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
-    pub fn to_cols(self) -> Vec<Expr> {
+    pub fn to_cols(self) -> Vec<String> {
         let mut cols = Vec::new();
 
         let table_name = "log";

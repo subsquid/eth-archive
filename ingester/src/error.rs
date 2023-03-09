@@ -1,4 +1,3 @@
-use actix_web::{HttpResponse, ResponseError};
 use arrow2::error::Error as ArrowError;
 use std::io;
 use std::result::Result as StdResult;
@@ -63,13 +62,3 @@ pub enum Error {
 }
 
 pub type Result<T> = StdResult<T, Error>;
-
-impl ResponseError for Error {
-    fn error_response(&self) -> HttpResponse {
-        log::debug!("error while serving request:\n{}", self);
-
-        HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": self.to_string(),
-        }))
-    }
-}
