@@ -8,7 +8,7 @@ use crate::{Error, Result};
 use aws_config::retry::RetryConfig;
 use futures::{Future, Stream, TryFutureExt};
 use futures::{StreamExt, TryStreamExt};
-use polars::export::arrow::datatypes::Field;
+use arrow2::datatypes::Field;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::Path;

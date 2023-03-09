@@ -22,12 +22,9 @@ aws-config = "0.54.1"
 aws-types = "0.54.1"
 rand = "0.8"
 arrayvec = { version = "0.7", features = ["serde"] }
+arrow2 = { workspace = true }
 
 [dependencies.reqwest]
 version = "0.11"
 default-features = false
 features = ["json", "rustls-tls", "gzip"]
-
-[dependencies.polars]
-git = "https://github.com/pola-rs/polars"
-features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]

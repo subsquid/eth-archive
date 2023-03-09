@@ -5,7 +5,7 @@ use crate::s3_client::BatchStream;
 use crate::types::{Block, BlockRange, FormatVersion, Log};
 use crate::{Error, Result};
 use futures::{Stream, TryFutureExt};
-use polars::export::arrow::datatypes::Field;
+use arrow2::datatypes::Field;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;

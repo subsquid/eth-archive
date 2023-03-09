@@ -1,5 +1,5 @@
 use aws_sdk_s3::types::SdkError as S3Err;
-use polars::error::ArrowError;
+use arrow2::error::Error as ArrowError;
 use std::result::Result as StdResult;
 use std::string::FromUtf8Error;
 use std::{fmt, io};

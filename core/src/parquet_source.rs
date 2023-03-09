@@ -1,8 +1,8 @@
 use crate::types::{Block, FormatVersion, Log, Transaction};
 use crate::{Error, Result};
-use polars::export::arrow::datatypes::Field;
-use polars::export::arrow::io::parquet::read::ArrayIter;
-use polars::export::arrow::io::parquet::read::{read_columns_many, read_metadata};
+use arrow2::datatypes::Field;
+use arrow2::io::parquet::read::ArrayIter;
+use arrow2::io::parquet::read::{read_columns_many, read_metadata};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
