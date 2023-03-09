@@ -16,9 +16,10 @@ features = [
 ]
 
 [workspace.dependencies.hyper]
-version = "0.14.24"
+version = "0.14"
 features = [
     "http1",
     "http2",
     "server",
+    "runtime",
 ]

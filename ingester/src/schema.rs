@@ -149,7 +149,7 @@ impl IntoChunks for Blocks {
                 let end = cmp::min(self.len, start + items_per_chunk);
                 let length = end - start;
                 Ok(Chunk::new(
-                    chunk.iter().map(|arr| arr.slice(start, length)).collect(),
+                    chunk.iter().map(|arr| arr.sliced(start, length)).collect(),
                 ))
             })
             .collect()
@@ -269,7 +269,7 @@ impl IntoChunks for Transactions {
                 let end = cmp::min(self.len, start + items_per_chunk);
                 let length = end - start;
                 Ok(Chunk::new(
-                    chunk.iter().map(|arr| arr.slice(start, length)).collect(),
+                    chunk.iter().map(|arr| arr.sliced(start, length)).collect(),
                 ))
             })
             .collect()
@@ -374,7 +374,7 @@ impl IntoChunks for Logs {
                 let end = cmp::min(self.len, start + items_per_chunk);
                 let length = end - start;
                 Ok(Chunk::new(
-                    chunk.iter().map(|arr| arr.slice(start, length)).collect(),
+                    chunk.iter().map(|arr| arr.sliced(start, length)).collect(),
                 ))
             })
             .collect()

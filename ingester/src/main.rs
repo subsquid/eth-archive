@@ -1,9 +1,9 @@
 use eth_archive_ingester::{Config, Ingester};
 
-use mimalloc::MiMalloc;
+use jemallocator::Jemalloc;
 
 #[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() {

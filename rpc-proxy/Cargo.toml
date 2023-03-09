@@ -11,7 +11,7 @@ thiserror = "1.0"
 log = "0.4"
 env_logger = "0.10"
 clap = { version = "4", features = ["derive"] }
-mimalloc = { version = "0.1.34", default-features = false }
+jemallocator = "0.5"
 url = { version = "2", features = ["serde"] }
 prometheus-client = "0.19"
 hyper = { workspace = true }
