@@ -144,7 +144,7 @@ fn bloom_filter_from_frames(data_frames: Vec<DataFrame>) -> ParquetIdx {
     let mut bloom = ParquetIdx::random(
         addrs.len(),
         0.000_001,
-        128_000, // 16KB max size
+        512_000, // 64KB max size
     );
 
     for addr in addrs {
