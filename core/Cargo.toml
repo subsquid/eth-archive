@@ -30,4 +30,4 @@ features = ["json", "rustls-tls", "gzip"]
 
 [dependencies.polars]
 git = "https://github.com/pola-rs/polars"
-features = [ "streaming", "lazy", "is_in", "dtype-full", "parquet" ]
+features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]

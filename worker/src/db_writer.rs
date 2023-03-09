@@ -1,7 +1,6 @@
 use crate::data_ctx::scan_parquet_args;
 use crate::db::{DbHandle, ParquetIdx};
 use crate::{Error, Result};
-use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use polars::export::arrow::array::BinaryArray;
@@ -136,20 +135,14 @@ fn bloom_filter_from_frames(data_frames: Vec<DataFrame>) -> ParquetIdx {
                 .iter()
                 .flatten()
             {
-                addrs.insert(Address::new(addr));
+                addrs.insert(addr.to_vec());
             }
         }
     }
 
-    let mut bloom = ParquetIdx::random(
-        addrs.len(),
-        0.000_001,
-        512_000, // 64KB max size
-    );
+    ParquetIdx::try_from(&addrs.iter().map(|addr| hash_addr(addr)).collect::<Vec<_>>()).unwrap()
+}
 
-    for addr in addrs {
-        bloom.add(&addr);
-    }
-
-    bloom
+pub fn hash_addr(addr: &[u8]) -> u64 {
+    xxhash_rust::xxh3::xxh3_64(addr)
 }

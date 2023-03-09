@@ -1,9 +1,9 @@
 use crate::{Error, Result};
+use futures::channel::oneshot;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool as ThreadPoolImpl;
-use tokio::sync::oneshot;
 
 pub struct ThreadPool {
     inner: Arc<Mutex<ThreadPoolImpl>>,

@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::db::DbHandle;
-use crate::db_writer::DbWriter;
+use crate::db_writer::{hash_addr, DbWriter};
 use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
 use crate::thread_pool::ThreadPool;
@@ -23,6 +23,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, io};
+use xorf::Filter;
 
 pub struct DataCtx {
     config: Config,
@@ -242,7 +243,7 @@ impl DataCtx {
 
                             let address = address
                                 .iter()
-                                .filter(|addr| parquet_idx.contains(addr))
+                                .filter(|addr| parquet_idx.contains(&hash_addr(addr.as_slice())))
                                 .cloned()
                                 .collect::<Vec<_>>();
 
@@ -265,7 +266,9 @@ impl DataCtx {
                                 Some(source) if !source.is_empty() => {
                                     let source = source
                                         .iter()
-                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .filter(|addr| {
+                                            parquet_idx.contains(&hash_addr(addr.as_slice()))
+                                        })
                                         .cloned()
                                         .collect::<Vec<_>>();
                                     if source.is_empty() {
@@ -284,7 +287,9 @@ impl DataCtx {
                                 Some(dest) if !dest.is_empty() => {
                                     let dest = dest
                                         .iter()
-                                        .filter(|addr| parquet_idx.contains(addr))
+                                        .filter(|addr| {
+                                            parquet_idx.contains(&hash_addr(addr.as_slice()))
+                                        })
                                         .cloned()
                                         .collect::<Vec<_>>();
                                     if dest.is_empty() {
@@ -447,7 +452,6 @@ impl DataCtx {
         if query.include_all_blocks {
             let blocks = self
                 .open_all_blocks_lazy_frame(dir_name, &query)?
-                .with_streaming(true)
                 .collect()
                 .map_err(Error::ExecuteQuery)?;
 
@@ -486,10 +490,7 @@ impl DataCtx {
             }
         }
 
-        let result_frame = lazy_frame
-            .with_streaming(true)
-            .collect()
-            .map_err(Error::ExecuteQuery)?;
+        let result_frame = execute_lazy(lazy_frame)?;
 
         let data = response_rows_from_result_frame(result_frame)?;
 
@@ -529,10 +530,7 @@ impl DataCtx {
             }
         }
 
-        let result_frame = lazy_frame
-            .with_streaming(true)
-            .collect()
-            .map_err(Error::ExecuteQuery)?;
+        let result_frame = execute_lazy(lazy_frame)?;
 
         let data = tx_response_rows_from_result_frame(result_frame)?;
 
@@ -1038,7 +1036,7 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
 pub fn scan_parquet_args() -> ScanArgsParquet {
     ScanArgsParquet {
         n_rows: None,
-        cache: false,
+        cache: true,
         parallel: ParallelStrategy::None,
         rechunk: false,
         row_count: None,
@@ -1046,4 +1044,12 @@ pub fn scan_parquet_args() -> ScanArgsParquet {
         cloud_options: None,
         use_statistics: true,
     }
+}
+
+pub fn execute_lazy(lazy_frame: LazyFrame) -> Result<DataFrame> {
+    lazy_frame
+        .with_streaming(true)
+        .with_common_subplan_elimination(false)
+        .collect()
+        .map_err(Error::ExecuteQuery)
 }

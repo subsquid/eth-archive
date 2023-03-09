@@ -37,13 +37,10 @@ impl DbHandle {
 
             block_opts.set_block_size(64 * 1024);
             block_opts.set_format_version(5);
-            block_opts.set_bloom_filter(10.0, true);
-            block_opts.set_cache_index_and_filter_blocks(true);
+            block_opts.set_ribbon_filter(10.0);
 
             let mut opts = rocksdb::Options::default();
 
-            opts.set_compaction_style(rocksdb::DBCompactionStyle::Fifo);
-            opts.set_optimize_filters_for_hits(true);
             opts.create_if_missing(true);
             opts.create_missing_column_families(true);
             opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
@@ -537,7 +534,7 @@ mod cf_name {
     pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
 }
 
-pub type ParquetIdx = crate::bloom::Bloom<Address>;
+pub type ParquetIdx = xorf::BinaryFuse8;
 
 fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
     let mut key = [0; 8];
