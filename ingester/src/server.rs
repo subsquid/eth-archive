@@ -9,17 +9,26 @@ pub struct Server {}
 
 impl Server {
     pub async fn run(addr: SocketAddr, metrics: Arc<IngestMetrics>) -> Result<()> {
-        HttpServer::new(move || {
-            App::new()
-                .app_data(web::Data::new(metrics.clone()))
-                .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
-        })
-        .disable_signals()
-        .bind(addr)
-        .map_err(Error::BindHttpServer)?
-        .run()
-        .await
-        .map_err(Error::RunHttpServer)
+        let listener = TcpListener::bind(addr)
+            .await
+            .map_err(Error::BindHttpServer)?;
+
+        loop {
+            let (stream, _) = listener.accept().await.map_err(Error::RunHttpServer)?;
+            tokio::task::spawn(async move {
+                if let Err(err) = http1::Builder::new()
+                    .preserve_header_case(true)
+                    .title_case_headers(true)
+                    .serve_connection(stream, service_fn(proxy))
+                    .with_upgrades()
+                    .await
+                {
+                    println!("Failed to serve connection: {:?}", err);
+                }
+            });
+        }
+
+        Ok(())
     }
 }
 
