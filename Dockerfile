@@ -5,7 +5,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /eth
 COPY ./ .
-RUN cargo build --features rocksdb-unix --release --bin "eth-archive-${component}"
+RUN cargo build --release --bin "eth-archive-${component}"
 
 FROM debian:bullseye
 ARG component

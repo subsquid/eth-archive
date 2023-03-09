@@ -2,14 +2,12 @@ use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 macro_rules! append_col {
-    ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
+    ($cols:ident, $self:ident, $field:ident) => {
         if $self.$field {
-            let field_name = stringify!($field);
-            let col = col(&format!("{}", field_name));
-            let col = col.prefix(&format!("{}_", $table_name));
-            $cols.push(col);
+            $cols.insert(stringify!($field));
         }
     };
 }
@@ -91,29 +89,29 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
-    pub fn to_cols(self) -> Vec<String> {
-        let mut cols = Vec::new();
+    pub fn to_cols(self) -> HashSet<String> {
+        let mut cols = HashSet::new();
 
         let table_name = "block";
-        append_col!(table_name, cols, self, parent_hash);
-        append_col!(table_name, cols, self, sha3_uncles);
-        append_col!(table_name, cols, self, miner);
-        append_col!(table_name, cols, self, state_root);
-        append_col!(table_name, cols, self, transactions_root);
-        append_col!(table_name, cols, self, receipts_root);
-        append_col!(table_name, cols, self, logs_bloom);
-        append_col!(table_name, cols, self, difficulty);
-        append_col!(table_name, cols, self, number);
-        append_col!(table_name, cols, self, gas_limit);
-        append_col!(table_name, cols, self, gas_used);
-        append_col!(table_name, cols, self, timestamp);
-        append_col!(table_name, cols, self, extra_data);
-        append_col!(table_name, cols, self, mix_hash);
-        append_col!(table_name, cols, self, nonce);
-        append_col!(table_name, cols, self, total_difficulty);
-        append_col!(table_name, cols, self, base_fee_per_gas);
-        append_col!(table_name, cols, self, size);
-        append_col!(table_name, cols, self, hash);
+        append_col!(cols, self, parent_hash);
+        append_col!(cols, self, sha3_uncles);
+        append_col!(cols, self, miner);
+        append_col!(cols, self, state_root);
+        append_col!(cols, self, transactions_root);
+        append_col!(cols, self, receipts_root);
+        append_col!(cols, self, logs_bloom);
+        append_col!(cols, self, difficulty);
+        append_col!(cols, self, number);
+        append_col!(cols, self, gas_limit);
+        append_col!(cols, self, gas_used);
+        append_col!(cols, self, timestamp);
+        append_col!(cols, self, extra_data);
+        append_col!(cols, self, mix_hash);
+        append_col!(cols, self, nonce);
+        append_col!(cols, self, total_difficulty);
+        append_col!(cols, self, base_fee_per_gas);
+        append_col!(cols, self, size);
+        append_col!(cols, self, hash);
 
         cols
     }
@@ -209,30 +207,30 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
-    pub fn to_cols(self) -> Vec<String> {
-        let mut cols = Vec::new();
+    pub fn to_cols(self) -> HashSet<String> {
+        let mut cols = HashSet::new();
 
         let table_name = "tx";
-        append_col!(table_name, cols, self, kind);
-        append_col!(table_name, cols, self, nonce);
-        append_col!(table_name, cols, self, dest);
-        append_col!(table_name, cols, self, gas);
-        append_col!(table_name, cols, self, value);
-        append_col!(table_name, cols, self, input);
-        append_col!(table_name, cols, self, max_priority_fee_per_gas);
-        append_col!(table_name, cols, self, max_fee_per_gas);
-        append_col!(table_name, cols, self, y_parity);
-        append_col!(table_name, cols, self, chain_id);
-        append_col!(table_name, cols, self, v);
-        append_col!(table_name, cols, self, r);
-        append_col!(table_name, cols, self, s);
-        append_col!(table_name, cols, self, source);
-        append_col!(table_name, cols, self, block_hash);
-        append_col!(table_name, cols, self, block_number);
-        append_col!(table_name, cols, self, transaction_index);
-        append_col!(table_name, cols, self, gas_price);
-        append_col!(table_name, cols, self, hash);
-        append_col!(table_name, cols, self, status);
+        append_col!(cols, self, kind);
+        append_col!(cols, self, nonce);
+        append_col!(cols, self, dest);
+        append_col!(cols, self, gas);
+        append_col!(cols, self, value);
+        append_col!(cols, self, input);
+        append_col!(cols, self, max_priority_fee_per_gas);
+        append_col!(cols, self, max_fee_per_gas);
+        append_col!(cols, self, y_parity);
+        append_col!(cols, self, chain_id);
+        append_col!(cols, self, v);
+        append_col!(cols, self, r);
+        append_col!(cols, self, s);
+        append_col!(cols, self, source);
+        append_col!(cols, self, block_hash);
+        append_col!(cols, self, block_number);
+        append_col!(cols, self, transaction_index);
+        append_col!(cols, self, gas_price);
+        append_col!(cols, self, hash);
+        append_col!(cols, self, status);
 
         cols
     }
@@ -316,16 +314,16 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
-    pub fn to_cols(self) -> Vec<String> {
-        let mut cols = Vec::new();
+    pub fn to_cols(self) -> HashSet<String> {
+        let mut cols = HashSet::new();
 
         let table_name = "log";
-        append_col!(table_name, cols, self, address);
-        append_col!(table_name, cols, self, block_hash);
-        append_col!(table_name, cols, self, block_number);
-        append_col!(table_name, cols, self, data);
-        append_col!(table_name, cols, self, log_index);
-        append_col!(table_name, cols, self, removed);
+        append_col!(cols, self, address);
+        append_col!(cols, self, block_hash);
+        append_col!(cols, self, block_number);
+        append_col!(cols, self, data);
+        append_col!(cols, self, log_index);
+        append_col!(cols, self, removed);
         if self.topics {
             for i in 0..4 {
                 let col = col(&format!("topic{i}"));
@@ -334,8 +332,8 @@ impl LogFieldSelection {
                 cols.push(col);
             }
         }
-        append_col!(table_name, cols, self, transaction_hash);
-        append_col!(table_name, cols, self, transaction_index);
+        append_col!(cols, self, transaction_hash);
+        append_col!(cols, self, transaction_index);
 
         cols
     }
