@@ -21,9 +21,7 @@ pub enum Error {
     #[error("failed to apply block range filter to query:\n{0}")]
     ApplyBlockRangeFilter(PolarsError),
     #[error("failed to run http server:\n{0}")]
-    RunHttpServer(io::Error),
-    #[error("failed to bind http server:\n{0}")]
-    BindHttpServer(io::Error),
+    RunHttpServer(hyper::Error),
     #[error("failed to run sql query:\n{0}")]
     SqlQuery(eth_archive_core::Error),
     #[error("invalid hex in an address:\n{0}")]
@@ -68,6 +66,8 @@ pub enum Error {
     EmptyQuery,
     #[error("max number of queries are running.")]
     MaxNumberOfQueriesReached,
+    #[error("invalid request body:\n{0:?}")]
+    InvalidRequestBody(Option<serde_json::Error>),
 }
 
 pub type Result<T> = StdResult<T, Error>;
