@@ -52,7 +52,7 @@ impl DataCtx {
         // this task is responsible for downloading tip data from rpc node
         tokio::spawn({
             let db_writer = db_writer.clone();
-            let db_height = db.db_height();
+            let db_height = db.hot_data_height().unwrap();
 
             async move {
                 let best_block = eth_client.clone().get_best_block().await.unwrap();
@@ -78,7 +78,7 @@ impl DataCtx {
         if let Some(data_path) = &config.data_path {
             // this task checks and registers new parquet files to database
             tokio::spawn({
-                let start = db.parquet_height();
+                let start = db.parquet_height()?;
                 let data_path = data_path.clone();
                 let db_writer = db_writer.clone();
 
@@ -151,11 +151,11 @@ impl DataCtx {
         Ok(true)
     }
 
-    pub fn inclusive_height(&self) -> Option<u32> {
-        match self.db.height() {
+    pub fn inclusive_height(&self) -> Result<Option<u32>> {
+        Ok(match self.db.height()? {
             0 => None,
             num => Some(num - 1),
-        }
+        })
     }
 
     pub async fn query(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
@@ -173,7 +173,7 @@ impl DataCtx {
             return Err(Error::EmptyQuery);
         }
 
-        let height = self.db.height();
+        let height = self.db.height()?;
 
         let inclusive_height = match height {
             0 => None,
@@ -197,7 +197,7 @@ impl DataCtx {
                 return Ok(serialize_task);
             }
 
-            let parquet_height = data_ctx.db.parquet_height();
+            let parquet_height = data_ctx.db.parquet_height()?;
 
             let mut field_selection = field_selection;
 
