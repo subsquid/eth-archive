@@ -3,7 +3,6 @@ use crate::db::DbHandle;
 use crate::db_writer::{hash_addr, DbWriter};
 use crate::field_selection::FieldSelection;
 use crate::serialize_task::SerializeTask;
-use crate::thread_pool::ThreadPool;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
@@ -17,7 +16,6 @@ use eth_archive_core::types::{
 };
 use futures::pin_mut;
 use futures::stream::StreamExt;
-use polars::prelude::*;
 use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
@@ -28,7 +26,6 @@ use xorf::Filter;
 pub struct DataCtx {
     config: Config,
     db: Arc<DbHandle>,
-    thread_pool: ThreadPool,
 }
 
 impl DataCtx {
@@ -1031,25 +1028,4 @@ fn tx_response_rows_from_result_frame(result_frame: DataFrame) -> Result<Vec<Res
     }
 
     Ok(data)
-}
-
-pub fn scan_parquet_args() -> ScanArgsParquet {
-    ScanArgsParquet {
-        n_rows: None,
-        cache: false,
-        parallel: ParallelStrategy::None,
-        rechunk: false,
-        row_count: None,
-        low_memory: true,
-        cloud_options: None,
-        use_statistics: true,
-    }
-}
-
-pub fn execute_lazy(lazy_frame: LazyFrame) -> Result<DataFrame> {
-    lazy_frame
-        .with_streaming(true)
-        .with_common_subplan_elimination(false)
-        .collect()
-        .map_err(Error::ExecuteQuery)
 }
