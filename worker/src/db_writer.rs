@@ -1,4 +1,5 @@
 use crate::db::DbHandle;
+use crate::parquet_metadata::{CollectMetadataAndParquetIdx, ParquetMetadata};
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
@@ -63,7 +64,15 @@ impl DbWriter {
         data_path: &Path,
         dir_name: DirName,
     ) -> Result<()> {
-        todo!();
+        let (metadata, idx) = CollectMetadataAndParquetIdx {
+            data_path,
+            dir_name,
+        }
+        .collect()?;
+
+        db.register_parquet_folder(dir_name, &idx, &metadata)?;
+
+        Ok(())
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::parquet_metadata::ParquetMetadata;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection};
 use crate::{Error, Result};
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
@@ -308,19 +309,35 @@ impl DbHandle {
         Ok(blocks)
     }
 
-    pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
+    pub fn register_parquet_folder(
+        &self,
+        dir_name: DirName,
+        idx: &ParquetIdx,
+        metadata: &ParquetMetadata,
+    ) -> Result<()> {
         let txn = self.inner.begin_rw_txn().map_err(Error::Db)?;
 
         let parquet_idx_table = txn
             .open_table(Some(table_name::PARQUET_IDX))
             .map_err(Error::Db)?;
+        let parquet_metadata_table = txn
+            .open_table(Some(table_name::PARQUET_METADATA))
+            .map_err(Error::Db)?;
 
         let key = key_from_dir_name(dir_name);
 
-        let log_val = rmp_serde::encode::to_vec(idx).unwrap();
+        let idx_val = rmp_serde::encode::to_vec(idx).unwrap();
+        let metadata_val = rmp_serde::encode::to_vec(metadata).unwrap();
 
-        txn.put(&parquet_idx_table, key, &log_val, Default::default())
+        txn.put(&parquet_idx_table, key, &idx_val, Default::default())
             .map_err(Error::Db)?;
+        txn.put(
+            &parquet_metadata_table,
+            key,
+            &metadata_val,
+            Default::default(),
+        )
+        .map_err(Error::Db)?;
 
         for table in [
             table_name::BLOCK,
@@ -512,8 +529,9 @@ mod table_name {
     pub const LOG: &str = "LOG";
     pub const LOG_TX: &str = "LOG_TX";
     pub const PARQUET_IDX: &str = "PARQUET_IDX";
+    pub const PARQUET_METADATA: &str = "PARQUET_METADATA";
 
-    pub const ALL_TABLE_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
+    pub const ALL_TABLE_NAMES: [&str; 6] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX, PARQUET_METADATA];
 }
 
 pub type ParquetIdx = xorf::BinaryFuse8;

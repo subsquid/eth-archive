@@ -327,9 +327,8 @@ pub struct Logs {
 
 impl IntoChunks for Logs {
     fn into_chunks(mut self, items_per_chunk: usize) -> Vec<ArrowResult<Chunk>> {
-        let block_number = self.block_number.as_box();
-        let transaction_index = self.transaction_index.as_box();
         let address = self.address.as_box();
+        let topic0 = self.topic0.as_box();
 
         let indices = lexsort_to_indices::<i64>(
             &[
@@ -341,7 +340,7 @@ impl IntoChunks for Logs {
                     }),
                 },
                 SortColumn {
-                    values: block_number.as_ref(),
+                    values: topic0.as_ref(),
                     options: Some(SortOptions {
                         descending: false,
                         nulls_first: false,
@@ -356,16 +355,16 @@ impl IntoChunks for Logs {
         let chunk = Chunk::new(vec![
             arrow_take(address.as_ref(), &indices).unwrap(),
             arrow_take(self.block_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(block_number.as_ref(), &indices).unwrap(),
+            arrow_take(self.block_number.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.data.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.log_index.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.removed.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(self.topic0.as_box().as_ref(), &indices).unwrap(),
+            arrow_take(topic0.as_ref(), &indices).unwrap(),
             arrow_take(self.topic1.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.topic2.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.topic3.as_box().as_ref(), &indices).unwrap(),
             arrow_take(self.transaction_hash.as_box().as_ref(), &indices).unwrap(),
-            arrow_take(transaction_index.as_ref(), &indices).unwrap(),
+            arrow_take(self.transaction_index.as_box().as_ref(), &indices).unwrap(),
         ]);
 
         (0..self.len)
