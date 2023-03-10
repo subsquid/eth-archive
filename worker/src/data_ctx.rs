@@ -3,6 +3,7 @@ use crate::db::DbHandle;
 use crate::db_writer::DbWriter;
 use crate::downloader::Downloader;
 use crate::field_selection::FieldSelection;
+use crate::parquet_metadata::hash;
 use crate::parquet_query::ParquetQuery;
 use crate::parquet_watcher::ParquetWatcher;
 use crate::serialize_task::SerializeTask;
@@ -17,7 +18,7 @@ use std::cmp;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use xorf::BinaryFuse8;
+use xorf::{BinaryFuse8, Filter};
 
 pub struct DataCtx {
     config: Config,
@@ -223,7 +224,7 @@ impl DataCtx {
 
             let (tx, rx) = futures::channel::oneshot::channel();
 
-            // don't spawn a thread if there is nothing to query
+            // don't spawn a task if there is nothing to query
             if !mini_query.include_all_blocks
                 && mini_query.logs.is_empty()
                 && mini_query.transactions.is_empty()
@@ -333,12 +334,77 @@ impl Query {
             .fold(Default::default(), |a, b| a | b)
     }
 
-    fn pruned_log_selection(&self, _parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
-        todo!()
+    fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
+        self.logs
+            .iter()
+            .filter_map(|log_selection| {
+                let address = &log_selection.address;
+
+                if address.is_empty() {
+                    return Some(MiniLogSelection {
+                        address: Vec::new(),
+                        topics: log_selection.topics.clone(),
+                    });
+                }
+
+                let address = address
+                    .iter()
+                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                if !address.is_empty() {
+                    Some(MiniLogSelection {
+                        address,
+                        topics: log_selection.topics.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
     }
 
-    fn pruned_tx_selection(&self, _parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
-        todo!()
+    fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
+        self.transactions
+            .iter()
+            .filter_map(|tx_selection| {
+                let source = &tx_selection.source;
+                let dest = &tx_selection.dest;
+
+                if source.is_empty() && dest.is_empty() {
+                    return Some(MiniTransactionSelection {
+                        source: Vec::new(),
+                        dest: Vec::new(),
+                        sighash: tx_selection.sighash.clone(),
+                        status: tx_selection.status,
+                    });
+                }
+
+                let source = source
+                    .iter()
+                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                let dest = dest
+                    .iter()
+                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                if source.is_empty() && dest.is_empty() {
+                    None
+                } else {
+                    Some(MiniTransactionSelection {
+                        source,
+                        dest,
+                        sighash: tx_selection.sighash.clone(),
+                        status: tx_selection.status,
+                    })
+                }
+            })
+            .collect::<Vec<_>>()
     }
 
     fn log_selection(&self) -> Vec<MiniLogSelection> {

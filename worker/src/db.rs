@@ -627,11 +627,7 @@ impl MiniQuery {
 
 impl MiniLogSelection {
     fn matches_addr(&self, filter_addr: &Address) -> bool {
-        if !self.address.is_empty() && !self.address.iter().any(|addr| addr == filter_addr) {
-            return false;
-        }
-
-        true
+        self.address.is_empty() || self.address.iter().any(|addr| addr == filter_addr)
     }
 
     fn matches_topics(&self, topics: &[Bytes32]) -> bool {

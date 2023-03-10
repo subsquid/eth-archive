@@ -266,10 +266,10 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
     }
 }
 
-fn hash(input: &[u8]) -> u64 {
+pub fn hash(input: &[u8]) -> u64 {
     xxhash_rust::xxh3::xxh3_64(input)
 }
 
-fn combine_block_num_tx_idx(block_num: u32, tx_idx: u32) -> u64 {
+pub fn combine_block_num_tx_idx(block_num: u32, tx_idx: u32) -> u64 {
     (u64::from(block_num) << 4) | u64::from(tx_idx)
 }
