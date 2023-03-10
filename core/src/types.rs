@@ -197,20 +197,6 @@ pub struct ResponseLog {
     pub transaction_index: Option<Index>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResponseRow {
-    pub block: ResponseBlock,
-    pub transaction: Option<ResponseTransaction>,
-    pub log: Option<ResponseLog>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryResult {
-    pub data: Vec<ResponseRow>,
-}
-
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct BlockRange {
     pub from: u32,

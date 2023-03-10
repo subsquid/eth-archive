@@ -1,8 +1,9 @@
 use crate::field_selection::FieldSelection;
 use crate::{Error, Result};
+use crate::types::QueryResult;
 use eth_archive_core::rayon_async;
 use eth_archive_core::types::{
-    BlockRange, QueryResult, ResponseBlock, ResponseLog, ResponseTransaction,
+    BlockRange, ResponseBlock, ResponseLog, ResponseTransaction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

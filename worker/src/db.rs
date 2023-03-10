@@ -1,11 +1,11 @@
 use crate::parquet_metadata::ParquetMetadata;
-use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection};
+use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, QueryResult};
 use crate::{Error, Result};
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
-    Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
+    Block, BlockRange, Log, ResponseBlock, ResponseRow, Transaction,
 };
 use libmdbx::{Database, NoWriteMap};
 use std::collections::{BTreeMap, BTreeSet};
