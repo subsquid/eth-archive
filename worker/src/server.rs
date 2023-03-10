@@ -8,8 +8,6 @@ use hyper::{header, Body, Method, Request, Response, Server as HttpServer, Statu
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use actix_web::{web, App, HttpResponse, HttpServer};
-
 pub struct Server {}
 
 #[derive(Clone)]
@@ -20,8 +18,8 @@ struct AppData {
 
 impl Server {
     pub async fn run(config: Config) -> Result<()> {
-        let metrics = Metrics::new();
-        let metrics = Arc::new(metrics);
+        let ingest_metrics = IngestMetrics::new();
+        let ingest_metrics = Arc::new(ingest_metrics);
 
         let server_addr = config.server_addr;
 
@@ -68,7 +66,10 @@ async fn handler(app_data: AppData, req: Request<Body>) -> hyper::Result<Respons
 }
 
 async fn metrics_handler(app_data: AppData) -> Result<Response<Body>> {
-    let body = app_data.ingest_metrics.encode()?;
+    let body = app_data
+        .ingest_metrics
+        .encode()
+        .map_err(Error::EncodeMetrics)?;
 
     Ok(Response::builder()
         .status(StatusCode::OK)
@@ -80,13 +81,17 @@ async fn metrics_handler(app_data: AppData) -> Result<Response<Body>> {
         .unwrap())
 }
 
-async fn height(app_data: AppData) -> Result<Response<Body>> {
-    let height = app_data.data_ctx.inclusive_height()?;
+async fn height_handler(app_data: AppData) -> Result<Response<Body>> {
+    let height = app_data.data_ctx.inclusive_height().await?;
+
+    let json = serde_json::json!({ "height": height });
+
+    let json = serde_json::to_string(&json).unwrap();
 
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::json!({ "height": height })))
+        .body(Body::from(json))
         .unwrap())
 }
 
@@ -95,10 +100,10 @@ async fn query_handler(app_data: AppData, req: Request<Body>) -> Result<Response
         .await
         .map_err(|_| Error::InvalidRequestBody(None))?;
 
-    let rpc_req: Query =
+    let query: Query =
         serde_json::from_slice(req.as_ref()).map_err(|e| Error::InvalidRequestBody(Some(e)))?;
 
-    let res = app_data.data_ctx.clone().query(query.into_inner()).await?;
+    let res = app_data.data_ctx.clone().query(query).await?;
 
     let res = serde_json::to_string(&res).unwrap();
 

@@ -2,7 +2,6 @@ use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
-use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -67,37 +66,6 @@ impl MiniQuery {
 }
 
 impl MiniLogSelection {
-    pub fn to_expr(&self) -> Option<Expr> {
-        let mut expr = match &self.address {
-            Some(addr) if !addr.is_empty() => {
-                let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
-
-                let series = Series::new("", address).lit();
-                Some(col("log_address").is_in(series))
-            }
-            _ => None,
-        };
-
-        for (i, topic) in self.topics.iter().enumerate() {
-            if !topic.is_empty() {
-                let series = topic
-                    .iter()
-                    .map(|topic| topic.as_slice())
-                    .collect::<Vec<_>>();
-
-                let series = Series::new("", series).lit();
-                let inner_expr = col(&format!("log_topic{i}")).is_in(series);
-
-                expr = match expr {
-                    Some(expr) => Some(expr.and(inner_expr)),
-                    None => Some(inner_expr),
-                };
-            }
-        }
-
-        expr
-    }
-
     pub fn matches_addr(&self, filter_addr: &Address) -> bool {
         if let Some(address) = &self.address {
             if !address.is_empty() && !address.iter().any(|addr| addr == filter_addr) {
@@ -120,62 +88,6 @@ impl MiniLogSelection {
 }
 
 impl MiniTransactionSelection {
-    pub fn to_expr(&self) -> Option<Expr> {
-        let mut expr = match &self.dest {
-            Some(addr) if !addr.is_empty() => {
-                let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
-                let series = Series::new("", address).lit();
-                Some(col("tx_dest").is_in(series))
-            }
-            None => None,           // match nothing
-            _ => Some(true.into()), // match all
-        };
-
-        match &self.source {
-            Some(addr) if !addr.is_empty() => {
-                let address = addr.iter().map(|addr| addr.as_slice()).collect::<Vec<_>>();
-                let series = Series::new("", address).lit();
-                let inner_expr = col("tx_source").is_in(series);
-
-                expr = match expr {
-                    Some(expr) => Some(expr.or(inner_expr)),
-                    None => Some(inner_expr),
-                };
-            }
-            None => (),       // match nothing
-            _ => expr = None, // match all
-        };
-
-        // we know both dest and source can't be "match nothing" at the same time because those ones are filtered out
-        // in bloom filter stage
-
-        match &self.sighash {
-            Some(sig) if !sig.is_empty() => {
-                let sighash = sig.iter().map(|sig| sig.as_slice()).collect::<Vec<_>>();
-                let series = Series::new("", sighash).lit();
-                let inner_expr = col("tx_sighash").is_in(series);
-                expr = match expr {
-                    Some(expr) => Some(expr.and(inner_expr)),
-                    None => Some(inner_expr),
-                };
-            }
-            _ => (),
-        }
-
-        if let Some(status) = self.status {
-            let inner_expr = col("tx_status")
-                .eq(status.lit())
-                .or(col("tx_status").is_null());
-
-            expr = match expr {
-                Some(expr) => Some(expr.and(inner_expr)),
-                None => Some(inner_expr),
-            };
-        }
-
-        expr
-    }
-
     pub fn matches_dest(&self, dest: &Option<Address>) -> bool {
         if let Some(address) = &self.dest {
             let tx_addr = match dest.as_ref() {
@@ -265,38 +177,6 @@ pub struct Query {
     pub transactions: Vec<TransactionSelection>,
     #[serde(default)]
     pub include_all_blocks: bool,
-}
-
-impl Query {
-    pub fn field_selection(&self) -> FieldSelection {
-        self.logs
-            .iter()
-            .map(|log| log.field_selection)
-            .chain(self.transactions.iter().map(|tx| tx.field_selection))
-            .fold(Default::default(), |a, b| a | b)
-    }
-
-    pub fn log_selection(&self) -> Vec<MiniLogSelection> {
-        self.logs
-            .iter()
-            .map(|log| MiniLogSelection {
-                address: log.address.clone(),
-                topics: log.topics.clone(),
-            })
-            .collect()
-    }
-
-    pub fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
-        self.transactions
-            .iter()
-            .map(|transaction| MiniTransactionSelection {
-                source: transaction.source.clone(),
-                dest: transaction.dest.clone(),
-                sighash: transaction.sighash.clone(),
-                status: transaction.status,
-            })
-            .collect()
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

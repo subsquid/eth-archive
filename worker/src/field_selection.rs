@@ -4,14 +4,6 @@ use eth_archive_core::types::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-macro_rules! append_col {
-    ($cols:ident, $self:ident, $field:ident) => {
-        if $self.$field {
-            $cols.insert(stringify!($field));
-        }
-    };
-}
-
 macro_rules! prune_col {
     ($src:ident, $self:ident, $field:ident) => {
         if $self.$field {
@@ -89,33 +81,6 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
-    pub fn to_cols(self) -> HashSet<String> {
-        let mut cols = HashSet::new();
-
-        let table_name = "block";
-        append_col!(cols, self, parent_hash);
-        append_col!(cols, self, sha3_uncles);
-        append_col!(cols, self, miner);
-        append_col!(cols, self, state_root);
-        append_col!(cols, self, transactions_root);
-        append_col!(cols, self, receipts_root);
-        append_col!(cols, self, logs_bloom);
-        append_col!(cols, self, difficulty);
-        append_col!(cols, self, number);
-        append_col!(cols, self, gas_limit);
-        append_col!(cols, self, gas_used);
-        append_col!(cols, self, timestamp);
-        append_col!(cols, self, extra_data);
-        append_col!(cols, self, mix_hash);
-        append_col!(cols, self, nonce);
-        append_col!(cols, self, total_difficulty);
-        append_col!(cols, self, base_fee_per_gas);
-        append_col!(cols, self, size);
-        append_col!(cols, self, hash);
-
-        cols
-    }
-
     pub fn prune(&self, block: Block) -> ResponseBlock {
         ResponseBlock {
             parent_hash: prune_col!(block, self, parent_hash),
@@ -207,34 +172,6 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
-    pub fn to_cols(self) -> HashSet<String> {
-        let mut cols = HashSet::new();
-
-        let table_name = "tx";
-        append_col!(cols, self, kind);
-        append_col!(cols, self, nonce);
-        append_col!(cols, self, dest);
-        append_col!(cols, self, gas);
-        append_col!(cols, self, value);
-        append_col!(cols, self, input);
-        append_col!(cols, self, max_priority_fee_per_gas);
-        append_col!(cols, self, max_fee_per_gas);
-        append_col!(cols, self, y_parity);
-        append_col!(cols, self, chain_id);
-        append_col!(cols, self, v);
-        append_col!(cols, self, r);
-        append_col!(cols, self, s);
-        append_col!(cols, self, source);
-        append_col!(cols, self, block_hash);
-        append_col!(cols, self, block_number);
-        append_col!(cols, self, transaction_index);
-        append_col!(cols, self, gas_price);
-        append_col!(cols, self, hash);
-        append_col!(cols, self, status);
-
-        cols
-    }
-
     pub fn prune(&self, tx: Transaction) -> ResponseTransaction {
         ResponseTransaction {
             kind: prune_col!(tx, self, kind).flatten(),
@@ -314,30 +251,6 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
-    pub fn to_cols(self) -> HashSet<String> {
-        let mut cols = HashSet::new();
-
-        let table_name = "log";
-        append_col!(cols, self, address);
-        append_col!(cols, self, block_hash);
-        append_col!(cols, self, block_number);
-        append_col!(cols, self, data);
-        append_col!(cols, self, log_index);
-        append_col!(cols, self, removed);
-        if self.topics {
-            for i in 0..4 {
-                let col = col(&format!("topic{i}"));
-                let alias = format!("log_topic{i}");
-                let col = col.alias(&alias);
-                cols.push(col);
-            }
-        }
-        append_col!(cols, self, transaction_hash);
-        append_col!(cols, self, transaction_index);
-
-        cols
-    }
-
     pub fn prune(&self, log: Log) -> ResponseLog {
         ResponseLog {
             address: prune_col!(log, self, address),

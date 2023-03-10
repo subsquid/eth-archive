@@ -4,7 +4,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 pub struct Config {
     /// Database path
     #[clap(long)]
@@ -16,7 +16,7 @@ pub struct Config {
     pub ingest: IngestConfig,
     #[command(flatten)]
     pub retry: RetryConfig,
-    /// Address to be used for running server
+    /// Address to be used for running the server
     #[clap(long, default_value_t = default_server_addr())]
     pub server_addr: SocketAddr,
     /// Initial hot block range. If None, hot blocks will start from 0
@@ -29,9 +29,9 @@ pub struct Config {
     /// Maximum number of concurrent queries
     #[clap(long, default_value_t = NonZeroUsize::new(32).unwrap())]
     pub max_concurrent_queries: NonZeroUsize,
-    /// Number of threads per query to use to query parquet folders
+    /// Maximum number of threads per query to use to query parquet folders
     #[clap(long, default_value_t = NonZeroUsize::new(1).unwrap())]
-    pub query_concurrency: NonZeroUsize,
+    pub max_query_concurrency: NonZeroUsize,
     /// Response time limit in milliseconds.
     /// The query will stop and found data will be returned
     /// if the request takes more than this amount of time to handle.

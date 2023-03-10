@@ -1,10 +1,7 @@
-use crate::data_ctx::scan_parquet_args;
 use crate::db::{DbHandle, ParquetIdx};
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
-use polars::export::arrow::array::BinaryArray;
-use polars::prelude::*;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -67,51 +64,7 @@ impl DbWriter {
         data_path: &Path,
         dir_name: DirName,
     ) -> Result<()> {
-        let mut data_frames = Vec::new();
-
-        {
-            let mut path = data_path.to_owned();
-            path.push(dir_name.to_string());
-            path.push("log.parquet");
-
-            let lazy_frame =
-                LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
-            let data_frame = lazy_frame
-                .select(vec![col("address")])
-                .unique(None, UniqueKeepStrategy::First)
-                .collect()
-                .map_err(Error::ExecuteQuery)?;
-
-            data_frames.push(data_frame);
-        }
-
-        {
-            let mut path = data_path.to_owned();
-            path.push(dir_name.to_string());
-            path.push("tx.parquet");
-
-            let lazy_frame =
-                LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
-            let data_frame = lazy_frame
-                .select(vec![col("dest")])
-                .unique(None, UniqueKeepStrategy::First)
-                .collect()
-                .map_err(Error::ExecuteQuery)?;
-            data_frames.push(data_frame);
-
-            let lazy_frame =
-                LazyFrame::scan_parquet(&path, scan_parquet_args()).map_err(Error::ScanParquet)?;
-            let data_frame = lazy_frame
-                .select(vec![col("source")])
-                .unique(None, UniqueKeepStrategy::First)
-                .collect()
-                .map_err(Error::ExecuteQuery)?;
-            data_frames.push(data_frame);
-        }
-
-        db.insert_parquet_idx(dir_name, &bloom_filter_from_frames(data_frames))?;
-
-        Ok(())
+        todo!();
     }
 }
 
@@ -119,26 +72,6 @@ impl DbWriter {
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
-}
-
-fn bloom_filter_from_frames(data_frames: Vec<DataFrame>) -> ParquetIdx {
-    let mut addrs = HashSet::new();
-
-    for data_frame in data_frames {
-        for chunk in data_frame.iter_chunks() {
-            for addr in chunk.columns()[0]
-                .as_any()
-                .downcast_ref::<BinaryArray<i64>>()
-                .unwrap()
-                .iter()
-                .flatten()
-            {
-                addrs.insert(addr.to_vec());
-            }
-        }
-    }
-
-    ParquetIdx::try_from(&addrs.iter().map(|addr| hash_addr(addr)).collect::<Vec<_>>()).unwrap()
 }
 
 pub fn hash_addr(addr: &[u8]) -> u64 {

@@ -6,12 +6,13 @@ use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
     Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
 };
-use futures::channel::mpsc;
+use futures::Stream;
 use libmdbx::{Database, NoWriteMap};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 pub struct DbHandle {
     inner: Database<NoWriteMap>,
@@ -46,16 +47,16 @@ impl DbHandle {
         self: Arc<Self>,
         from: u32,
         to: Option<u32>,
-    ) -> Result<impl Stream<Item = Result<(DirName, ParquetIdx)>>> {
-        let iter = tokio::task::spawn_blocking(move || self.iter_parquet_idxs(from, to))
+    ) -> Result<mpsc::Receiver<Result<(DirName, ParquetIdx)>>> {
+        let iter = tokio::task::spawn_blocking(move || self.iter_parquet_idxs_impl(from, to))
             .await
             .unwrap()?;
 
-        let (tx, rx) = mpsc::channel(1);
+        let (tx, rx): (mpsc::Sender<Result<(DirName, ParquetIdx)>>, _) = mpsc::channel(1);
 
-        std::thread::spawn(move || {
+        tokio::task::spawn_blocking(move || {
             for res in iter {
-                if let Err(_) = tx.send_blocking(res) {
+                if tx.blocking_send(res).is_err() {
                     break;
                 }
             }
