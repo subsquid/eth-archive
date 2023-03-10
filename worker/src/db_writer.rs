@@ -1,6 +1,6 @@
 use crate::db::DbHandle;
 use crate::parquet_metadata::CollectMetadataAndParquetIdx;
-use crate::{Error, Result};
+use crate::Result;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
 use std::path::{Path, PathBuf};

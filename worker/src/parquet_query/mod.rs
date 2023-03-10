@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Result;
 use eth_archive_core::types::QueryResult;
 
 pub struct ParquetQuery {}

@@ -1,3 +1,4 @@
+use arrow2::error::Error as ArrowError;
 use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
@@ -56,6 +57,10 @@ pub enum Error {
     CreateMissingDirectories(io::Error),
     #[error("failed to get best block:\n{0}")]
     GetBestBlock(eth_archive_core::Error),
+    #[error("failed to read parquet file:\n{0}")]
+    ReadParquet(ArrowError),
+    #[error("failed to open file:\n{0}")]
+    OpenParquetFile(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;

@@ -1,6 +1,7 @@
 use crate::deserialize::{BigUnsigned, Bytes};
 
 // defines columns using the result frame and a list of column names
+#[macro_export]
 macro_rules! define_cols {
     ($columns:expr, $($name:ident, $arrow_type:ident),*) => {
         let mut columns = $columns.into_iter();

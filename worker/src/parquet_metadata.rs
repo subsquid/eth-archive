@@ -1,9 +1,18 @@
 use crate::{Error, Result};
+use arrow2::array::{self, UInt32Array};
+use arrow2::compute::cast::cast;
+use arrow2::compute::concatenate::concatenate;
+use arrow2::datatypes::{DataType, Field};
+use arrow2::io::parquet;
+use eth_archive_core::define_cols;
 use eth_archive_core::dir_name::DirName;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
+use std::{cmp, fs};
 use xorf::{BinaryFuse16, BinaryFuse8};
+
+type BinaryArray = array::BinaryArray<i64>;
 
 #[derive(Serialize, Deserialize)]
 pub struct ParquetMetadata {
@@ -20,8 +29,8 @@ pub struct LogRowGroupMetadata {
 
 #[derive(Serialize, Deserialize)]
 pub struct TransactionRowGroupMetadata {
-    pub from_addr_filter: BinaryFuse16,
-    pub to_addr_filter: BinaryFuse16,
+    pub source_filter: BinaryFuse16,
+    pub dest_filter: BinaryFuse16,
     pub max_blk_num_tx_idx: u64,
     pub min_blk_num_tx_idx: u64,
 }
@@ -52,15 +61,157 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
         Ok((metadata, filter))
     }
 
-    fn collect_log_meta(&self, addrs: &mut HashSet<u64>) -> Result<Vec<LogRowGroupMetadata>> {
-        todo!()
+    fn collect_log_meta(
+        &self,
+        addrs_global: &mut HashSet<u64>,
+    ) -> Result<Vec<LogRowGroupMetadata>> {
+        let mut path = self.data_path.to_owned();
+        path.push(self.dir_name.to_string());
+        path.push("log.parquet");
+        let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
+
+        let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
+
+        let mut log_rg_meta = Vec::new();
+
+        for row_group_meta in metadata.row_groups.iter() {
+            let columns = parquet::read::read_columns_many(
+                &mut file,
+                row_group_meta,
+                vec![
+                    Field::new("address", DataType::Binary, false),
+                    Field::new("topic0", DataType::Binary, true),
+                ],
+                None,
+                None,
+                None,
+            )
+            .map_err(Error::ReadParquet)?;
+
+            let mut addrs = HashSet::new();
+            let mut addr_topic0 = HashSet::new();
+
+            for columns in columns {
+                let columns = vec![columns];
+
+                #[rustfmt::skip]
+                define_cols!(
+                    columns,
+                    address, BinaryArray,
+                    topic0, BinaryArray
+                );
+
+                let len = address.len();
+
+                for i in 0..len {
+                    let address = address.get(i).unwrap();
+                    let addr_hash = hash(address);
+                    addrs.insert(addr_hash);
+                    addrs_global.insert(addr_hash);
+
+                    if let Some(topic0) = topic0.get(i) {
+                        let mut buf = address.to_vec();
+                        buf.extend_from_slice(topic0);
+                        addr_topic0.insert(hash(&buf));
+                    }
+                }
+            }
+
+            log_rg_meta.push(LogRowGroupMetadata {
+                address_filter: BinaryFuse16::try_from(&addrs.into_iter().collect::<Vec<_>>())
+                    .unwrap(),
+                address_topic0_filter: BinaryFuse16::try_from(
+                    &addr_topic0.into_iter().collect::<Vec<_>>(),
+                )
+                .unwrap(),
+            });
+        }
+
+        Ok(log_rg_meta)
     }
 
     fn collect_tx_meta(
         &self,
-        addrs: &mut HashSet<u64>,
+        addrs_global: &mut HashSet<u64>,
     ) -> Result<Vec<TransactionRowGroupMetadata>> {
-        todo!()
+        let mut path = self.data_path.to_owned();
+        path.push(self.dir_name.to_string());
+        path.push("tx.parquet");
+        let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
+
+        let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
+
+        let mut tx_rg_meta = Vec::new();
+
+        for row_group_meta in metadata.row_groups.iter() {
+            let columns = parquet::read::read_columns_many(
+                &mut file,
+                row_group_meta,
+                vec![
+                    Field::new("source", DataType::Binary, true),
+                    Field::new("dest", DataType::Binary, true),
+                    Field::new("block_number", DataType::UInt32, false),
+                    Field::new("transaction_index", DataType::UInt32, false),
+                ],
+                None,
+                None,
+                None,
+            )
+            .map_err(Error::ReadParquet)?;
+
+            let mut max_blk_num_tx_idx = 0;
+            let mut min_blk_num_tx_idx = 0;
+            let mut source_addrs = HashSet::new();
+            let mut dest_addrs = HashSet::new();
+
+            for columns in columns {
+                let columns = vec![columns];
+
+                #[rustfmt::skip]
+                define_cols!(
+                    columns,
+                    source, BinaryArray,
+                    dest, BinaryArray,
+                    block_number, UInt32Array,
+                    transaction_index, UInt32Array
+                );
+
+                let len = block_number.len();
+
+                for i in 0..len {
+                    if let Some(source) = source.get(i) {
+                        let h = hash(source);
+                        source_addrs.insert(h);
+                        addrs_global.insert(h);
+                    }
+                    if let Some(dest) = dest.get(i) {
+                        let h = hash(dest);
+                        dest_addrs.insert(h);
+                        addrs_global.insert(h);
+                    }
+                    let blk_num_tx_idx = combine_block_num_tx_idx(
+                        block_number.get(i).unwrap(),
+                        transaction_index.get(i).unwrap(),
+                    );
+
+                    max_blk_num_tx_idx = cmp::max(max_blk_num_tx_idx, blk_num_tx_idx);
+                    min_blk_num_tx_idx = cmp::min(min_blk_num_tx_idx, blk_num_tx_idx);
+                }
+            }
+
+            tx_rg_meta.push(TransactionRowGroupMetadata {
+                source_filter: BinaryFuse16::try_from(
+                    &source_addrs.into_iter().collect::<Vec<_>>(),
+                )
+                .unwrap(),
+                dest_filter: BinaryFuse16::try_from(&dest_addrs.into_iter().collect::<Vec<_>>())
+                    .unwrap(),
+                max_blk_num_tx_idx,
+                min_blk_num_tx_idx,
+            });
+        }
+
+        Ok(tx_rg_meta)
     }
 
     fn collect_block_meta(&self) -> Result<Vec<BlockRowGroupMetadata>> {
@@ -70,4 +221,8 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
 
 fn hash(input: &[u8]) -> u64 {
     xxhash_rust::xxh3::xxh3_64(input)
+}
+
+fn combine_block_num_tx_idx(block_num: u32, tx_idx: u32) -> u64 {
+    (u64::from(block_num) << 4) | u64::from(tx_idx)
 }

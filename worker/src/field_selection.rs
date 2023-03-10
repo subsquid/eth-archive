@@ -2,7 +2,6 @@ use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 macro_rules! prune_col {
     ($src:ident, $self:ident, $field:ident) => {

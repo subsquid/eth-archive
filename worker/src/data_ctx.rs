@@ -333,11 +333,11 @@ impl Query {
             .fold(Default::default(), |a, b| a | b)
     }
 
-    fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
+    fn pruned_log_selection(&self, _parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
         todo!()
     }
 
-    fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
+    fn pruned_tx_selection(&self, _parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
         todo!()
     }
 

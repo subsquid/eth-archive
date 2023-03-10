@@ -6,7 +6,7 @@ use arrow2::io::parquet::read::{read_columns_many, read_metadata};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-mod util;
+pub mod util;
 mod ver0_0_39;
 mod ver0_1_0;
 
