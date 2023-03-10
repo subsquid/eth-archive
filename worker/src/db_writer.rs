@@ -1,5 +1,5 @@
 use crate::db::DbHandle;
-use crate::parquet_metadata::{CollectMetadataAndParquetIdx, ParquetMetadata};
+use crate::parquet_metadata::CollectMetadataAndParquetIdx;
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
@@ -80,8 +80,4 @@ impl DbWriter {
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
     RegisterParquetFolder(DirName),
-}
-
-pub fn hash_addr(addr: &[u8]) -> u64 {
-    xxhash_rust::xxh3::xxh3_64(addr)
 }

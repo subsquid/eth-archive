@@ -13,6 +13,7 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use xorf::BinaryFuse8;
 
 pub struct DbHandle {
     inner: Database<NoWriteMap>,
@@ -47,12 +48,12 @@ impl DbHandle {
         self: Arc<Self>,
         from: u32,
         to: Option<u32>,
-    ) -> Result<mpsc::Receiver<Result<(DirName, ParquetIdx)>>> {
+    ) -> Result<mpsc::Receiver<Result<(DirName, BinaryFuse8)>>> {
         let iter = tokio::task::spawn_blocking(move || self.iter_parquet_idxs_impl(from, to))
             .await
             .unwrap()?;
 
-        let (tx, rx): (mpsc::Sender<Result<(DirName, ParquetIdx)>>, _) = mpsc::channel(1);
+        let (tx, rx): (mpsc::Sender<Result<(DirName, BinaryFuse8)>>, _) = mpsc::channel(1);
 
         tokio::task::spawn_blocking(move || {
             for res in iter {
@@ -69,7 +70,7 @@ impl DbHandle {
         &self,
         from: u32,
         to: Option<u32>,
-    ) -> Result<impl Iterator<Item = Result<(DirName, ParquetIdx)>>> {
+    ) -> Result<impl Iterator<Item = Result<(DirName, BinaryFuse8)>>> {
         let key = key_from_dir_name(DirName {
             range: BlockRange { from, to: 0 },
             is_temp: false,
@@ -312,7 +313,7 @@ impl DbHandle {
     pub fn register_parquet_folder(
         &self,
         dir_name: DirName,
-        idx: &ParquetIdx,
+        idx: &BinaryFuse8,
         metadata: &ParquetMetadata,
     ) -> Result<()> {
         let txn = self.inner.begin_rw_txn().map_err(Error::Db)?;
@@ -533,8 +534,6 @@ mod table_name {
 
     pub const ALL_TABLE_NAMES: [&str; 6] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX, PARQUET_METADATA];
 }
-
-pub type ParquetIdx = xorf::BinaryFuse8;
 
 fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
     let mut key = [0; 8];

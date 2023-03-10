@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::db::{DbHandle, ParquetIdx};
+use crate::db::DbHandle;
 use crate::db_writer::DbWriter;
 use crate::downloader::Downloader;
 use crate::field_selection::FieldSelection;
@@ -17,6 +17,7 @@ use std::cmp;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use xorf::BinaryFuse8;
 
 pub struct DataCtx {
     config: Config,
@@ -332,11 +333,11 @@ impl Query {
             .fold(Default::default(), |a, b| a | b)
     }
 
-    fn pruned_log_selection(&self, parquet_idx: &ParquetIdx) -> Vec<MiniLogSelection> {
+    fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
         todo!()
     }
 
-    fn pruned_tx_selection(&self, parquet_idx: &ParquetIdx) -> Vec<MiniTransactionSelection> {
+    fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
         todo!()
     }
 
