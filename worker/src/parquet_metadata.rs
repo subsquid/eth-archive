@@ -215,7 +215,54 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
     }
 
     fn collect_block_meta(&self) -> Result<Vec<BlockRowGroupMetadata>> {
-        todo!()
+        let mut path = self.data_path.to_owned();
+        path.push(self.dir_name.to_string());
+        path.push("block.parquet");
+        let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
+
+        let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
+
+        let mut block_rg_meta = Vec::new();
+
+        for row_group_meta in metadata.row_groups.iter() {
+            let columns = parquet::read::read_columns_many(
+                &mut file,
+                row_group_meta,
+                vec![Field::new("block_number", DataType::UInt32, false)],
+                None,
+                None,
+                None,
+            )
+            .map_err(Error::ReadParquet)?;
+
+            let mut max_block_number = 0;
+            let mut min_block_number = 0;
+
+            for columns in columns {
+                let columns = vec![columns];
+
+                #[rustfmt::skip]
+                define_cols!(
+                    columns,
+                    block_number, UInt32Array
+                );
+
+                let len = block_number.len();
+
+                for i in 0..len {
+                    let blk_num = block_number.get(i).unwrap();
+                    max_block_number = cmp::max(max_block_number, blk_num);
+                    min_block_number = cmp::min(min_block_number, blk_num);
+                }
+            }
+
+            block_rg_meta.push(BlockRowGroupMetadata {
+                max_block_number,
+                min_block_number,
+            });
+        }
+
+        Ok(block_rg_meta)
     }
 }
 
