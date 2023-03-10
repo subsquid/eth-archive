@@ -6,7 +6,6 @@ use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
     Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
 };
-use futures::Stream;
 use libmdbx::{Database, NoWriteMap};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;

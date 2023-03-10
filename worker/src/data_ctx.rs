@@ -1,28 +1,22 @@
 use crate::config::Config;
-use crate::db::{ParquetIdx, DbHandle};
+use crate::db::{DbHandle, ParquetIdx};
 use crate::db_writer::DbWriter;
 use crate::downloader::Downloader;
 use crate::field_selection::FieldSelection;
+use crate::parquet_query::ParquetQuery;
 use crate::parquet_watcher::ParquetWatcher;
 use crate::serialize_task::SerializeTask;
 use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
 use crate::{Error, Result};
-use arrayvec::ArrayVec;
-use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
+use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_client::{Direction, S3Client};
-use eth_archive_core::types::{
-    BlockRange, QueryResult, ResponseBlock, ResponseLog, ResponseRow, ResponseTransaction,
-};
-use futures::pin_mut;
-use futures::stream::StreamExt;
+use eth_archive_core::types::{BlockRange, QueryResult};
+use std::cmp;
 use std::collections::VecDeque;
-use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use std::{cmp, io};
 
 pub struct DataCtx {
     config: Config,
@@ -157,6 +151,10 @@ impl DataCtx {
             return serialize_task.join().await;
         }
 
+        let from_block = cmp::max(query.from_block, parquet_height);
+        self.hot_data_query(from_block, &serialize_task, &query, field_selection)
+            .await?;
+
         serialize_task.join().await
     }
 
@@ -172,10 +170,84 @@ impl DataCtx {
             .iter_parquet_idxs(query.from_block, query.to_block)
             .await?;
 
+        let concurrency = self.config.max_parquet_query_concurrency.get();
+        let mut jobs: VecDeque<futures::channel::oneshot::Receiver<_>> =
+            VecDeque::with_capacity(concurrency);
+
         while let Some(res) = parquet_idxs.recv().await {
             let (dir_name, parquet_idx) = res?;
 
-            
+            if jobs.len() == concurrency {
+                let job = jobs.pop_front().unwrap();
+
+                let (res, block_range) = job.await.unwrap();
+
+                let res = res?;
+
+                if !serialize_task.send((res, block_range)) {
+                    break;
+                }
+            }
+
+            let from_block = cmp::max(dir_name.range.from, query.from_block);
+            let to_block = match query.to_block {
+                Some(to_block) => cmp::min(dir_name.range.to, to_block),
+                None => dir_name.range.to,
+            };
+
+            let block_range = BlockRange {
+                from: from_block,
+                to: to_block,
+            };
+
+            let (logs, transactions) = rayon_async::spawn({
+                let query = query.clone();
+                move || {
+                    (
+                        query.pruned_log_selection(&parquet_idx),
+                        query.pruned_tx_selection(&parquet_idx),
+                    )
+                }
+            })
+            .await;
+
+            let mini_query = MiniQuery {
+                from_block,
+                to_block,
+                logs,
+                transactions,
+                field_selection,
+                include_all_blocks: query.include_all_blocks,
+            };
+
+            let (tx, rx) = futures::channel::oneshot::channel();
+
+            // don't spawn a thread if there is nothing to query
+            if !mini_query.include_all_blocks
+                && mini_query.logs.is_empty()
+                && mini_query.transactions.is_empty()
+            {
+                tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
+                    .ok();
+            } else {
+                tokio::spawn(async move {
+                    let res = ParquetQuery {}.run().await;
+
+                    tx.send((res, block_range)).ok();
+                });
+            }
+
+            jobs.push_back(rx);
+        }
+
+        while let Some(job) = jobs.pop_front() {
+            let (res, block_range) = job.await.unwrap();
+
+            let res = res?;
+
+            if !serialize_task.send((res, block_range)) {
+                break;
+            }
         }
 
         Ok(())
@@ -260,11 +332,11 @@ impl Query {
             .fold(Default::default(), |a, b| a | b)
     }
 
-    fn pruned_log_selection(&self, parquet_idx: ParquetIdx) -> Vec<MiniLogSelection> {
+    fn pruned_log_selection(&self, parquet_idx: &ParquetIdx) -> Vec<MiniLogSelection> {
         todo!()
     }
 
-    fn pruned_tx_selection(&self, parquet_idx: ParquetIdx) -> Vec<MiniTransactionSelection> {
+    fn pruned_tx_selection(&self, parquet_idx: &ParquetIdx) -> Vec<MiniTransactionSelection> {
         todo!()
     }
 

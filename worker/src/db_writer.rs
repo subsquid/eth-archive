@@ -1,8 +1,7 @@
-use crate::db::{DbHandle, ParquetIdx};
+use crate::db::DbHandle;
 use crate::{Error, Result};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::types::{Block, BlockRange, Log};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;

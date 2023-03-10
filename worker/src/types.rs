@@ -1,9 +1,7 @@
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
-use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index, Sighash};
-use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
+use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 pub struct MiniQuery {
     pub from_block: u32,

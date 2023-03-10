@@ -5,6 +5,7 @@ mod db_writer;
 mod downloader;
 mod error;
 mod field_selection;
+mod parquet_query;
 mod parquet_watcher;
 mod serialize_task;
 mod server;
