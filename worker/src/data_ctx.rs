@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::db::DbHandle;
-use crate::db_writer::{hash_addr, DbWriter};
+use crate::db_writer::DbWriter;
 use crate::downloader::Downloader;
 use crate::field_selection::FieldSelection;
 use crate::parquet_watcher::ParquetWatcher;
@@ -17,16 +17,17 @@ use eth_archive_core::types::{
 };
 use futures::pin_mut;
 use futures::stream::StreamExt;
+use std::sync::atomic::{Ordering, AtomicUsize};
 use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, io};
-use xorf::Filter;
 
 pub struct DataCtx {
     config: Config,
     db: Arc<DbHandle>,
+    current_num_queries: AtomicUsize,
 }
 
 impl DataCtx {
@@ -72,7 +73,11 @@ impl DataCtx {
             }
         }
 
-        Ok(Self { config, db })
+        Ok(Self {
+            config,
+            db,
+            current_num_queries: AtomicUsize::new(0),
+        })
     }
 
     pub async fn inclusive_height(&self) -> Result<Option<u32>> {
@@ -83,6 +88,100 @@ impl DataCtx {
     }
 
     pub async fn query(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
-        todo!();
+        let max_concurrent_queries = self.config.max_concurrent_queries.get();
+        if self
+            .current_num_queries
+            .fetch_update(
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+                |current_num_queries: usize| {
+                    if current_num_queries < max_concurrent_queries {
+                        Some(current_num_queries + 1)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .is_err()
+        {
+            return Err(Error::MaxNumberOfQueriesReached);
+        }
+
+        let res = self.clone().query_impl(query).await;
+
+        self.current_num_queries.fetch_sub(1, Ordering::SeqCst);
+
+        res
+    }
+
+    async fn query_impl(self: Arc<Self>, mut query: Query) -> Result<Vec<u8>> {
+        // to_block is supposed to be inclusive in api but exclusive in implementation
+        // so we add one to it here
+        query.to_block = query.to_block.map(|a| a + 1);
+
+        if let Some(to_block) = query.to_block {
+            if query.from_block >= to_block {
+                return Err(Error::InvalidBlockRange);
+            }
+        }
+
+        if query.logs.is_empty() && query.transactions.is_empty() {
+            return Err(Error::EmptyQuery);
+        }
+
+        let field_selection = query.field_selection();
+
+        let serialize_task = SerializeTask::new(
+            query.from_block,
+            self.config.max_resp_body_size,
+            self.inclusive_height().await?,
+            field_selection,
+        );
+
+        if query.from_block >= self.db.clone().height().await? {
+            return serialize_task.join().await;
+        }
+
+        let mut parquet_idxs = self.db.clone().iter_parquet_idxs(query.from_block, query.to_block).await?;
+
+        while let Some(res) = parquet_idxs.recv().await {
+            let (dir_name, parquet_idx) = res?;
+
+            
+        }
+
+        serialize_task.join().await
+    }
+}
+
+impl Query {
+    fn field_selection(&self) -> FieldSelection {
+        self.logs
+            .iter()
+            .map(|log| log.field_selection)
+            .chain(self.transactions.iter().map(|tx| tx.field_selection))
+            .fold(Default::default(), |a, b| a | b)
+    }
+
+    fn log_selection(&self) -> Vec<MiniLogSelection> {
+        self.logs
+            .iter()
+            .map(|log| MiniLogSelection {
+                address: log.address.clone(),
+                topics: log.topics.clone(),
+            })
+            .collect()
+    }
+
+    fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
+        self.transactions
+            .iter()
+            .map(|transaction| MiniTransactionSelection {
+                source: transaction.source.clone(),
+                dest: transaction.dest.clone(),
+                sighash: transaction.sighash.clone(),
+                status: transaction.status,
+            })
+            .collect()
     }
 }
