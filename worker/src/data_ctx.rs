@@ -232,8 +232,25 @@ impl DataCtx {
                 tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
                     .ok();
             } else {
+                let db = self.db.clone();
+                let data_path = self.config.data_path.as_ref().unwrap().to_owned();
                 tokio::spawn(async move {
-                    let res = ParquetQuery {}.run().await;
+                    let metadata = match db.get_parquet_metadata(dir_name).await {
+                        Ok(metadata) => metadata.unwrap(),
+                        Err(e) => {
+                            tx.send((Err(e), block_range)).ok();
+                            return;
+                        }
+                    };
+
+                    let res = ParquetQuery {
+                        data_path,
+                        dir_name,
+                        metadata,
+                        mini_query,
+                    }
+                    .run()
+                    .await;
 
                     tx.send((res, block_range)).ok();
                 });

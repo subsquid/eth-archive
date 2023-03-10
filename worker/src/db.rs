@@ -44,6 +44,33 @@ impl DbHandle {
         Ok(Self { inner, metrics })
     }
 
+    pub async fn get_parquet_metadata(
+        self: Arc<Self>,
+        dir_name: DirName,
+    ) -> Result<Option<ParquetMetadata>> {
+        tokio::task::spawn_blocking(move || self.get_parquet_metadata_impl(dir_name))
+            .await
+            .unwrap()
+    }
+
+    fn get_parquet_metadata_impl(&self, dir_name: DirName) -> Result<Option<ParquetMetadata>> {
+        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+
+        let parquet_metadata_table = txn
+            .open_table(Some(table_name::PARQUET_METADATA))
+            .map_err(Error::Db)?;
+
+        let metadata: Option<Vec<u8>> = txn
+            .get(&parquet_metadata_table, &key_from_dir_name(dir_name))
+            .map_err(Error::Db)?;
+
+        let metadata = metadata
+            .as_ref()
+            .map(|m| rmp_serde::decode::from_slice(m).unwrap());
+
+        Ok(metadata)
+    }
+
     pub async fn iter_parquet_idxs(
         self: Arc<Self>,
         from: u32,
