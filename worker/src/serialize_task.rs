@@ -1,8 +1,10 @@
 use crate::field_selection::FieldSelection;
-use crate::types::{BlockEntry, BlockEntryVec};
 use crate::{Error, Result};
 use eth_archive_core::rayon_async;
-use eth_archive_core::types::{BlockRange, QueryResult};
+use eth_archive_core::types::{
+    BlockRange, QueryResult, ResponseBlock, ResponseLog, ResponseTransaction,
+};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::mem;
@@ -167,4 +169,29 @@ fn process_query_result(
     serde_json::to_writer(&mut bytes, &data).unwrap();
 
     bytes
+}
+
+pub struct BlockEntry {
+    pub block: Option<ResponseBlock>,
+    pub transactions: BTreeMap<u32, ResponseTransaction>,
+    pub logs: BTreeMap<u32, ResponseLog>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockEntryVec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<ResponseBlock>,
+    pub transactions: Vec<ResponseTransaction>,
+    pub logs: Vec<ResponseLog>,
+}
+
+impl From<BlockEntry> for BlockEntryVec {
+    fn from(entry: BlockEntry) -> Self {
+        Self {
+            block: entry.block,
+            transactions: entry.transactions.into_values().collect(),
+            logs: entry.logs.into_values().collect(),
+        }
+    }
 }

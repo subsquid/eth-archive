@@ -597,21 +597,12 @@ impl MiniQuery {
     #[allow(clippy::match_like_matches_macro)]
     fn matches_tx(&self, tx: &Transaction) -> bool {
         self.transactions.iter().any(|selection| {
-            let source_none = match &selection.source {
-                Some(s) if !s.is_empty() => false,
-                _ => true,
-            };
-
-            let dest_none = match &selection.dest {
-                Some(d) if !d.is_empty() => false,
-                _ => true,
-            };
-
-            let match_all_addr = source_none && dest_none;
-
-            (match_all_addr
+            let match_all_addr = selection.source.is_empty() && selection.dest.is_empty();
+            let matches_addr = match_all_addr
                 || selection.matches_dest(&tx.dest)
-                || selection.matches_source(&tx.source))
+                || selection.matches_source(&tx.source);
+
+            matches_addr
                 && selection.matches_sighash(&tx.input)
                 && selection.matches_status(tx.status)
         })
@@ -620,10 +611,8 @@ impl MiniQuery {
 
 impl MiniLogSelection {
     fn matches_addr(&self, filter_addr: &Address) -> bool {
-        if let Some(address) = &self.address {
-            if !address.is_empty() && !address.iter().any(|addr| addr == filter_addr) {
-                return false;
-            }
+        if !self.address.is_empty() && !self.address.iter().any(|addr| addr == filter_addr) {
+            return false;
         }
 
         true
@@ -642,48 +631,30 @@ impl MiniLogSelection {
 
 impl MiniTransactionSelection {
     fn matches_dest(&self, dest: &Option<Address>) -> bool {
-        if let Some(address) = &self.dest {
-            let tx_addr = match dest.as_ref() {
-                Some(addr) => addr,
-                None => return false,
-            };
+        let tx_addr = match dest.as_ref() {
+            Some(addr) => addr,
+            None => return false,
+        };
 
-            if address.iter().any(|addr| addr == tx_addr) {
-                return true;
-            }
-        }
-
-        false
+        self.dest.iter().any(|addr| addr == tx_addr)
     }
 
     fn matches_source(&self, source: &Option<Address>) -> bool {
-        if let Some(address) = &self.source {
-            let tx_addr = match source.as_ref() {
-                Some(addr) => addr,
-                None => return false,
-            };
+        let tx_addr = match source.as_ref() {
+            Some(addr) => addr,
+            None => return false,
+        };
 
-            if address.iter().any(|addr| addr == tx_addr) {
-                return true;
-            }
-        }
-
-        false
+        self.source.iter().any(|addr| addr == tx_addr)
     }
 
     fn matches_sighash(&self, input: &Bytes) -> bool {
-        if let Some(sighash) = &self.sighash {
-            let input = match input.get(..4) {
-                Some(sig) => sig,
-                None => return false,
-            };
+        let input = match input.get(..4) {
+            Some(sig) => sig,
+            None => return false,
+        };
 
-            if !sighash.is_empty() && !sighash.iter().any(|sig| sig.as_slice() == input) {
-                return false;
-            }
-        }
-
-        true
+        self.sighash.is_empty() || self.sighash.iter().any(|sig| sig.as_slice() == input)
     }
 
     fn matches_status(&self, tx_status: Option<Index>) -> bool {

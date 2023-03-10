@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::db::DbHandle;
+use crate::db::{ParquetIdx, DbHandle};
 use crate::db_writer::DbWriter;
 use crate::downloader::Downloader;
 use crate::field_selection::FieldSelection;
@@ -17,9 +17,9 @@ use eth_archive_core::types::{
 };
 use futures::pin_mut;
 use futures::stream::StreamExt;
-use std::sync::atomic::{Ordering, AtomicUsize};
 use std::collections::VecDeque;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{cmp, io};
@@ -114,10 +114,12 @@ impl DataCtx {
         res
     }
 
-    async fn query_impl(self: Arc<Self>, mut query: Query) -> Result<Vec<u8>> {
+    async fn query_impl(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
+        let mut query = query;
         // to_block is supposed to be inclusive in api but exclusive in implementation
         // so we add one to it here
         query.to_block = query.to_block.map(|a| a + 1);
+        let query = query;
 
         if let Some(to_block) = query.to_block {
             if query.from_block >= to_block {
@@ -142,7 +144,33 @@ impl DataCtx {
             return serialize_task.join().await;
         }
 
-        let mut parquet_idxs = self.db.clone().iter_parquet_idxs(query.from_block, query.to_block).await?;
+        let field_selection = field_selection.with_join_columns();
+
+        let parquet_height = self.db.clone().parquet_height().await?;
+
+        if query.from_block < parquet_height {
+            self.parquet_query(&serialize_task, &query, field_selection)
+                .await?;
+        }
+
+        if serialize_task.is_closed() {
+            return serialize_task.join().await;
+        }
+
+        serialize_task.join().await
+    }
+
+    async fn parquet_query(
+        &self,
+        serialize_task: &SerializeTask,
+        query: &Query,
+        field_selection: FieldSelection,
+    ) -> Result<()> {
+        let mut parquet_idxs = self
+            .db
+            .clone()
+            .iter_parquet_idxs(query.from_block, query.to_block)
+            .await?;
 
         while let Some(res) = parquet_idxs.recv().await {
             let (dir_name, parquet_idx) = res?;
@@ -150,7 +178,76 @@ impl DataCtx {
             
         }
 
-        serialize_task.join().await
+        Ok(())
+    }
+
+    async fn hot_data_query(
+        &self,
+        from_block: u32,
+        serialize_task: &SerializeTask,
+        query: &Query,
+        field_selection: FieldSelection,
+    ) -> Result<()> {
+        let archive_height = self.db.clone().height().await?;
+
+        if from_block >= archive_height {
+            return Ok(());
+        }
+
+        let to_block = match query.to_block {
+            Some(to_block) => cmp::min(archive_height, to_block),
+            None => archive_height,
+        };
+
+        let step = usize::try_from(self.config.db_query_batch_size).unwrap();
+        for start in (from_block..to_block).step_by(step) {
+            let end = cmp::min(to_block, start + self.config.db_query_batch_size);
+
+            let mini_query = MiniQuery {
+                from_block: start,
+                to_block: end,
+                logs: query.log_selection(),
+                transactions: query.tx_selection(),
+                field_selection,
+                include_all_blocks: query.include_all_blocks,
+            };
+
+            if serialize_task.is_closed() {
+                break;
+            }
+
+            let res = self.db.clone().query(mini_query).await?;
+
+            let block_range = BlockRange {
+                from: start,
+                to: end,
+            };
+
+            if !serialize_task.send((res, block_range)) {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl FieldSelection {
+    fn with_join_columns(mut self) -> Self {
+        self.block.number = true;
+        self.transaction.hash = true;
+        self.transaction.block_number = true;
+        self.transaction.transaction_index = true;
+        self.transaction.dest = true;
+        self.transaction.source = true;
+        self.transaction.status = true;
+        self.log.block_number = true;
+        self.log.log_index = true;
+        self.log.transaction_index = true;
+        self.log.address = true;
+        self.log.topics = true;
+
+        self
     }
 }
 
@@ -161,6 +258,14 @@ impl Query {
             .map(|log| log.field_selection)
             .chain(self.transactions.iter().map(|tx| tx.field_selection))
             .fold(Default::default(), |a, b| a | b)
+    }
+
+    fn pruned_log_selection(&self, parquet_idx: ParquetIdx) -> Vec<MiniLogSelection> {
+        todo!()
+    }
+
+    fn pruned_tx_selection(&self, parquet_idx: ParquetIdx) -> Vec<MiniTransactionSelection> {
+        todo!()
     }
 
     fn log_selection(&self) -> Vec<MiniLogSelection> {

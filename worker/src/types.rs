@@ -16,41 +16,16 @@ pub struct MiniQuery {
 
 #[derive(Clone)]
 pub struct MiniLogSelection {
-    pub address: Option<Vec<Address>>,
+    pub address: Vec<Address>,
     pub topics: ArrayVec<Vec<Bytes32>, 4>,
 }
 
 #[derive(Clone)]
 pub struct MiniTransactionSelection {
-    pub source: Option<Vec<Address>>,
-    pub dest: Option<Vec<Address>>,
-    pub sighash: Option<Vec<Sighash>>,
+    pub source: Vec<Address>,
+    pub dest: Vec<Address>,
+    pub sighash: Vec<Sighash>,
     pub status: Option<u32>,
-}
-
-pub struct BlockEntry {
-    pub block: Option<ResponseBlock>,
-    pub transactions: BTreeMap<u32, ResponseTransaction>,
-    pub logs: BTreeMap<u32, ResponseLog>,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BlockEntryVec {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub block: Option<ResponseBlock>,
-    pub transactions: Vec<ResponseTransaction>,
-    pub logs: Vec<ResponseLog>,
-}
-
-impl From<BlockEntry> for BlockEntryVec {
-    fn from(entry: BlockEntry) -> Self {
-        Self {
-            block: entry.block,
-            transactions: entry.transactions.into_values().collect(),
-            logs: entry.logs.into_values().collect(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -69,7 +44,8 @@ pub struct Query {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LogSelection {
-    pub address: Option<Vec<Address>>,
+    #[serde(default)]
+    pub address: Vec<Address>,
     pub topics: ArrayVec<Vec<Bytes32>, 4>,
     pub field_selection: FieldSelection,
 }
@@ -78,10 +54,13 @@ pub struct LogSelection {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionSelection {
     #[serde(rename = "from")]
-    pub source: Option<Vec<Address>>,
+    #[serde(default)]
+    pub source: Vec<Address>,
     #[serde(rename = "to", alias = "address")]
-    pub dest: Option<Vec<Address>>,
-    pub sighash: Option<Vec<Sighash>>,
+    #[serde(default)]
+    pub dest: Vec<Address>,
+    #[serde(default)]
+    pub sighash: Vec<Sighash>,
     pub status: Option<u32>,
     pub field_selection: FieldSelection,
 }
