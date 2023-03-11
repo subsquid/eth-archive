@@ -70,7 +70,7 @@ pub fn query_logs(
 
     let metadata = parquet::read::read_metadata(&mut reader).map_err(Error::ReadParquet)?;
 
-    let selected_fields = query.mini_query.field_selection.log.to_fields();
+    let selected_fields = query.mini_query.field_selection.log.as_fields();
 
     let fields: Vec<_> = log_schema()
         .fields
@@ -182,7 +182,7 @@ fn process_cols(
             continue;
         }
 
-        if MiniLogSelection::matches_log_impl(
+        if !MiniLogSelection::matches_log_impl(
             log_queries,
             log.address.as_ref().unwrap(),
             log.topics.as_ref().unwrap(),

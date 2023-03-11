@@ -34,16 +34,15 @@ impl ParquetQuery {
             LogQueryResult::default()
         };
 
-        let mut blocks = blocks;
-
-        let transactions = if query.mini_query.transactions.is_empty() && transactions.is_empty() {
-            BTreeMap::new()
-        } else {
-            query
-                .clone()
-                .query_transactions(&transactions, &mut blocks)
-                .await?
-        };
+        let (transactions, blocks) =
+            if query.mini_query.transactions.is_empty() && transactions.is_empty() {
+                (BTreeMap::new(), blocks)
+            } else {
+                query
+                    .clone()
+                    .query_transactions(transactions, blocks)
+                    .await?
+            };
 
         let blocks = if query.mini_query.include_all_blocks {
             None
@@ -85,10 +84,40 @@ impl ParquetQuery {
 
     async fn query_transactions(
         self: Arc<Self>,
-        transactions: &BTreeSet<(u32, u32)>,
-        blocks: &mut BTreeSet<u32>,
-    ) -> Result<BTreeMap<(u32, u32), ResponseTransaction>> {
-        todo!()
+        transactions: BTreeSet<(u32, u32)>,
+        blocks: BTreeSet<u32>,
+    ) -> Result<(BTreeMap<(u32, u32), ResponseTransaction>, BTreeSet<u32>)> {
+        let pruned_tx_queries_per_rg: Vec<_> = rayon_async::spawn({
+            let query = self.clone();
+            move || {
+                query
+                    .metadata
+                    .tx
+                    .iter()
+                    .map(|rg_meta| {
+                        transaction::prune_tx_queries_per_rg(
+                            rg_meta,
+                            &query.mini_query.transactions,
+                            transactions.clone(),
+                        )
+                    })
+                    .collect()
+            }
+        })
+        .await;
+
+        if pruned_tx_queries_per_rg
+            .iter()
+            .all(|(selections, txs)| selections.is_empty() && txs.is_empty())
+        {
+            return Ok((BTreeMap::new(), blocks));
+        }
+
+        tokio::task::spawn_blocking(move || {
+            transaction::query_transactions(self, pruned_tx_queries_per_rg, blocks)
+        })
+        .await
+        .unwrap()
     }
 
     async fn query_blocks(

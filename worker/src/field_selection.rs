@@ -89,7 +89,7 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
-    pub fn to_fields(&self) -> HashSet<&'static str> {
+    pub fn as_fields(&self) -> HashSet<&'static str> {
         let mut fields = HashSet::new();
 
         to_fields!(self, fields, parent_hash);
@@ -206,7 +206,7 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
-    pub fn to_fields(&self) -> HashSet<&'static str> {
+    pub fn as_fields(&self) -> HashSet<&'static str> {
         let mut fields = HashSet::new();
 
         to_fields!(self, fields, kind);
@@ -312,7 +312,7 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
-    pub fn to_fields(&self) -> HashSet<&'static str> {
+    pub fn as_fields(&self) -> HashSet<&'static str> {
         let mut fields = HashSet::new();
 
         to_fields!(self, fields, address);
