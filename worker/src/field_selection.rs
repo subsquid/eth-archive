@@ -2,6 +2,15 @@ use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+
+macro_rules! to_fields {
+    ($self:expr, $fields:expr, $field:ident) => {
+        if $self.$field {
+            $fields.insert(stringify!($field));
+        }
+    }
+}
 
 macro_rules! prune_col {
     ($src:ident, $self:ident, $field:ident) => {
@@ -80,6 +89,32 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
+    pub fn to_fields(&self) -> HashSet<&'static str> {
+        let mut fields = HashSet::new();
+        
+        to_fields!(self, fields, parent_hash);
+        to_fields!(self, fields, sha3_uncles);
+        to_fields!(self, fields, miner);
+        to_fields!(self, fields, state_root);
+        to_fields!(self, fields, transactions_root);
+        to_fields!(self, fields, receipts_root);
+        to_fields!(self, fields, logs_bloom);
+        to_fields!(self, fields, difficulty);
+        to_fields!(self, fields, number);
+        to_fields!(self, fields, gas_limit);
+        to_fields!(self, fields, gas_used);
+        to_fields!(self, fields, timestamp);
+        to_fields!(self, fields, extra_data);
+        to_fields!(self, fields, mix_hash);
+        to_fields!(self, fields, nonce);
+        to_fields!(self, fields, total_difficulty);
+        to_fields!(self, fields, base_fee_per_gas);
+        to_fields!(self, fields, size);
+        to_fields!(self, fields, hash);
+        
+        fields
+    }
+    
     pub fn prune(&self, block: Block) -> ResponseBlock {
         ResponseBlock {
             parent_hash: prune_col!(block, self, parent_hash),
@@ -171,6 +206,33 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
+    pub fn to_fields(&self) -> HashSet<&'static str> {
+        let mut fields = HashSet::new();
+        
+        to_fields!(self, fields, kind);
+        to_fields!(self, fields, nonce);
+        to_fields!(self, fields, dest);
+        to_fields!(self, fields, gas);
+        to_fields!(self, fields, value);
+        to_fields!(self, fields, input);
+        to_fields!(self, fields, max_priority_fee_per_gas);
+        to_fields!(self, fields, max_fee_per_gas);
+        to_fields!(self, fields, y_parity);
+        to_fields!(self, fields, chain_id);
+        to_fields!(self, fields, v);
+        to_fields!(self, fields, r);
+        to_fields!(self, fields, s);
+        to_fields!(self, fields, source);
+        to_fields!(self, fields, block_hash);
+        to_fields!(self, fields, block_number);
+        to_fields!(self, fields, transaction_index);
+        to_fields!(self, fields, gas_price);
+        to_fields!(self, fields, hash);
+        to_fields!(self, fields, status);
+        
+        fields
+    }
+    
     pub fn prune(&self, tx: Transaction) -> ResponseTransaction {
         ResponseTransaction {
             kind: prune_col!(tx, self, kind).flatten(),
@@ -250,6 +312,22 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
+    pub fn to_fields(&self) -> HashSet<&'static str> {
+        let mut fields = HashSet::new();
+        
+        to_fields!(self, fields, address);
+        to_fields!(self, fields, block_hash);
+        to_fields!(self, fields, block_number);
+        to_fields!(self, fields, data);
+        to_fields!(self, fields, log_index);
+        to_fields!(self, fields, removed);
+        to_fields!(self, fields, topics);
+        to_fields!(self, fields, transaction_hash);
+        to_fields!(self, fields, transaction_index);
+        
+        fields
+    }
+    
     pub fn prune(&self, log: Log) -> ResponseLog {
         ResponseLog {
             address: prune_col!(log, self, address),

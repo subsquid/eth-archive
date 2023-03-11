@@ -27,3 +27,4 @@ arrow2 = { workspace = true }
 hyper = { workspace = true }
 
 eth-archive-core = { path = "../core" }
+eth-archive-ingester = { path = "../ingester" }

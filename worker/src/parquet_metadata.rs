@@ -9,7 +9,7 @@ use eth_archive_core::dir_name::DirName;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
-use std::{cmp, fs};
+use std::{cmp, fs, io};
 use xorf::{BinaryFuse16, BinaryFuse8};
 
 type BinaryArray = array::BinaryArray<i64>;
@@ -24,7 +24,6 @@ pub struct ParquetMetadata {
 #[derive(Serialize, Deserialize)]
 pub struct LogRowGroupMetadata {
     pub address_filter: BinaryFuse16,
-    pub address_topic0_filter: BinaryFuse16,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,7 +67,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
         let mut path = self.data_path.to_owned();
         path.push(self.dir_name.to_string());
         path.push("log.parquet");
-        let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
+        let mut file = io::BufReader::new(fs::File::open(&path).map_err(Error::OpenParquetFile)?);
 
         let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
@@ -80,7 +79,6 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                 row_group_meta,
                 vec![
                     Field::new("address", DataType::Binary, false),
-                    Field::new("topic0", DataType::Binary, true),
                 ],
                 None,
                 None,
@@ -89,7 +87,6 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             .map_err(Error::ReadParquet)?;
 
             let mut addrs = HashSet::new();
-            let mut addr_topic0 = HashSet::new();
 
             for columns in columns {
                 let columns = vec![columns];
@@ -97,8 +94,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                 #[rustfmt::skip]
                 define_cols!(
                     columns,
-                    address, BinaryArray,
-                    topic0, BinaryArray
+                    address, BinaryArray
                 );
 
                 let len = address.len();
@@ -108,22 +104,12 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                     let addr_hash = hash(address);
                     addrs.insert(addr_hash);
                     addrs_global.insert(addr_hash);
-
-                    if let Some(topic0) = topic0.get(i) {
-                        let mut buf = address.to_vec();
-                        buf.extend_from_slice(topic0);
-                        addr_topic0.insert(hash(&buf));
-                    }
                 }
             }
 
             log_rg_meta.push(LogRowGroupMetadata {
                 address_filter: BinaryFuse16::try_from(&addrs.into_iter().collect::<Vec<_>>())
                     .unwrap(),
-                address_topic0_filter: BinaryFuse16::try_from(
-                    &addr_topic0.into_iter().collect::<Vec<_>>(),
-                )
-                .unwrap(),
             });
         }
 
@@ -137,7 +123,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
         let mut path = self.data_path.to_owned();
         path.push(self.dir_name.to_string());
         path.push("tx.parquet");
-        let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
+        let mut file = io::BufReader::new(fs::File::open(&path).map_err(Error::OpenParquetFile)?);
 
         let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
@@ -218,7 +204,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
         let mut path = self.data_path.to_owned();
         path.push(self.dir_name.to_string());
         path.push("block.parquet");
-        let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
+        let mut file = io::BufReader::new(fs::File::open(&path).map_err(Error::OpenParquetFile)?);
 
         let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
