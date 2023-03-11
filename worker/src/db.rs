@@ -157,7 +157,11 @@ impl DbHandle {
 
         let mut blocks = blocks;
 
-        let transactions = self.query_transactions(&query, &txn, &transactions, &mut blocks)?;
+        let transactions = if query.transactions.is_empty() && transactions.is_empty() {
+            BTreeMap::new()
+        } else {
+            self.query_transactions(&query, &txn, &transactions, &mut blocks)?
+        };
 
         let blocks = if query.include_all_blocks {
             None
