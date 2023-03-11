@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::{fs, io};
 use xorf::Filter;
 
-type BinaryArray = array::BinaryArray<i64>;
+type BinaryArray = array::BinaryArray<i32>;
 
 pub fn prune_log_queries_per_rg(
     rg_meta: &LogRowGroupMetadata,

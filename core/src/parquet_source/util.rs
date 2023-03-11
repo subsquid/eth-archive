@@ -12,11 +12,7 @@ macro_rules! define_cols {
             let arrs = arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>();
             let array = concatenate(arrs.as_slice()).unwrap();
 
-            let $name = if array.data_type() == &DataType::Binary {
-                cast(array.as_ref(), &DataType::LargeBinary, Default::default()).unwrap().as_any().downcast_ref::<$arrow_type>().unwrap().clone()
-            } else {
-                array.as_any().downcast_ref::<$arrow_type>().unwrap().clone()
-            };
+            let $name = array.as_any().downcast_ref::<$arrow_type>().unwrap();
         )*
     };
 }

@@ -6,12 +6,11 @@ use crate::deserialize::{Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32,
 use crate::types::{Block, Log, Transaction};
 use arrayvec::ArrayVec;
 use arrow2::array::{self, BooleanArray, Int64Array, UInt32Array, UInt64Array};
-use arrow2::compute::cast::cast;
 use arrow2::compute::concatenate::concatenate;
 use arrow2::datatypes::{DataType, Field};
 use std::collections::BTreeMap;
 
-type BinaryArray = array::BinaryArray<i64>;
+type BinaryArray = array::BinaryArray<i32>;
 
 pub struct Ver0_0_39;
 

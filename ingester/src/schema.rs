@@ -13,7 +13,7 @@ use eth_archive_core::types::{Block, Log, Transaction};
 use std::cmp;
 
 type Chunk = ArrowChunk<Box<dyn Array>>;
-type MutableBinaryArray = ArrowMutableBinaryArray<i64>;
+type MutableBinaryArray = ArrowMutableBinaryArray<i32>;
 
 pub fn block_schema() -> Schema {
     Schema::from(vec![

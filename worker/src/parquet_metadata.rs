@@ -1,6 +1,5 @@
 use crate::{Error, Result};
 use arrow2::array::{self, UInt32Array};
-use arrow2::compute::cast::cast;
 use arrow2::compute::concatenate::concatenate;
 use arrow2::datatypes::{DataType, Field};
 use arrow2::io::parquet;
@@ -12,7 +11,7 @@ use std::path::Path;
 use std::{cmp, fs, io};
 use xorf::{BinaryFuse16, BinaryFuse8};
 
-type BinaryArray = array::BinaryArray<i64>;
+type BinaryArray = array::BinaryArray<i32>;
 
 #[derive(Serialize, Deserialize)]
 pub struct ParquetMetadata {

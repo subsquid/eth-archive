@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::{fs, io};
 
-type BinaryArray = array::BinaryArray<i64>;
+type BinaryArray = array::BinaryArray<i32>;
 
 pub fn prune_blocks_per_rg(
     rg_meta: &BlockRowGroupMetadata,
