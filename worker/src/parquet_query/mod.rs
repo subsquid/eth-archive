@@ -47,7 +47,7 @@ impl ParquetQuery {
         let blocks = if query.mini_query.include_all_blocks {
             None
         } else {
-            Some(&blocks)
+            Some(blocks)
         };
 
         let blocks = query.query_blocks(blocks).await?;
@@ -122,8 +122,33 @@ impl ParquetQuery {
 
     async fn query_blocks(
         self: Arc<Self>,
-        blocks: Option<&BTreeSet<u32>>,
+        blocks: Option<BTreeSet<u32>>,
     ) -> Result<BTreeMap<u32, ResponseBlock>> {
-        todo!()
+        let pruned_blocks_per_rg: Vec<_> = rayon_async::spawn({
+            let query = self.clone();
+            move || {
+                query
+                    .metadata
+                    .block
+                    .iter()
+                    .map(|rg_meta| block::prune_blocks_per_rg(rg_meta, &blocks))
+                    .collect()
+            }
+        })
+        .await;
+
+        if pruned_blocks_per_rg.iter().all(|blocks| {
+            if let Some(blocks) = blocks {
+                blocks.is_empty()
+            } else {
+                false
+            }
+        }) {
+            return Ok(BTreeMap::new());
+        }
+
+        tokio::task::spawn_blocking(move || block::query_blocks(self, pruned_blocks_per_rg))
+            .await
+            .unwrap()
     }
 }

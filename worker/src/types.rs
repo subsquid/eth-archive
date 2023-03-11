@@ -138,11 +138,10 @@ impl MiniTransactionSelection {
     ) -> bool {
         filters.iter().any(|selection| {
             let match_all_addr = selection.source.is_empty() && selection.dest.is_empty();
-            let matches_addr = match_all_addr
-                || selection.matches_dest(&dest)
-                || selection.matches_source(&source);
+            let matches_addr =
+                match_all_addr || selection.matches_dest(dest) || selection.matches_source(source);
 
-            matches_addr && selection.matches_sighash(&sighash) && selection.matches_status(&status)
+            matches_addr && selection.matches_sighash(sighash) && selection.matches_status(&status)
         })
     }
 

@@ -62,7 +62,7 @@ pub fn prune_tx_queries_per_rg(
                 source,
                 dest,
                 sighash: tx_selection.sighash.clone(),
-                status: tx_selection.status.clone(),
+                status: tx_selection.status,
             })
         })
         .collect();
@@ -70,11 +70,14 @@ pub fn prune_tx_queries_per_rg(
     (log_selections, transactions)
 }
 
+type TxIds = BTreeSet<(u32, u32)>;
+type Txs = BTreeMap<(u32, u32), ResponseTransaction>;
+
 pub fn query_transactions(
     query: Arc<ParquetQuery>,
-    pruned_queries_per_rg: Vec<(Vec<MiniTransactionSelection>, BTreeSet<(u32, u32)>)>,
+    pruned_queries_per_rg: Vec<(Vec<MiniTransactionSelection>, TxIds)>,
     blocks: BTreeSet<u32>,
-) -> Result<(BTreeMap<(u32, u32), ResponseTransaction>, BTreeSet<u32>)> {
+) -> Result<(Txs, BTreeSet<u32>)> {
     let mut path = query.data_path.clone();
     path.push(query.dir_name.to_string());
     path.push("tx.parquet");
