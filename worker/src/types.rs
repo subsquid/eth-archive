@@ -3,7 +3,7 @@ use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub struct MiniQuery {
     pub from_block: u32,
@@ -76,4 +76,11 @@ impl QueryResult {
     pub fn is_empty(&self) -> bool {
         self.logs.is_empty() && self.transactions.is_empty() && self.blocks.is_empty()
     }
+}
+
+#[derive(Default)]
+pub struct LogQueryResult {
+    pub logs: BTreeMap<(u32, u32), ResponseLog>,
+    pub transactions: BTreeSet<(u32, u32)>,
+    pub blocks: BTreeSet<u32>,
 }

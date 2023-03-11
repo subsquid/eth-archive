@@ -1,11 +1,16 @@
 use crate::parquet_metadata::ParquetMetadata;
-use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, QueryResult};
+use crate::types::{
+    LogQueryResult, MiniLogSelection, MiniQuery, MiniTransactionSelection, QueryResult,
+};
 use crate::{Error, Result};
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
-use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
-use libmdbx::{Database, NoWriteMap};
+use eth_archive_core::types::{
+    Block, BlockRange, Log, ResponseBlock, ResponseTransaction, Transaction,
+};
+use libmdbx::{Database, NoWriteMap, Transaction as DbTransaction, RO};
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -138,7 +143,150 @@ impl DbHandle {
     }
 
     fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
-        todo!();
+        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+
+        let LogQueryResult {
+            logs,
+            transactions,
+            blocks,
+        } = if !query.logs.is_empty() {
+            self.query_logs(&query, &txn)?
+        } else {
+            LogQueryResult::default()
+        };
+
+        let mut blocks = blocks;
+
+        let transactions = self.query_transactions(&query, &txn, &transactions, &mut blocks)?;
+
+        let blocks = if query.include_all_blocks {
+            None
+        } else {
+            Some(&blocks)
+        };
+
+        let blocks = self.query_blocks(&query, &txn, blocks)?;
+
+        Ok(QueryResult {
+            logs,
+            transactions,
+            blocks,
+        })
+    }
+
+    fn query_logs(
+        &self,
+        query: &MiniQuery,
+        txn: &DbTransaction<RO, NoWriteMap>,
+    ) -> Result<LogQueryResult> {
+        let log_table = txn.open_table(Some(table_name::LOG)).map_err(Error::Db)?;
+
+        let mut query_result = LogQueryResult {
+            logs: BTreeMap::new(),
+            transactions: BTreeSet::new(),
+            blocks: BTreeSet::new(),
+        };
+
+        for res in txn
+            .cursor(&log_table)
+            .map_err(Error::Db)?
+            .into_iter_from(&query.from_block.to_be_bytes())
+        {
+            let (log_key, log): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
+
+            if log_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
+                break;
+            }
+
+            let log: Log = rmp_serde::decode::from_slice(&log).unwrap();
+
+            if !query.matches_log(&log) {
+                continue;
+            }
+
+            query_result
+                .transactions
+                .insert((log.block_number.0, log.transaction_index.0));
+            query_result.blocks.insert(log.block_number.0);
+            query_result.logs.insert(
+                (log.block_number.0, log.log_index.0),
+                query.field_selection.log.prune(log),
+            );
+        }
+
+        Ok(query_result)
+    }
+
+    fn query_transactions(
+        &self,
+        query: &MiniQuery,
+        txn: &DbTransaction<RO, NoWriteMap>,
+        transactions: &BTreeSet<(u32, u32)>,
+        blocks: &mut BTreeSet<u32>,
+    ) -> Result<BTreeMap<(u32, u32), ResponseTransaction>> {
+        let tx_table = txn.open_table(Some(table_name::TX)).map_err(Error::Db)?;
+
+        let mut res_transactions = BTreeMap::new();
+
+        for res in txn
+            .cursor(&tx_table)
+            .map_err(Error::Db)?
+            .into_iter_from(&query.from_block.to_be_bytes())
+        {
+            let (tx_key, tx): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
+
+            if tx_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
+                break;
+            }
+
+            let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
+
+            let tx_id = (tx.block_number.0, tx.transaction_index.0);
+
+            if transactions.contains(&tx_id) || !query.matches_tx(&tx) {
+                continue;
+            }
+
+            blocks.insert(tx.block_number.0);
+            res_transactions.insert(tx_id, query.field_selection.transaction.prune(tx));
+        }
+
+        Ok(res_transactions)
+    }
+
+    fn query_blocks(
+        &self,
+        query: &MiniQuery,
+        txn: &DbTransaction<RO, NoWriteMap>,
+        blocks: Option<&BTreeSet<u32>>,
+    ) -> Result<BTreeMap<u32, ResponseBlock>> {
+        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
+
+        let mut res_blocks = BTreeMap::new();
+
+        for res in txn
+            .cursor(&block_table)
+            .map_err(Error::Db)?
+            .into_iter_from(&query.from_block.to_be_bytes())
+        {
+            let (block_key, block): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
+
+            if block_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
+                break;
+            }
+
+            let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
+
+            if let Some(blocks) = blocks {
+                if blocks.contains(&block.number.0) {
+                    res_blocks.insert(block.number.0, query.field_selection.block.prune(block));
+                }
+            } else {
+                res_blocks.insert(block.number.0, query.field_selection.block.prune(block));
+            }
+        }
+
+        Ok(res_blocks)
     }
 
     pub fn register_parquet_folder(
@@ -402,12 +550,6 @@ fn block_num_from_key(key: &[u8]) -> u32 {
 }
 
 impl MiniQuery {
-    fn matches_log_addr(&self, addr: &Address) -> bool {
-        self.logs
-            .iter()
-            .any(|selection| selection.matches_addr(addr))
-    }
-
     fn matches_log(&self, log: &Log) -> bool {
         self.logs.iter().any(|selection| {
             selection.matches_addr(&log.address) && selection.matches_topics(&log.topics)
