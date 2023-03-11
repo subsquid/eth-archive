@@ -24,6 +24,7 @@ pub struct ParquetMetadata {
 #[derive(Serialize, Deserialize)]
 pub struct LogRowGroupMetadata {
     pub address_filter: BinaryFuse16,
+    pub topic0_filter: BinaryFuse16,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -79,6 +80,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                 row_group_meta,
                 vec![
                     Field::new("address", DataType::Binary, false),
+                    Field::new("topic0", DataType::Binary, true),
                 ],
                 None,
                 None,
@@ -87,6 +89,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             .map_err(Error::ReadParquet)?;
 
             let mut addrs = HashSet::new();
+            let mut topic0_set = HashSet::new();
 
             for columns in columns {
                 let columns = vec![columns];
@@ -94,7 +97,8 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                 #[rustfmt::skip]
                 define_cols!(
                     columns,
-                    address, BinaryArray
+                    address, BinaryArray,
+                    topic0, BinaryArray
                 );
 
                 let len = address.len();
@@ -104,11 +108,17 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                     let addr_hash = hash(address);
                     addrs.insert(addr_hash);
                     addrs_global.insert(addr_hash);
+
+                    if let Some(topic) = topic0.get(i) {
+                        topic0_set.insert(hash(topic));
+                    }
                 }
             }
 
             log_rg_meta.push(LogRowGroupMetadata {
                 address_filter: BinaryFuse16::try_from(&addrs.into_iter().collect::<Vec<_>>())
+                    .unwrap(),
+                topic0_filter: BinaryFuse16::try_from(&topic0_set.into_iter().collect::<Vec<_>>())
                     .unwrap(),
             });
         }
