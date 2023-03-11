@@ -11,6 +11,7 @@ use std::sync::Arc;
 mod block;
 mod log;
 mod transaction;
+mod util;
 
 pub struct ParquetQuery {
     pub data_path: PathBuf,

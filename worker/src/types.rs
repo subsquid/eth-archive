@@ -1,7 +1,7 @@
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
-use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
-use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
+use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index, Sighash};
+use eth_archive_core::types::{Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -83,4 +83,86 @@ pub struct LogQueryResult {
     pub logs: BTreeMap<(u32, u32), ResponseLog>,
     pub transactions: BTreeSet<(u32, u32)>,
     pub blocks: BTreeSet<u32>,
+}
+
+impl MiniQuery {
+    pub fn matches_log(&self, address: &Address, topics: &[Bytes32]) -> bool {
+        MiniLogSelection::matches_log_impl(&self.logs, address, topics)
+    }
+
+    #[allow(clippy::match_like_matches_macro)]
+    pub fn matches_tx(&self, tx: &Transaction) -> bool {
+        self.transactions.iter().any(|selection| {
+            let match_all_addr = selection.source.is_empty() && selection.dest.is_empty();
+            let matches_addr = match_all_addr
+                || selection.matches_dest(&tx.dest)
+                || selection.matches_source(&tx.source);
+
+            matches_addr
+                && selection.matches_sighash(&tx.input)
+                && selection.matches_status(tx.status)
+        })
+    }
+}
+
+impl MiniLogSelection {
+    pub fn matches_log_impl(
+        filters: &[MiniLogSelection],
+        address: &Address,
+        topics: &[Bytes32],
+    ) -> bool {
+        filters
+            .iter()
+            .any(|selection| selection.matches_addr(address) && selection.matches_topics(topics))
+    }
+
+    fn matches_addr(&self, filter_addr: &Address) -> bool {
+        self.address.is_empty() || self.address.iter().any(|addr| addr == filter_addr)
+    }
+
+    fn matches_topics(&self, topics: &[Bytes32]) -> bool {
+        for (topic, log_topic) in self.topics.iter().zip(topics.iter()) {
+            if !topic.is_empty() && !topic.iter().any(|topic| log_topic == topic) {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
+impl MiniTransactionSelection {
+    fn matches_dest(&self, dest: &Option<Address>) -> bool {
+        let tx_addr = match dest.as_ref() {
+            Some(addr) => addr,
+            None => return false,
+        };
+
+        self.dest.iter().any(|addr| addr == tx_addr)
+    }
+
+    fn matches_source(&self, source: &Option<Address>) -> bool {
+        let tx_addr = match source.as_ref() {
+            Some(addr) => addr,
+            None => return false,
+        };
+
+        self.source.iter().any(|addr| addr == tx_addr)
+    }
+
+    fn matches_sighash(&self, input: &Bytes) -> bool {
+        let input = match input.get(..4) {
+            Some(sig) => sig,
+            None => return false,
+        };
+
+        self.sighash.is_empty() || self.sighash.iter().any(|sig| sig.as_slice() == input)
+    }
+
+    fn matches_status(&self, tx_status: Option<Index>) -> bool {
+        match (self.status, tx_status) {
+            (Some(status), Some(tx_status)) => status == tx_status.0,
+            _ => true,
+        }
+    }
 }

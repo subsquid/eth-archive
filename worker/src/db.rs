@@ -1,9 +1,6 @@
 use crate::parquet_metadata::ParquetMetadata;
-use crate::types::{
-    LogQueryResult, MiniLogSelection, MiniQuery, MiniTransactionSelection, QueryResult,
-};
+use crate::types::{LogQueryResult, MiniQuery, QueryResult};
 use crate::{Error, Result};
-use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
@@ -204,7 +201,7 @@ impl DbHandle {
 
             let log: Log = rmp_serde::decode::from_slice(&log).unwrap();
 
-            if !query.matches_log(&log) {
+            if !query.matches_log(&log.address, &log.topics) {
                 continue;
             }
 
@@ -551,80 +548,6 @@ fn block_num_from_key(key: &[u8]) -> u32 {
     let arr: [u8; 4] = key.try_into().unwrap();
 
     u32::from_be_bytes(arr)
-}
-
-impl MiniQuery {
-    fn matches_log(&self, log: &Log) -> bool {
-        self.logs.iter().any(|selection| {
-            selection.matches_addr(&log.address) && selection.matches_topics(&log.topics)
-        })
-    }
-
-    #[allow(clippy::match_like_matches_macro)]
-    fn matches_tx(&self, tx: &Transaction) -> bool {
-        self.transactions.iter().any(|selection| {
-            let match_all_addr = selection.source.is_empty() && selection.dest.is_empty();
-            let matches_addr = match_all_addr
-                || selection.matches_dest(&tx.dest)
-                || selection.matches_source(&tx.source);
-
-            matches_addr
-                && selection.matches_sighash(&tx.input)
-                && selection.matches_status(tx.status)
-        })
-    }
-}
-
-impl MiniLogSelection {
-    fn matches_addr(&self, filter_addr: &Address) -> bool {
-        self.address.is_empty() || self.address.iter().any(|addr| addr == filter_addr)
-    }
-
-    fn matches_topics(&self, topics: &[Bytes32]) -> bool {
-        for (topic, log_topic) in self.topics.iter().zip(topics.iter()) {
-            if !topic.is_empty() && !topic.iter().any(|topic| log_topic == topic) {
-                return false;
-            }
-        }
-
-        true
-    }
-}
-
-impl MiniTransactionSelection {
-    fn matches_dest(&self, dest: &Option<Address>) -> bool {
-        let tx_addr = match dest.as_ref() {
-            Some(addr) => addr,
-            None => return false,
-        };
-
-        self.dest.iter().any(|addr| addr == tx_addr)
-    }
-
-    fn matches_source(&self, source: &Option<Address>) -> bool {
-        let tx_addr = match source.as_ref() {
-            Some(addr) => addr,
-            None => return false,
-        };
-
-        self.source.iter().any(|addr| addr == tx_addr)
-    }
-
-    fn matches_sighash(&self, input: &Bytes) -> bool {
-        let input = match input.get(..4) {
-            Some(sig) => sig,
-            None => return false,
-        };
-
-        self.sighash.is_empty() || self.sighash.iter().any(|sig| sig.as_slice() == input)
-    }
-
-    fn matches_status(&self, tx_status: Option<Index>) -> bool {
-        match (self.status, tx_status) {
-            (Some(status), Some(tx_status)) => status == tx_status.0,
-            _ => true,
-        }
-    }
 }
 
 #[cfg(test)]
