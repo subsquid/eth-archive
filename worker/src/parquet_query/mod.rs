@@ -1,8 +1,7 @@
 use crate::parquet_metadata::ParquetMetadata;
-use crate::types::MiniQuery;
+use crate::types::{MiniQuery, QueryResult};
 use crate::Result;
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::types::QueryResult;
 use std::path::PathBuf;
 
 pub struct ParquetQuery {

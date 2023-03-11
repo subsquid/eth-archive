@@ -4,11 +4,8 @@ use crate::{Error, Result};
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
-use eth_archive_core::types::{
-    Block, BlockRange, Log, ResponseBlock, ResponseRow, Transaction,
-};
+use eth_archive_core::types::{Block, BlockRange, Log, Transaction};
 use libmdbx::{Database, NoWriteMap};
-use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -141,200 +138,7 @@ impl DbHandle {
     }
 
     fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
-        let mut data = vec![];
-
-        if !query.logs.is_empty() {
-            let logs = self.query_logs(&query)?;
-            data.extend_from_slice(&logs.data);
-        }
-
-        if !query.transactions.is_empty() {
-            let transactions = self.query_transactions(&query)?;
-            data.extend_from_slice(&transactions.data);
-        }
-
-        Ok(QueryResult { data })
-    }
-
-    fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
-
-        let log_table = txn.open_table(Some(table_name::LOG)).map_err(Error::Db)?;
-        let log_tx_table = txn
-            .open_table(Some(table_name::LOG_TX))
-            .map_err(Error::Db)?;
-
-        let mut block_nums = BTreeSet::new();
-        let mut tx_keys = BTreeSet::new();
-        let mut logs = BTreeMap::new();
-
-        for res in txn
-            .cursor(&log_table)
-            .map_err(Error::Db)?
-            .into_iter_from(&query.from_block.to_be_bytes())
-        {
-            let (log_key, log): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
-
-            if log_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
-                break;
-            }
-
-            if !query.matches_log_addr(&log_key_to_address(&log_key)) {
-                continue;
-            }
-
-            let log: Log = rmp_serde::decode::from_slice(&log).unwrap();
-
-            if !query.matches_log(&log) {
-                continue;
-            }
-
-            block_nums.insert(log.block_number.0);
-            tx_keys.insert(log_tx_key(log.block_number.0, log.transaction_index.0));
-
-            let log = query.field_selection.log.prune(log);
-            logs.insert(log_key, log);
-        }
-
-        let blocks = self.get_blocks(&block_nums, query)?;
-
-        let mut txs = BTreeMap::new();
-        for key in tx_keys {
-            let tx: Vec<u8> = txn.get(&log_tx_table, &key).map_err(Error::Db)?.unwrap();
-            let tx = rmp_serde::decode::from_slice(&tx).unwrap();
-
-            let tx = query.field_selection.transaction.prune(tx);
-
-            txs.insert(key, tx);
-        }
-
-        let mut data = logs
-            .into_values()
-            .map(|log| ResponseRow {
-                block: blocks.get(&log.block_number.unwrap().0).unwrap().clone(),
-                transaction: txs
-                    .get(&log_tx_key(
-                        log.block_number.unwrap().0,
-                        log.transaction_index.unwrap().0,
-                    ))
-                    .cloned(),
-                log: Some(log),
-            })
-            .collect::<Vec<_>>();
-
-        if query.include_all_blocks {
-            for block in blocks.into_values() {
-                data.push(ResponseRow {
-                    block,
-                    transaction: None,
-                    log: None,
-                })
-            }
-        }
-
-        Ok(QueryResult { data })
-    }
-
-    fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
-
-        let tx_table = txn.open_table(Some(table_name::TX)).map_err(Error::Db)?;
-
-        let mut block_nums = BTreeSet::new();
-        let mut txs = BTreeMap::new();
-
-        for res in txn
-            .cursor(&tx_table)
-            .map_err(Error::Db)?
-            .into_iter_from(&query.from_block.to_be_bytes())
-        {
-            let (tx_key, tx): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
-
-            if tx_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
-                break;
-            }
-
-            let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
-
-            if !query.matches_tx(&tx) {
-                continue;
-            }
-
-            block_nums.insert(tx.block_number.0);
-
-            let tx = query.field_selection.transaction.prune(tx);
-            txs.insert(tx_key, tx);
-        }
-
-        let blocks = self.get_blocks(&block_nums, query)?;
-
-        let mut data = txs
-            .into_values()
-            .map(|tx| ResponseRow {
-                block: blocks.get(&tx.block_number.unwrap().0).unwrap().clone(),
-                transaction: Some(tx),
-                log: None,
-            })
-            .collect::<Vec<_>>();
-
-        if query.include_all_blocks {
-            for block in blocks.into_values() {
-                data.push(ResponseRow {
-                    block,
-                    transaction: None,
-                    log: None,
-                })
-            }
-        }
-
-        Ok(QueryResult { data })
-    }
-
-    fn get_blocks(
-        &self,
-        block_nums: &BTreeSet<u32>,
-        query: &MiniQuery,
-    ) -> Result<BTreeMap<u32, ResponseBlock>> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
-
-        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
-
-        let mut blocks = BTreeMap::new();
-
-        if !query.include_all_blocks {
-            for num in block_nums {
-                let block: Vec<u8> = txn
-                    .get(&block_table, &num.to_be_bytes())
-                    .map_err(Error::Db)?
-                    .unwrap();
-                let block = rmp_serde::decode::from_slice(&block).unwrap();
-
-                let block = query.field_selection.block.prune(block);
-
-                blocks.insert(*num, block);
-            }
-        } else {
-            for res in txn
-                .cursor(&block_table)
-                .map_err(Error::Db)?
-                .into_iter_from(&query.from_block.to_be_bytes())
-            {
-                let (block_key, block): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
-
-                let block_num = u32::from_be_bytes((&*block_key).try_into().unwrap());
-
-                if block_num >= query.to_block {
-                    break;
-                }
-
-                let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
-                let block = query.field_selection.block.prune(block);
-
-                blocks.insert(block_num, block);
-            }
-        }
-
-        Ok(blocks)
+        todo!();
     }
 
     pub fn register_parquet_folder(
@@ -367,12 +171,7 @@ impl DbHandle {
         )
         .map_err(Error::Db)?;
 
-        for table in [
-            table_name::BLOCK,
-            table_name::TX,
-            table_name::LOG,
-            table_name::LOG_TX,
-        ] {
+        for table in [table_name::BLOCK, table_name::TX, table_name::LOG] {
             let table = txn.open_table(Some(table)).map_err(Error::Db)?;
 
             for res in txn.cursor(&table).map_err(Error::Db)?.into_iter_start() {
@@ -405,9 +204,6 @@ impl DbHandle {
 
         let log_table = txn.open_table(Some(table_name::LOG)).map_err(Error::Db)?;
         let tx_table = txn.open_table(Some(table_name::TX)).map_err(Error::Db)?;
-        let log_tx_table = txn
-            .open_table(Some(table_name::LOG_TX))
-            .map_err(Error::Db)?;
         let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
 
         for (_, (blocks, logs)) in block_ranges
@@ -428,11 +224,7 @@ impl DbHandle {
                     let val = rmp_serde::encode::to_vec(tx).unwrap();
                     let tx_key = tx_key(tx);
 
-                    let log_tx_key = log_tx_key(tx.block_number.0, tx.transaction_index.0);
-
                     txn.put(&tx_table, tx_key, &val, Default::default())
-                        .map_err(Error::Db)?;
-                    txn.put(&log_tx_table, log_tx_key, &val, Default::default())
                         .map_err(Error::Db)?;
                 }
             }
@@ -555,20 +347,10 @@ mod table_name {
     pub const BLOCK: &str = "BLOCK";
     pub const TX: &str = "TX";
     pub const LOG: &str = "LOG";
-    pub const LOG_TX: &str = "LOG_TX";
     pub const PARQUET_IDX: &str = "PARQUET_IDX";
     pub const PARQUET_METADATA: &str = "PARQUET_METADATA";
 
-    pub const ALL_TABLE_NAMES: [&str; 6] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX, PARQUET_METADATA];
-}
-
-fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
-    let mut key = [0; 8];
-
-    key[..4].copy_from_slice(&block_number.to_be_bytes());
-    key[4..8].copy_from_slice(&transaction_index.to_be_bytes());
-
-    key
+    pub const ALL_TABLE_NAMES: [&str; 5] = [BLOCK, TX, LOG, PARQUET_IDX, PARQUET_METADATA];
 }
 
 fn tx_key(tx: &Transaction) -> [u8; 8] {
@@ -580,18 +362,13 @@ fn tx_key(tx: &Transaction) -> [u8; 8] {
     key
 }
 
-fn log_key(log: &Log) -> [u8; 28] {
-    let mut key = [0; 28];
+fn log_key(log: &Log) -> [u8; 8] {
+    let mut key = [0; 8];
 
     key[..4].copy_from_slice(&log.block_number.to_be_bytes());
-    key[4..8].copy_from_slice(&log.log_index.to_be_bytes());
-    key[8..].copy_from_slice(log.address.as_slice());
+    key[4..].copy_from_slice(&log.log_index.to_be_bytes());
 
     key
-}
-
-fn log_key_to_address(key: &[u8]) -> Address {
-    Address::new(&key[8..])
 }
 
 fn dir_name_from_key(key: &[u8]) -> DirName {

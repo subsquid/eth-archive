@@ -1,10 +1,8 @@
 use crate::field_selection::FieldSelection;
-use crate::{Error, Result};
 use crate::types::QueryResult;
+use crate::{Error, Result};
 use eth_archive_core::rayon_async;
-use eth_archive_core::types::{
-    BlockRange, ResponseBlock, ResponseLog, ResponseTransaction,
-};
+use eth_archive_core::types::{BlockRange, ResponseBlock, ResponseLog, ResponseTransaction};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -43,16 +41,14 @@ impl SerializeTask {
             while let Some((res, range)) = rx.recv().await {
                 next_block = range.to;
 
-                if res.data.is_empty() {
+                if res.is_empty() {
                     continue;
                 }
 
-                let new_bytes = rayon_async::spawn(move || {
+                bytes = rayon_async::spawn(move || {
                     process_query_result(bytes, res, is_first, field_selection)
                 })
                 .await;
-
-                bytes = new_bytes;
 
                 is_first = false;
 
@@ -102,60 +98,45 @@ fn process_query_result(
     is_first: bool,
     field_selection: FieldSelection,
 ) -> Vec<u8> {
-    use std::collections::btree_map::Entry::{Occupied, Vacant};
-
     let mut data: BTreeMap<u32, BlockEntry> = BTreeMap::new();
 
-    for row in res.data {
-        let block_number = row.block.number.unwrap().0;
-
-        let block_entry = match data.entry(block_number) {
-            Vacant(entry) => entry.insert(BlockEntry {
-                block: Some(row.block),
-                logs: BTreeMap::new(),
-                transactions: BTreeMap::new(),
-            }),
-            Occupied(entry) => entry.into_mut(),
+    for (block_num, block) in res.blocks.into_iter() {
+        let block = if field_selection.block == Default::default() {
+            None
+        } else {
+            Some(field_selection.block.prune_opt(block))
         };
 
-        if let Some(tx) = row.transaction {
-            let tx_idx = tx.transaction_index.unwrap().0;
-
-            if let Vacant(entry) = block_entry.transactions.entry(tx_idx) {
-                entry.insert(tx);
-            }
-        }
-
-        if let Some(log) = row.log {
-            let log_idx = log.log_index.unwrap().0;
-            block_entry.logs.insert(log_idx, log);
-        }
+        data.insert(
+            block_num,
+            BlockEntry {
+                block,
+                transactions: BTreeMap::new(),
+                logs: BTreeMap::new(),
+            },
+        );
     }
 
-    for (_, entry) in data.iter_mut() {
-        if field_selection.block == Default::default() {
-            entry.block = None;
-        } else {
-            entry.block = mem::take(&mut entry.block).map(|b| field_selection.block.prune_opt(b));
-        }
-
+    for ((block_num, transaction_index), transaction) in res.transactions.into_iter() {
         if field_selection.transaction == Default::default() {
-            mem::take(&mut entry.transactions);
-        } else {
-            entry.transactions = mem::take(&mut entry.transactions)
-                .into_iter()
-                .map(|(i, t)| (i, field_selection.transaction.prune_opt(t)))
-                .collect();
+            continue;
         }
 
+        let transaction = field_selection.transaction.prune_opt(transaction);
+
+        let entry = data.get_mut(&block_num).unwrap();
+        entry.transactions.insert(transaction_index, transaction);
+    }
+
+    for ((block_num, log_index), log) in res.logs.into_iter() {
         if field_selection.log == Default::default() {
-            mem::take(&mut entry.logs);
-        } else {
-            entry.logs = mem::take(&mut entry.logs)
-                .into_iter()
-                .map(|(i, l)| (i, field_selection.log.prune_opt(l)))
-                .collect();
+            continue;
         }
+
+        let log = field_selection.log.prune_opt(log);
+
+        let entry = data.get_mut(&block_num).unwrap();
+        entry.logs.insert(log_index, log);
     }
 
     let data = data

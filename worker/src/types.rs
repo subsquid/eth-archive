@@ -1,9 +1,9 @@
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Sighash};
+use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use eth_archive_core::types::{ResponseLog, ResponseBlock, ResponseTransaction};
 
 pub struct MiniQuery {
     pub from_block: u32,
@@ -65,8 +65,15 @@ pub struct TransactionSelection {
     pub field_selection: FieldSelection,
 }
 
+#[derive(Default)]
 pub struct QueryResult {
-    logs: BTreeMap<u32, ResponseLog>,
-    transactions: BTreeMap<(u32, u32), ResponseTransaction>,
-    blocks: BTreeMap<u32, ResponseBlock>,
+    pub logs: BTreeMap<(u32, u32), ResponseLog>,
+    pub transactions: BTreeMap<(u32, u32), ResponseTransaction>,
+    pub blocks: BTreeMap<u32, ResponseBlock>,
+}
+
+impl QueryResult {
+    pub fn is_empty(&self) -> bool {
+        self.logs.is_empty() && self.transactions.is_empty() && self.blocks.is_empty()
+    }
 }

@@ -7,13 +7,13 @@ use crate::parquet_metadata::hash;
 use crate::parquet_query::ParquetQuery;
 use crate::parquet_watcher::ParquetWatcher;
 use crate::serialize_task::SerializeTask;
-use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query};
+use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, QueryResult};
 use crate::{Error, Result};
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
 use eth_archive_core::s3_client::{Direction, S3Client};
-use eth_archive_core::types::{BlockRange, QueryResult};
+use eth_archive_core::types::BlockRange;
 use std::cmp;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -229,8 +229,7 @@ impl DataCtx {
                 && mini_query.logs.is_empty()
                 && mini_query.transactions.is_empty()
             {
-                tx.send((Ok(QueryResult { data: Vec::new() }), block_range))
-                    .ok();
+                tx.send((Ok(QueryResult::default()), block_range)).ok();
             } else {
                 let db = self.db.clone();
                 let data_path = self.config.data_path.as_ref().unwrap().to_owned();
