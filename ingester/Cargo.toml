@@ -14,12 +14,9 @@ clap = { version = "4", features = ["derive"] }
 futures = "0.3"
 rayon = "1"
 itertools = "0.10"
-actix-web = "4"
-mimalloc = { version = "0.1.34", default-features = false }
+mimalloc = { workspace = true }
 arrayvec = { version = "0.7", features = ["serde"] }
+arrow2 = { workspace = true }
+hyper = { workspace = true }
 
 eth-archive-core = { path = "../core" }
-
-[dependencies.arrow2]
-version = "0.16"
-features = [ "io_parquet", "io_parquet_compression", "compute" ]

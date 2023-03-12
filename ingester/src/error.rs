@@ -1,4 +1,3 @@
-use actix_web::{HttpResponse, ResponseError};
 use arrow2::error::Error as ArrowError;
 use std::io;
 use std::result::Result as StdResult;
@@ -47,9 +46,7 @@ pub enum Error {
     #[error("failed to encode metrics:\n{0}")]
     EncodeMetrics(eth_archive_core::Error),
     #[error("failed to run http server:\n{0}")]
-    RunHttpServer(io::Error),
-    #[error("failed to bind http server:\n{0}")]
-    BindHttpServer(io::Error),
+    RunHttpServer(hyper::Error),
     #[error("failed to read parquet file:\n{0}")]
     ReadParquet(arrow2::error::Error),
     #[error("failed operation after retrying:\n{0:#?}")]
@@ -63,13 +60,3 @@ pub enum Error {
 }
 
 pub type Result<T> = StdResult<T, Error>;
-
-impl ResponseError for Error {
-    fn error_response(&self) -> HttpResponse {
-        log::debug!("error while serving request:\n{}", self);
-
-        HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": self.to_string(),
-        }))
-    }
-}

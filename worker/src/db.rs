@@ -1,62 +1,143 @@
-use crate::types::MiniQuery;
+use crate::parquet_metadata::ParquetMetadata;
+use crate::types::{LogQueryResult, MiniQuery, QueryResult};
 use crate::{Error, Result};
-use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
-    Block, BlockRange, Log, QueryResult, ResponseBlock, ResponseRow, Transaction,
+    Block, BlockRange, Log, ResponseBlock, ResponseTransaction, Transaction,
 };
-use libmdbx::{Database, NoWriteMap};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::{cmp, iter};
+use tokio::sync::mpsc;
+use xorf::BinaryFuse8;
+
+type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, BinaryFuse8)>> + Send + 'a>;
 
 pub struct DbHandle {
-    inner: Database<NoWriteMap>,
+    inner: rocksdb::DB,
+    status: Status,
     metrics: Arc<IngestMetrics>,
+}
+
+struct Status {
+    parquet_height: AtomicU32,
+    db_height: AtomicU32,
+    db_tail: AtomicU32,
 }
 
 impl DbHandle {
     pub async fn new(path: &Path, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
         let path = path.to_owned();
-
-        let inner = Database::new()
-            .set_max_tables(table_name::ALL_TABLE_NAMES.len())
-            .open(&path)
-            .map_err(Error::OpenDb)?;
-
-        let txn = inner.begin_rw_txn().map_err(Error::Db)?;
-        for table in table_name::ALL_TABLE_NAMES.iter() {
-            txn.create_table(Some(*table), Default::default())
-                .map_err(Error::Db)?;
-        }
-        txn.commit().map_err(Error::Db)?;
-
-        Ok(Self { inner, metrics })
+        tokio::task::spawn_blocking(move || Self::new_impl(path, metrics))
+            .await
+            .unwrap()
     }
 
-    pub fn iter_parquet_idxs(
-        &self,
+    fn new_impl(path: PathBuf, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
+        let mut block_opts = rocksdb::BlockBasedOptions::default();
+
+        block_opts.set_block_size(64 * 1024);
+        block_opts.set_format_version(5);
+        block_opts.set_ribbon_filter(10.0);
+
+        let mut opts = rocksdb::Options::default();
+
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+        opts.set_bytes_per_sync(1048576);
+        opts.set_max_open_files(10000);
+        opts.set_block_based_table_factory(&block_opts);
+
+        let inner =
+            rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
+
+        let status = Self::get_status(&inner)?;
+
+        Ok(Self {
+            inner,
+            metrics,
+            status,
+        })
+    }
+
+    pub async fn get_parquet_metadata(
+        self: Arc<Self>,
+        dir_name: DirName,
+    ) -> Result<Option<ParquetMetadata>> {
+        tokio::task::spawn_blocking(move || self.get_parquet_metadata_impl(dir_name))
+            .await
+            .unwrap()
+    }
+
+    fn get_parquet_metadata_impl(&self, dir_name: DirName) -> Result<Option<ParquetMetadata>> {
+        let parquet_metadata_cf = self.inner.cf_handle(cf_name::PARQUET_METADATA).unwrap();
+
+        let metadata = self
+            .inner
+            .get_cf(parquet_metadata_cf, key_from_dir_name(dir_name))
+            .map_err(Error::Db)?;
+
+        let metadata = metadata
+            .as_ref()
+            .map(|m| rmp_serde::decode::from_slice(m).unwrap());
+
+        Ok(metadata)
+    }
+
+    pub async fn iter_parquet_idxs(
+        self: Arc<Self>,
         from: u32,
         to: Option<u32>,
-    ) -> Result<impl Iterator<Item = Result<(DirName, ParquetIdx)>>> {
+    ) -> mpsc::Receiver<Result<(DirName, BinaryFuse8)>> {
+        let (tx, rx): (_, _) = mpsc::channel(1);
+
+        tokio::task::spawn_blocking(move || {
+            let iter = self.iter_parquet_idxs_impl(from, to).unwrap();
+            for res in iter {
+                if tx.blocking_send(res).is_err() {
+                    break;
+                }
+            }
+        });
+
+        rx
+    }
+
+    fn iter_parquet_idxs_impl(&self, from: u32, to: Option<u32>) -> Result<ParquetIdxIter<'_>> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
+
         let key = key_from_dir_name(DirName {
-            range: BlockRange { from, to: 0 },
+            range: BlockRange {
+                from,
+                to: std::u32::MAX,
+            },
             is_temp: false,
         });
 
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
-        let parquet_idx_table = txn
-            .open_table(Some(table_name::PARQUET_IDX))
-            .map_err(Error::Db)?;
-        let cursor = txn.cursor(&parquet_idx_table).map_err(Error::Db)?;
+        let mut iter = self.inner.iterator_cf(
+            parquet_idx_cf,
+            rocksdb::IteratorMode::From(&key, rocksdb::Direction::Reverse),
+        );
 
-        let iter = cursor
-            .into_iter_from(&key)
-            .map(|res| {
-                let (dir_name, idx): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
+        let start_key = match iter.next() {
+            Some(Ok((start_key, _))) => start_key,
+            Some(Err(e)) => return Err(Error::Db(e)),
+            None => return Ok(Box::new(iter::empty())),
+        };
 
+        let iter = self
+            .inner
+            .iterator_cf(
+                parquet_idx_cf,
+                rocksdb::IteratorMode::From(&start_key, rocksdb::Direction::Forward),
+            )
+            .map(|idx| {
+                let (dir_name, idx) = idx.map_err(Error::Db)?;
                 let dir_name = dir_name_from_key(&dir_name);
                 let idx = rmp_serde::decode::from_slice(&idx).unwrap();
 
@@ -77,239 +158,209 @@ impl DbHandle {
         Ok(Box::new(iter))
     }
 
-    pub fn query(&self, query: MiniQuery) -> Result<QueryResult> {
-        let mut data = vec![];
-
-        if !query.logs.is_empty() {
-            let logs = self.query_logs(&query)?;
-            data.extend_from_slice(&logs.data);
-        }
-
-        if !query.transactions.is_empty() {
-            let transactions = self.query_transactions(&query)?;
-            data.extend_from_slice(&transactions.data);
-        }
-
-        Ok(QueryResult { data })
+    pub async fn query(self: Arc<Self>, query: MiniQuery) -> Result<QueryResult> {
+        tokio::task::spawn_blocking(move || self.query_impl(query))
+            .await
+            .unwrap()
     }
 
-    fn query_logs(&self, query: &MiniQuery) -> Result<QueryResult> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+    fn query_impl(&self, query: MiniQuery) -> Result<QueryResult> {
+        let LogQueryResult {
+            logs,
+            transactions,
+            blocks,
+        } = if !query.logs.is_empty() {
+            self.query_logs(&query)?
+        } else {
+            LogQueryResult::default()
+        };
 
-        let log_table = txn.open_table(Some(table_name::LOG)).map_err(Error::Db)?;
-        let log_tx_table = txn
-            .open_table(Some(table_name::LOG_TX))
-            .map_err(Error::Db)?;
+        let mut blocks = blocks;
 
-        let mut block_nums = BTreeSet::new();
-        let mut tx_keys = BTreeSet::new();
-        let mut logs = BTreeMap::new();
+        let transactions = if query.transactions.is_empty() && transactions.is_empty() {
+            BTreeMap::new()
+        } else {
+            self.query_transactions(&query, &transactions, &mut blocks)?
+        };
 
-        for res in txn
-            .cursor(&log_table)
-            .map_err(Error::Db)?
-            .into_iter_from(&query.from_block.to_be_bytes())
-        {
-            let (log_key, log): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
+        let blocks = if query.include_all_blocks {
+            None
+        } else {
+            Some(&blocks)
+        };
 
-            if log_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
+        let blocks = self.query_blocks(&query, blocks)?;
+
+        Ok(QueryResult {
+            logs,
+            transactions,
+            blocks,
+        })
+    }
+
+    fn query_logs(&self, query: &MiniQuery) -> Result<LogQueryResult> {
+        let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
+
+        let mut query_result = LogQueryResult {
+            logs: BTreeMap::new(),
+            transactions: BTreeSet::new(),
+            blocks: BTreeSet::new(),
+        };
+
+        for res in self.inner.iterator_cf(
+            log_cf,
+            rocksdb::IteratorMode::From(
+                &query.from_block.to_be_bytes(),
+                rocksdb::Direction::Forward,
+            ),
+        ) {
+            let (log_key, log) = res.map_err(Error::Db)?;
+
+            if log_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
                 break;
-            }
-
-            if !query.matches_log_addr(&log_key_to_address(&log_key)) {
-                continue;
             }
 
             let log: Log = rmp_serde::decode::from_slice(&log).unwrap();
 
-            if !query.matches_log(&log) {
+            if !query.matches_log(&log.address, &log.topics) {
                 continue;
             }
 
-            block_nums.insert(log.block_number.0);
-            tx_keys.insert(log_tx_key(log.block_number.0, log.transaction_index.0));
-
-            let log = query.field_selection.log.prune(log);
-            logs.insert(log_key, log);
+            query_result
+                .transactions
+                .insert((log.block_number.0, log.transaction_index.0));
+            query_result.blocks.insert(log.block_number.0);
+            query_result.logs.insert(
+                (log.block_number.0, log.log_index.0),
+                query.field_selection.log.prune(log),
+            );
         }
 
-        let blocks = self.get_blocks(&block_nums, query)?;
-
-        let mut txs = BTreeMap::new();
-        for key in tx_keys {
-            let tx: Vec<u8> = txn.get(&log_tx_table, &key).map_err(Error::Db)?.unwrap();
-            let tx = rmp_serde::decode::from_slice(&tx).unwrap();
-
-            let tx = query.field_selection.transaction.prune(tx);
-
-            txs.insert(key, tx);
-        }
-
-        let mut data = logs
-            .into_values()
-            .map(|log| ResponseRow {
-                block: blocks.get(&log.block_number.unwrap().0).unwrap().clone(),
-                transaction: txs
-                    .get(&log_tx_key(
-                        log.block_number.unwrap().0,
-                        log.transaction_index.unwrap().0,
-                    ))
-                    .cloned(),
-                log: Some(log),
-            })
-            .collect::<Vec<_>>();
-
-        if query.include_all_blocks {
-            for block in blocks.into_values() {
-                data.push(ResponseRow {
-                    block,
-                    transaction: None,
-                    log: None,
-                })
-            }
-        }
-
-        Ok(QueryResult { data })
+        Ok(query_result)
     }
 
-    fn query_transactions(&self, query: &MiniQuery) -> Result<QueryResult> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+    fn query_transactions(
+        &self,
+        query: &MiniQuery,
+        transactions: &BTreeSet<(u32, u32)>,
+        blocks: &mut BTreeSet<u32>,
+    ) -> Result<BTreeMap<(u32, u32), ResponseTransaction>> {
+        let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
 
-        let tx_table = txn.open_table(Some(table_name::TX)).map_err(Error::Db)?;
+        let mut res_transactions = BTreeMap::new();
 
-        let mut block_nums = BTreeSet::new();
-        let mut txs = BTreeMap::new();
+        for res in self.inner.iterator_cf(
+            tx_cf,
+            rocksdb::IteratorMode::From(
+                &query.from_block.to_be_bytes(),
+                rocksdb::Direction::Forward,
+            ),
+        ) {
+            let (tx_key, tx) = res.map_err(Error::Db)?;
 
-        for res in txn
-            .cursor(&tx_table)
-            .map_err(Error::Db)?
-            .into_iter_from(&query.from_block.to_be_bytes())
-        {
-            let (tx_key, tx): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
-
-            if tx_key.as_slice() >= query.to_block.to_be_bytes().as_slice() {
+            if tx_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
                 break;
             }
 
             let tx: Transaction = rmp_serde::decode::from_slice(&tx).unwrap();
 
-            if !query.matches_tx(&tx) {
+            let tx_id = (tx.block_number.0, tx.transaction_index.0);
+
+            if transactions.contains(&tx_id) || !query.matches_tx(&tx) {
                 continue;
             }
 
-            block_nums.insert(tx.block_number.0);
-
-            let tx = query.field_selection.transaction.prune(tx);
-            txs.insert(tx_key, tx);
+            blocks.insert(tx.block_number.0);
+            res_transactions.insert(tx_id, query.field_selection.transaction.prune(tx));
         }
 
-        let blocks = self.get_blocks(&block_nums, query)?;
-
-        let mut data = txs
-            .into_values()
-            .map(|tx| ResponseRow {
-                block: blocks.get(&tx.block_number.unwrap().0).unwrap().clone(),
-                transaction: Some(tx),
-                log: None,
-            })
-            .collect::<Vec<_>>();
-
-        if query.include_all_blocks {
-            for block in blocks.into_values() {
-                data.push(ResponseRow {
-                    block,
-                    transaction: None,
-                    log: None,
-                })
-            }
-        }
-
-        Ok(QueryResult { data })
+        Ok(res_transactions)
     }
 
-    fn get_blocks(
+    fn query_blocks(
         &self,
-        block_nums: &BTreeSet<u32>,
         query: &MiniQuery,
+        blocks: Option<&BTreeSet<u32>>,
     ) -> Result<BTreeMap<u32, ResponseBlock>> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
 
-        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
+        let mut res_blocks = BTreeMap::new();
 
-        let mut blocks = BTreeMap::new();
+        for res in self.inner.iterator_cf(
+            block_cf,
+            rocksdb::IteratorMode::From(
+                &query.from_block.to_be_bytes(),
+                rocksdb::Direction::Forward,
+            ),
+        ) {
+            let (block_key, block) = res.map_err(Error::Db)?;
 
-        if !query.include_all_blocks {
-            for num in block_nums {
-                let block: Vec<u8> = txn
-                    .get(&block_table, &num.to_be_bytes())
-                    .map_err(Error::Db)?
-                    .unwrap();
-                let block = rmp_serde::decode::from_slice(&block).unwrap();
-
-                let block = query.field_selection.block.prune(block);
-
-                blocks.insert(*num, block);
+            if block_key.as_ref() >= query.to_block.to_be_bytes().as_slice() {
+                break;
             }
-        } else {
-            for res in txn
-                .cursor(&block_table)
-                .map_err(Error::Db)?
-                .into_iter_from(&query.from_block.to_be_bytes())
-            {
-                let (block_key, block): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
 
-                let block_num = u32::from_be_bytes((&*block_key).try_into().unwrap());
+            let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
 
-                if block_num >= query.to_block {
-                    break;
+            if let Some(blocks) = blocks {
+                if blocks.contains(&block.number.0) {
+                    res_blocks.insert(block.number.0, query.field_selection.block.prune(block));
                 }
-
-                let block: Block = rmp_serde::decode::from_slice(&block).unwrap();
-                let block = query.field_selection.block.prune(block);
-
-                blocks.insert(block_num, block);
+            } else {
+                res_blocks.insert(block.number.0, query.field_selection.block.prune(block));
             }
         }
 
-        Ok(blocks)
+        Ok(res_blocks)
     }
 
-    pub fn insert_parquet_idx(&self, dir_name: DirName, idx: &ParquetIdx) -> Result<()> {
-        let txn = self.inner.begin_rw_txn().map_err(Error::Db)?;
-
-        let parquet_idx_table = txn
-            .open_table(Some(table_name::PARQUET_IDX))
-            .map_err(Error::Db)?;
+    pub fn register_parquet_folder(
+        &self,
+        dir_name: DirName,
+        idx: &BinaryFuse8,
+        metadata: &ParquetMetadata,
+    ) -> Result<()> {
+        let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
+        let parquet_metadata_cf = self.inner.cf_handle(cf_name::PARQUET_METADATA).unwrap();
 
         let key = key_from_dir_name(dir_name);
 
-        let log_val = rmp_serde::encode::to_vec(idx).unwrap();
+        let idx_val = rmp_serde::encode::to_vec(idx).unwrap();
+        let metadata_val = rmp_serde::encode::to_vec(metadata).unwrap();
 
-        txn.put(&parquet_idx_table, key, &log_val, Default::default())
-            .map_err(Error::Db)?;
+        let mut batch = rocksdb::WriteBatch::default();
 
-        for table in [
-            table_name::BLOCK,
-            table_name::TX,
-            table_name::LOG,
-            table_name::LOG_TX,
-        ] {
-            let table = txn.open_table(Some(table)).map_err(Error::Db)?;
+        batch.put_cf(parquet_idx_cf, key, idx_val);
+        batch.put_cf(parquet_metadata_cf, key, metadata_val);
 
-            for res in txn.cursor(&table).map_err(Error::Db)?.into_iter_start() {
-                let (key, _): (Vec<u8>, Vec<u8>) = res.map_err(Error::Db)?;
-                if key.as_slice() >= dir_name.range.to.to_be_bytes().as_slice() {
+        for cf in [cf_name::BLOCK, cf_name::TX, cf_name::LOG] {
+            let cf = self.inner.cf_handle(cf).unwrap();
+
+            for res in self.inner.iterator_cf(
+                cf,
+                rocksdb::IteratorMode::From(&0u32.to_be_bytes(), rocksdb::Direction::Forward),
+            ) {
+                let (key, _) = res.map_err(Error::Db)?;
+
+                if key.as_ref() >= dir_name.range.to.to_be_bytes().as_slice() {
                     break;
                 }
 
-                txn.del(&table, key, None).map_err(Error::Db)?;
+                batch.delete_cf(cf, key);
             }
         }
 
-        txn.commit().map_err(Error::Db)?;
+        self.inner.write(batch).map_err(Error::Db)?;
 
-        assert!(dir_name.range.to > 0);
-        self.metrics.record_write_height(dir_name.range.to - 1);
+        self.status
+            .parquet_height
+            .store(dir_name.range.to, Ordering::Relaxed);
+        self.status
+            .db_tail
+            .store(dir_name.range.to, Ordering::Relaxed);
+        let height = self.height();
+        if height > 0 {
+            self.metrics.record_write_height(height - 1);
+        }
 
         Ok(())
     }
@@ -322,14 +373,13 @@ impl DbHandle {
             Vec<Vec<Log>>,
         ),
     ) -> Result<()> {
-        let txn = self.inner.begin_rw_txn().map_err(Error::Db)?;
+        let block_cf = self.inner.cf_handle(cf_name::BLOCK).unwrap();
+        let tx_cf = self.inner.cf_handle(cf_name::TX).unwrap();
+        let log_cf = self.inner.cf_handle(cf_name::LOG).unwrap();
 
-        let log_table = txn.open_table(Some(table_name::LOG)).map_err(Error::Db)?;
-        let tx_table = txn.open_table(Some(table_name::TX)).map_err(Error::Db)?;
-        let log_tx_table = txn
-            .open_table(Some(table_name::LOG_TX))
-            .map_err(Error::Db)?;
-        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
+        let mut batch = rocksdb::WriteBatch::default();
+
+        let mut db_height = self.status.db_height.load(Ordering::Relaxed);
 
         for (_, (blocks, logs)) in block_ranges
             .into_iter()
@@ -337,142 +387,108 @@ impl DbHandle {
         {
             for block in blocks.iter() {
                 let val = rmp_serde::encode::to_vec(block).unwrap();
-                txn.put(
-                    &block_table,
-                    block.number.to_be_bytes(),
-                    &val,
-                    Default::default(),
-                )
-                .map_err(Error::Db)?;
+                batch.put_cf(block_cf, block.number.to_be_bytes(), &val);
 
                 for tx in block.transactions.iter() {
                     let val = rmp_serde::encode::to_vec(tx).unwrap();
                     let tx_key = tx_key(tx);
 
-                    let log_tx_key = log_tx_key(tx.block_number.0, tx.transaction_index.0);
-
-                    txn.put(&tx_table, tx_key, &val, Default::default())
-                        .map_err(Error::Db)?;
-                    txn.put(&log_tx_table, log_tx_key, &val, Default::default())
-                        .map_err(Error::Db)?;
+                    batch.put_cf(tx_cf, tx_key, &val);
                 }
+
+                db_height = cmp::max(db_height, block.number.0 + 1);
             }
 
             for log in logs {
                 let val = rmp_serde::encode::to_vec(&log).unwrap();
                 let log_key = log_key(&log);
-                txn.put(&log_table, log_key, &val, Default::default())
-                    .map_err(Error::Db)?;
+                batch.put_cf(log_cf, log_key, &val);
             }
         }
 
-        txn.commit().map_err(Error::Db)?;
+        self.inner.write(batch).map_err(Error::Db)?;
+
+        let db_tail = self
+            .inner
+            .iterator_cf(block_cf, rocksdb::IteratorMode::Start)
+            .next()
+            .transpose()
+            .map_err(Error::Db)?
+            .map(|(key, _)| block_num_from_key(&key))
+            .unwrap_or(0);
+
+        self.status.db_tail.store(db_tail, Ordering::Relaxed);
+        self.status.db_height.store(db_height, Ordering::Relaxed);
 
         Ok(())
     }
 
-    pub fn height(&self) -> Result<u32> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
+    pub fn height(&self) -> u32 {
+        let parquet_height = self.status.parquet_height.load(Ordering::Relaxed);
+        let db_height = self.status.db_height.load(Ordering::Relaxed);
+        let db_tail = self.status.db_tail.load(Ordering::Relaxed);
 
-        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
-        let parquet_idx_table = txn
-            .open_table(Some(table_name::PARQUET_IDX))
-            .map_err(Error::Db)?;
-
-        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
-            .cursor(&parquet_idx_table)
-            .map_err(Error::Db)?
-            .last()
-            .map_err(Error::Db)?;
-
-        let parquet_height = opt
-            .map(|(dir_name, _)| dir_name_from_key(&dir_name).range.to)
-            .unwrap_or(0);
-
-        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
-            .cursor(&block_table)
-            .map_err(Error::Db)?
-            .first()
-            .map_err(Error::Db)?;
-
-        let hot_data_tail = opt
-            .map(|(hot_data_tail, _)| block_num_from_key(&hot_data_tail))
-            .unwrap_or(0);
-
-        if parquet_height >= hot_data_tail {
-            let opt: Option<(Vec<u8>, Vec<u8>)> = txn
-                .cursor(&block_table)
-                .map_err(Error::Db)?
-                .first()
-                .map_err(Error::Db)?;
-
-            let hot_data_head = opt
-                .map(|(hot_data_head, _)| block_num_from_key(&hot_data_head))
-                .unwrap_or(0);
-
-            Ok(hot_data_head)
+        if db_tail <= parquet_height {
+            db_height
         } else {
-            Ok(parquet_height)
+            parquet_height
         }
     }
 
-    pub fn hot_data_height(&self) -> Result<u32> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
-        let block_table = txn.open_table(Some(table_name::BLOCK)).map_err(Error::Db)?;
-
-        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
-            .cursor(&block_table)
-            .map_err(Error::Db)?
-            .first()
-            .map_err(Error::Db)?;
-
-        let hot_data_head = opt
-            .map(|(hot_data_head, _)| block_num_from_key(&hot_data_head))
-            .unwrap_or(0);
-
-        Ok(hot_data_head)
+    pub fn parquet_height(&self) -> u32 {
+        self.status.parquet_height.load(Ordering::Relaxed)
     }
 
-    pub fn parquet_height(&self) -> Result<u32> {
-        let txn = self.inner.begin_ro_txn().map_err(Error::Db)?;
-        let parquet_idx_table = txn
-            .open_table(Some(table_name::PARQUET_IDX))
-            .map_err(Error::Db)?;
+    pub fn db_height(&self) -> u32 {
+        self.status.db_height.load(Ordering::Relaxed)
+    }
 
-        let opt: Option<(Vec<u8>, Vec<u8>)> = txn
-            .cursor(&parquet_idx_table)
+    fn get_status(inner: &rocksdb::DB) -> Result<Status> {
+        let parquet_idx_cf = inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
+
+        let parquet_height = inner
+            .iterator_cf(parquet_idx_cf, rocksdb::IteratorMode::End)
+            .next()
+            .transpose()
             .map_err(Error::Db)?
-            .last()
-            .map_err(Error::Db)?;
-
-        let parquet_height = opt
-            .map(|(dir_name, _)| dir_name_from_key(&dir_name).range.to)
+            .map(|(key, _)| dir_name_from_key(&key).range.to)
             .unwrap_or(0);
 
-        Ok(parquet_height)
+        let block_cf = inner.cf_handle(cf_name::BLOCK).unwrap();
+
+        let db_tail = inner
+            .iterator_cf(block_cf, rocksdb::IteratorMode::Start)
+            .next()
+            .transpose()
+            .map_err(Error::Db)?
+            .map(|(key, _)| block_num_from_key(&key))
+            .unwrap_or(0);
+
+        let db_height = inner
+            .iterator_cf(block_cf, rocksdb::IteratorMode::End)
+            .next()
+            .transpose()
+            .map_err(Error::Db)?
+            .map(|(key, _)| block_num_from_key(&key) + 1)
+            .unwrap_or(0);
+
+        Ok(Status {
+            parquet_height: AtomicU32::new(parquet_height),
+            db_tail: AtomicU32::new(db_tail),
+            db_height: AtomicU32::new(db_height),
+        })
     }
 }
 
 /// Column Family Names
-mod table_name {
+mod cf_name {
     pub const BLOCK: &str = "BLOCK";
     pub const TX: &str = "TX";
     pub const LOG: &str = "LOG";
-    pub const LOG_TX: &str = "LOG_TX";
     pub const PARQUET_IDX: &str = "PARQUET_IDX";
+    pub const PARQUET_METADATA: &str = "PARQUET_METADATA";
 
-    pub const ALL_TABLE_NAMES: [&str; 5] = [BLOCK, TX, LOG, LOG_TX, PARQUET_IDX];
-}
-
-pub type ParquetIdx = xorf::BinaryFuse8;
-
-fn log_tx_key(block_number: u32, transaction_index: u32) -> [u8; 8] {
-    let mut key = [0; 8];
-
-    key[..4].copy_from_slice(&block_number.to_be_bytes());
-    key[4..8].copy_from_slice(&transaction_index.to_be_bytes());
-
-    key
+    pub const ALL_CF_NAMES: [&str; 5] = [BLOCK, TX, LOG, PARQUET_IDX, PARQUET_METADATA];
 }
 
 fn tx_key(tx: &Transaction) -> [u8; 8] {
@@ -484,18 +500,13 @@ fn tx_key(tx: &Transaction) -> [u8; 8] {
     key
 }
 
-fn log_key(log: &Log) -> [u8; 28] {
-    let mut key = [0; 28];
+fn log_key(log: &Log) -> [u8; 8] {
+    let mut key = [0; 8];
 
     key[..4].copy_from_slice(&log.block_number.to_be_bytes());
-    key[4..8].copy_from_slice(&log.log_index.to_be_bytes());
-    key[8..].copy_from_slice(log.address.as_slice());
+    key[4..].copy_from_slice(&log.log_index.to_be_bytes());
 
     key
-}
-
-fn log_key_to_address(key: &[u8]) -> Address {
-    Address::new(&key[8..])
 }
 
 fn dir_name_from_key(key: &[u8]) -> DirName {

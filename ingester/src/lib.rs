@@ -1,7 +1,7 @@
 mod config;
 mod error;
 mod ingester;
-mod schema;
+pub mod schema;
 mod server;
 
 pub use config::Config;

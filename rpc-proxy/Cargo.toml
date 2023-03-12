@@ -11,10 +11,10 @@ thiserror = "1.0"
 log = "0.4"
 env_logger = "0.10"
 clap = { version = "4", features = ["derive"] }
-actix-web = "4"
-mimalloc = { version = "0.1.34", default-features = false }
+mimalloc = { workspace = true }
 url = { version = "2", features = ["serde"] }
 prometheus-client = "0.19"
+hyper = { workspace = true }
 
 eth-archive-core = { path = "../core" }
 

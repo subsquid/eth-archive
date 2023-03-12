@@ -1,16 +1,13 @@
 use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
-use polars::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
-macro_rules! append_col {
-    ($table_name:expr, $cols:ident, $self:ident, $field:ident) => {
+macro_rules! to_fields {
+    ($self:expr, $fields:expr, $field:ident) => {
         if $self.$field {
-            let field_name = stringify!($field);
-            let col = col(&format!("{}", field_name));
-            let col = col.prefix(&format!("{}_", $table_name));
-            $cols.push(col);
+            $fields.insert(stringify!($field));
         }
     };
 }
@@ -92,31 +89,30 @@ pub struct BlockFieldSelection {
 }
 
 impl BlockFieldSelection {
-    pub fn to_cols(self) -> Vec<Expr> {
-        let mut cols = Vec::new();
+    pub fn as_fields(&self) -> HashSet<&'static str> {
+        let mut fields = HashSet::new();
 
-        let table_name = "block";
-        append_col!(table_name, cols, self, parent_hash);
-        append_col!(table_name, cols, self, sha3_uncles);
-        append_col!(table_name, cols, self, miner);
-        append_col!(table_name, cols, self, state_root);
-        append_col!(table_name, cols, self, transactions_root);
-        append_col!(table_name, cols, self, receipts_root);
-        append_col!(table_name, cols, self, logs_bloom);
-        append_col!(table_name, cols, self, difficulty);
-        append_col!(table_name, cols, self, number);
-        append_col!(table_name, cols, self, gas_limit);
-        append_col!(table_name, cols, self, gas_used);
-        append_col!(table_name, cols, self, timestamp);
-        append_col!(table_name, cols, self, extra_data);
-        append_col!(table_name, cols, self, mix_hash);
-        append_col!(table_name, cols, self, nonce);
-        append_col!(table_name, cols, self, total_difficulty);
-        append_col!(table_name, cols, self, base_fee_per_gas);
-        append_col!(table_name, cols, self, size);
-        append_col!(table_name, cols, self, hash);
+        to_fields!(self, fields, parent_hash);
+        to_fields!(self, fields, sha3_uncles);
+        to_fields!(self, fields, miner);
+        to_fields!(self, fields, state_root);
+        to_fields!(self, fields, transactions_root);
+        to_fields!(self, fields, receipts_root);
+        to_fields!(self, fields, logs_bloom);
+        to_fields!(self, fields, difficulty);
+        to_fields!(self, fields, number);
+        to_fields!(self, fields, gas_limit);
+        to_fields!(self, fields, gas_used);
+        to_fields!(self, fields, timestamp);
+        to_fields!(self, fields, extra_data);
+        to_fields!(self, fields, mix_hash);
+        to_fields!(self, fields, nonce);
+        to_fields!(self, fields, total_difficulty);
+        to_fields!(self, fields, base_fee_per_gas);
+        to_fields!(self, fields, size);
+        to_fields!(self, fields, hash);
 
-        cols
+        fields
     }
 
     pub fn prune(&self, block: Block) -> ResponseBlock {
@@ -210,32 +206,31 @@ pub struct TransactionFieldSelection {
 }
 
 impl TransactionFieldSelection {
-    pub fn to_cols(self) -> Vec<Expr> {
-        let mut cols = Vec::new();
+    pub fn as_fields(&self) -> HashSet<&'static str> {
+        let mut fields = HashSet::new();
 
-        let table_name = "tx";
-        append_col!(table_name, cols, self, kind);
-        append_col!(table_name, cols, self, nonce);
-        append_col!(table_name, cols, self, dest);
-        append_col!(table_name, cols, self, gas);
-        append_col!(table_name, cols, self, value);
-        append_col!(table_name, cols, self, input);
-        append_col!(table_name, cols, self, max_priority_fee_per_gas);
-        append_col!(table_name, cols, self, max_fee_per_gas);
-        append_col!(table_name, cols, self, y_parity);
-        append_col!(table_name, cols, self, chain_id);
-        append_col!(table_name, cols, self, v);
-        append_col!(table_name, cols, self, r);
-        append_col!(table_name, cols, self, s);
-        append_col!(table_name, cols, self, source);
-        append_col!(table_name, cols, self, block_hash);
-        append_col!(table_name, cols, self, block_number);
-        append_col!(table_name, cols, self, transaction_index);
-        append_col!(table_name, cols, self, gas_price);
-        append_col!(table_name, cols, self, hash);
-        append_col!(table_name, cols, self, status);
+        to_fields!(self, fields, kind);
+        to_fields!(self, fields, nonce);
+        to_fields!(self, fields, dest);
+        to_fields!(self, fields, gas);
+        to_fields!(self, fields, value);
+        to_fields!(self, fields, input);
+        to_fields!(self, fields, max_priority_fee_per_gas);
+        to_fields!(self, fields, max_fee_per_gas);
+        to_fields!(self, fields, y_parity);
+        to_fields!(self, fields, chain_id);
+        to_fields!(self, fields, v);
+        to_fields!(self, fields, r);
+        to_fields!(self, fields, s);
+        to_fields!(self, fields, source);
+        to_fields!(self, fields, block_hash);
+        to_fields!(self, fields, block_number);
+        to_fields!(self, fields, transaction_index);
+        to_fields!(self, fields, gas_price);
+        to_fields!(self, fields, hash);
+        to_fields!(self, fields, status);
 
-        cols
+        fields
     }
 
     pub fn prune(&self, tx: Transaction) -> ResponseTransaction {
@@ -317,28 +312,20 @@ pub struct LogFieldSelection {
 }
 
 impl LogFieldSelection {
-    pub fn to_cols(self) -> Vec<Expr> {
-        let mut cols = Vec::new();
+    pub fn as_fields(&self) -> HashSet<&'static str> {
+        let mut fields = HashSet::new();
 
-        let table_name = "log";
-        append_col!(table_name, cols, self, address);
-        append_col!(table_name, cols, self, block_hash);
-        append_col!(table_name, cols, self, block_number);
-        append_col!(table_name, cols, self, data);
-        append_col!(table_name, cols, self, log_index);
-        append_col!(table_name, cols, self, removed);
-        if self.topics {
-            for i in 0..4 {
-                let col = col(&format!("topic{i}"));
-                let alias = format!("log_topic{i}");
-                let col = col.alias(&alias);
-                cols.push(col);
-            }
-        }
-        append_col!(table_name, cols, self, transaction_hash);
-        append_col!(table_name, cols, self, transaction_index);
+        to_fields!(self, fields, address);
+        to_fields!(self, fields, block_hash);
+        to_fields!(self, fields, block_number);
+        to_fields!(self, fields, data);
+        to_fields!(self, fields, log_index);
+        to_fields!(self, fields, removed);
+        to_fields!(self, fields, topics);
+        to_fields!(self, fields, transaction_hash);
+        to_fields!(self, fields, transaction_index);
 
-        cols
+        fields
     }
 
     pub fn prune(&self, log: Log) -> ResponseLog {

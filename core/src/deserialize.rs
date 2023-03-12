@@ -386,7 +386,7 @@ impl Serialize for Index {
 fn vec_from_hex(value: &str) -> StdResult<Vec<u8>, prefix_hex::Error> {
     let buf: Vec<u8> = if value.len() % 2 != 0 {
         let value = format!("0x0{}", &value[2..]);
-        prefix_hex::decode(&value)?
+        prefix_hex::decode(value)?
     } else {
         prefix_hex::decode(value)?
     };

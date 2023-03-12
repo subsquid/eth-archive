@@ -1,31 +1,18 @@
-use actix_web::{HttpResponse, ResponseError};
-use polars::error::PolarsError;
+use arrow2::error::Error as ArrowError;
 use std::io;
 use std::result::Result as StdResult;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
-    #[error("failed to execute query:\n{0}")]
-    ExecuteQuery(PolarsError),
-    #[error("failed to build query:\n{0}")]
-    BuildQuery(PolarsError),
-    #[error("failed to collect results of query:\n{0}")]
-    CollectResults(PolarsError),
     #[error("no block found")]
     NoBlocks,
     #[error("invalid block number returned from query")]
     InvalidBlockNumber,
     #[error("at least one field has to be selected")]
     NoFieldsSelected,
-    #[error("failed to apply address filters to query:\n{0}")]
-    ApplyAddrFilters(PolarsError),
-    #[error("failed to apply block range filter to query:\n{0}")]
-    ApplyBlockRangeFilter(PolarsError),
     #[error("failed to run http server:\n{0}")]
-    RunHttpServer(io::Error),
-    #[error("failed to bind http server:\n{0}")]
-    BindHttpServer(io::Error),
+    RunHttpServer(hyper::Error),
     #[error("failed to run sql query:\n{0}")]
     SqlQuery(eth_archive_core::Error),
     #[error("invalid hex in an address:\n{0}")]
@@ -48,18 +35,12 @@ pub enum Error {
     InvalidParquetFilename(String),
     #[error("failed to read parquet file name")]
     ReadParquetFileName,
-    #[error("failed to scan for parquet file:\n{0}")]
-    ScanParquet(PolarsError),
-    #[error("failed to union data frames:\n{0}")]
-    UnionFrames(PolarsError),
-    #[error("failed to get column from result frame:\n{0}")]
-    GetColumn(PolarsError),
     #[error("failed to join async task:\n{0}")]
     TaskJoinError(tokio::task::JoinError),
     #[error("failed to open database:\n{0}")]
-    OpenDb(libmdbx::Error),
+    OpenDb(rocksdb::Error),
     #[error("database error:\n{0}")]
-    Db(libmdbx::Error),
+    Db(rocksdb::Error),
     #[error("failed to build ethereum rpc client:\n{0}")]
     CreateEthClient(eth_archive_core::Error),
     #[error("failed to encode metrics:\n{0}")]
@@ -70,16 +51,16 @@ pub enum Error {
     EmptyQuery,
     #[error("max number of queries are running.")]
     MaxNumberOfQueriesReached,
+    #[error("invalid request body:\n{0:?}")]
+    InvalidRequestBody(Option<serde_json::Error>),
+    #[error("failed to create missing directories:\n{0}")]
+    CreateMissingDirectories(io::Error),
+    #[error("failed to get best block:\n{0}")]
+    GetBestBlock(eth_archive_core::Error),
+    #[error("failed to read parquet file:\n{0}")]
+    ReadParquet(ArrowError),
+    #[error("failed to open file:\n{0}")]
+    OpenParquetFile(io::Error),
 }
 
 pub type Result<T> = StdResult<T, Error>;
-
-impl ResponseError for Error {
-    fn error_response(&self) -> HttpResponse {
-        log::debug!("error while serving request:\n{}", self);
-
-        HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": self.to_string(),
-        }))
-    }
-}

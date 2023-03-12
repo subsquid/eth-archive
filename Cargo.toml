@@ -5,3 +5,26 @@ members = [
     "worker",
     "rpc-proxy",
 ]
+
+[workspace.dependencies.arrow2]
+git = "https://github.com/jorgecarleitao/arrow2"
+default-features = false
+features = [
+    "io_parquet",
+    "io_parquet_lz4",
+    "compute",
+]
+
+[workspace.dependencies.hyper]
+version = "0.14"
+features = [
+    "http1",
+    "http2",
+    "server",
+    "runtime",
+    "stream",
+]
+
+[workspace.dependencies.mimalloc]
+version = "0.1"
+default-features = false
