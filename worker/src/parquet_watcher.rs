@@ -31,6 +31,8 @@ impl ParquetWatcher {
             loop {
                 let dir_names = DirName::find_sorted(&data_path, next_start).await.unwrap();
 
+                let mut to_register = Vec::new();
+
                 for dir_name in dir_names {
                     if !Self::parquet_folder_is_valid(&data_path, dir_name)
                         .await
@@ -39,9 +41,11 @@ impl ParquetWatcher {
                         break;
                     }
 
-                    db_writer.register_parquet_folder(dir_name).await;
+                    to_register.push(dir_name);
                     next_start = dir_name.range.to;
                 }
+
+                db_writer.register_parquet_folders(to_register).await;
 
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }

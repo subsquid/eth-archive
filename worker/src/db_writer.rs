@@ -23,11 +23,11 @@ impl DbWriter {
                 loop {
                     let res = match job.clone() {
                         Job::WriteBatches(batches) => db.insert_batches(batches),
-                        Job::RegisterParquetFolder(dir_name) => {
-                            Self::handle_register_parquet_folder(
+                        Job::RegisterParquetFolders(dir_names) => {
+                            Self::handle_register_parquet_folders(
                                 &db,
                                 data_path.as_ref().unwrap(),
-                                dir_name,
+                                dir_names,
                             )
                         }
                     };
@@ -50,27 +50,31 @@ impl DbWriter {
         self.tx.send(Job::WriteBatches(batches)).await.ok().unwrap();
     }
 
-    pub async fn register_parquet_folder(&self, dir_name: DirName) {
+    pub async fn register_parquet_folders(&self, dir_names: Vec<DirName>) {
         self.tx
-            .send(Job::RegisterParquetFolder(dir_name))
+            .send(Job::RegisterParquetFolders(dir_names))
             .await
             .ok()
             .unwrap();
     }
 
     #[allow(clippy::manual_flatten)]
-    fn handle_register_parquet_folder(
+    fn handle_register_parquet_folders(
         db: &DbHandle,
         data_path: &Path,
-        dir_name: DirName,
+        dir_names: Vec<DirName>,
     ) -> Result<()> {
-        let (metadata, idx) = CollectMetadataAndParquetIdx {
-            data_path,
-            dir_name,
-        }
-        .collect()?;
+        for dir_name in dir_names {
+            let (metadata, idx) = CollectMetadataAndParquetIdx {
+                data_path,
+                dir_name,
+            }
+            .collect()?;
 
-        db.register_parquet_folder(dir_name, &idx, &metadata)?;
+            db.register_parquet_folder(dir_name, &idx, &metadata)?;
+        }
+
+        db.compact();
 
         Ok(())
     }
@@ -79,5 +83,5 @@ impl DbWriter {
 #[derive(Clone)]
 enum Job {
     WriteBatches((Vec<BlockRange>, Vec<Vec<Block>>, Vec<Vec<Log>>)),
-    RegisterParquetFolder(DirName),
+    RegisterParquetFolders(Vec<DirName>),
 }

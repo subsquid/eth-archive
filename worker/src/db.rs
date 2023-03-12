@@ -11,6 +11,7 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use std::{cmp, iter};
 use tokio::sync::mpsc;
 use xorf::BinaryFuse8;
@@ -40,7 +41,7 @@ impl DbHandle {
     fn new_impl(path: PathBuf, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
         let mut block_opts = rocksdb::BlockBasedOptions::default();
 
-        block_opts.set_block_size(64 * 1024);
+        block_opts.set_block_size(32 * 1024);
         block_opts.set_format_version(5);
         block_opts.set_ribbon_filter(10.0);
 
@@ -52,6 +53,9 @@ impl DbHandle {
         opts.set_bytes_per_sync(1048576);
         opts.set_max_open_files(10000);
         opts.set_block_based_table_factory(&block_opts);
+        opts.set_allow_mmap_reads(true);
+        opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
+        opts.set_level_compaction_dynamic_level_bytes(true);
 
         let inner =
             rocksdb::DB::open_cf(&opts, path, cf_name::ALL_CF_NAMES).map_err(Error::OpenDb)?;
@@ -479,6 +483,26 @@ impl DbHandle {
             db_tail: AtomicU32::new(db_tail),
             db_height: AtomicU32::new(db_height),
         })
+    }
+
+    pub fn compact(&self) {
+        let start = Instant::now();
+
+        log::info!("starting compaction...");
+
+        let compact = |name| {
+            self.inner.compact_range_cf(
+                self.inner.cf_handle(name).unwrap(),
+                None::<&[u8]>,
+                None::<&[u8]>,
+            );
+        };
+
+        for cf in cf_name::ALL_CF_NAMES.iter() {
+            compact(cf);
+        }
+
+        log::info!("finished compaction in {}ms", start.elapsed().as_millis());
     }
 }
 
