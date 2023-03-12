@@ -1,9 +1,9 @@
 use eth_archive_rpc_proxy::{Config, Server};
 
-use jemallocator::Jemalloc;
+use mimalloc::MiMalloc;
 
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() {

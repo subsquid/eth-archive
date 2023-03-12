@@ -82,7 +82,7 @@ async fn metrics_handler(app_data: AppData) -> Result<Response<Body>> {
 }
 
 async fn height_handler(app_data: AppData) -> Result<Response<Body>> {
-    let height = app_data.data_ctx.inclusive_height().await?;
+    let height = app_data.data_ctx.inclusive_height();
 
     let json = serde_json::json!({ "height": height });
 
@@ -104,8 +104,6 @@ async fn query_handler(app_data: AppData, req: Request<Body>) -> Result<Response
         serde_json::from_slice(req.as_ref()).map_err(|e| Error::InvalidRequestBody(Some(e)))?;
 
     let res = app_data.data_ctx.clone().query(query).await?;
-
-    let res = serde_json::to_string(&res).unwrap();
 
     Ok(Response::builder()
         .status(StatusCode::OK)

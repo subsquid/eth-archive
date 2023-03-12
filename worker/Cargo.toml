@@ -17,14 +17,17 @@ rayon = "1"
 rmp-serde = "1.1"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 futures = "0.3"
-jemallocator = "0.5"
+mimalloc = { workspace = true }
 crossbeam-channel = "0.5"
 derive_more = "0.99"
 xorf = { version = "0.8", features = ["serde"] }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
-libmdbx = { version = "0.2", default-features = false }
+rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
 arrow2 = { workspace = true }
 hyper = { workspace = true }
 
 eth-archive-core = { path = "../core" }
 eth-archive-ingester = { path = "../ingester" }
+
+[features]
+rocksdb-unix = ["rocksdb/jemalloc", "rocksdb/io-uring"]

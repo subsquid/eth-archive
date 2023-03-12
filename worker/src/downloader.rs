@@ -23,13 +23,13 @@ impl Downloader {
                 .map_err(Error::CreateEthClient)?;
         let eth_client = Arc::new(eth_client);
 
-        let hot_data_height = self.db.clone().hot_data_height().await?;
-        let parquet_height = self.db.parquet_height().await?;
+        let db_height = self.db.db_height();
+        let parquet_height = self.db.parquet_height();
 
-        let start_height = if hot_data_height == 0 {
+        let start_height = if db_height == 0 {
             parquet_height
         } else {
-            hot_data_height
+            db_height
         };
 
         let best_block = eth_client

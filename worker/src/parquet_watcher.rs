@@ -16,7 +16,7 @@ pub struct ParquetWatcher {
 
 impl ParquetWatcher {
     pub async fn spawn(self) -> Result<()> {
-        let start = self.db.parquet_height().await?;
+        let start = self.db.parquet_height();
 
         let data_path = self.data_path;
 

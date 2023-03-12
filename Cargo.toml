@@ -24,3 +24,7 @@ features = [
     "runtime",
     "stream",
 ]
+
+[workspace.dependencies.mimalloc]
+version = "0.1"
+default-features = false

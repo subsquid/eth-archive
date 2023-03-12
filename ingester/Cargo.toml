@@ -14,7 +14,7 @@ clap = { version = "4", features = ["derive"] }
 futures = "0.3"
 rayon = "1"
 itertools = "0.10"
-jemallocator = "0.5"
+mimalloc = { workspace = true }
 arrayvec = { version = "0.7", features = ["serde"] }
 arrow2 = { workspace = true }
 hyper = { workspace = true }

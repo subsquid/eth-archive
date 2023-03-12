@@ -76,11 +76,11 @@ impl DataCtx {
         })
     }
 
-    pub async fn inclusive_height(&self) -> Result<Option<u32>> {
-        Ok(match self.db.clone().height().await? {
+    pub fn inclusive_height(&self) -> Option<u32> {
+        match self.db.height() {
             0 => None,
             num => Some(num - 1),
-        })
+        }
     }
 
     pub async fn query(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
@@ -132,17 +132,17 @@ impl DataCtx {
         let serialize_task = SerializeTask::new(
             query.from_block,
             self.config.max_resp_body_size,
-            self.inclusive_height().await?,
+            self.inclusive_height(),
             field_selection,
         );
 
-        if query.from_block >= self.db.clone().height().await? {
+        if query.from_block >= self.db.height() {
             return serialize_task.join().await;
         }
 
         let field_selection = field_selection.with_join_columns();
 
-        let parquet_height = self.db.clone().parquet_height().await?;
+        let parquet_height = self.db.parquet_height();
 
         if query.from_block < parquet_height {
             self.parquet_query(&serialize_task, &query, field_selection)
@@ -170,7 +170,7 @@ impl DataCtx {
             .db
             .clone()
             .iter_parquet_idxs(query.from_block, query.to_block)
-            .await?;
+            .await;
 
         let concurrency = self.config.max_parquet_query_concurrency.get();
         let mut jobs: VecDeque<futures::channel::oneshot::Receiver<_>> =
@@ -278,7 +278,7 @@ impl DataCtx {
         query: &Query,
         field_selection: FieldSelection,
     ) -> Result<()> {
-        let archive_height = self.db.clone().height().await?;
+        let archive_height = self.db.clone().height();
 
         if from_block >= archive_height {
             return Ok(());
