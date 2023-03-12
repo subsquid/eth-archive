@@ -332,6 +332,8 @@ impl DbHandle {
         batch.put_cf(parquet_idx_cf, key, idx_val);
         batch.put_cf(parquet_metadata_cf, key, metadata_val);
 
+        let mut db_tail = self.status.db_tail.load(Ordering::Relaxed);
+
         for cf in [cf_name::BLOCK, cf_name::TX, cf_name::LOG] {
             let cf = self.inner.cf_handle(cf).unwrap();
 
@@ -345,7 +347,9 @@ impl DbHandle {
                     break;
                 }
 
-                batch.delete_cf(cf, key);
+                batch.delete_cf(cf, &key);
+
+                db_tail = cmp::max(db_tail, block_num_from_key(&key));
             }
         }
 
@@ -354,9 +358,7 @@ impl DbHandle {
         self.status
             .parquet_height
             .store(dir_name.range.to, Ordering::Relaxed);
-        self.status
-            .db_tail
-            .store(dir_name.range.to, Ordering::Relaxed);
+        self.status.db_tail.store(db_tail, Ordering::Relaxed);
         let height = self.height();
         if height > 0 {
             self.metrics.record_write_height(height - 1);
@@ -534,7 +536,7 @@ fn key_from_dir_name(dir_name: DirName) -> [u8; 8] {
 }
 
 fn block_num_from_key(key: &[u8]) -> u32 {
-    let arr: [u8; 4] = key.try_into().unwrap();
+    let arr: [u8; 4] = key[..4].try_into().unwrap();
 
     u32::from_be_bytes(arr)
 }
