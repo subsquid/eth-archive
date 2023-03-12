@@ -103,9 +103,7 @@ impl DbHandle {
                     break;
                 }
             }
-        })
-        .await
-        .unwrap();
+        });
 
         rx
     }
@@ -114,7 +112,10 @@ impl DbHandle {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
 
         let key = key_from_dir_name(DirName {
-            range: BlockRange { from, to: 0 },
+            range: BlockRange {
+                from,
+                to: std::u32::MAX,
+            },
             is_temp: false,
         });
 
