@@ -8,10 +8,10 @@ use eth_archive_core::types::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
-use std::iter;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::{cmp, iter};
 use tokio::sync::mpsc;
 use xorf::BinaryFuse8;
 
@@ -350,8 +350,16 @@ impl DbHandle {
 
         self.inner.write(batch).map_err(Error::Db)?;
 
-        assert!(dir_name.range.to > 0);
-        self.metrics.record_write_height(dir_name.range.to - 1);
+        self.status
+            .parquet_height
+            .store(dir_name.range.to, Ordering::Relaxed);
+        self.status
+            .db_tail
+            .store(dir_name.range.to, Ordering::Relaxed);
+        let height = self.height();
+        if height > 0 {
+            self.metrics.record_write_height(height - 1);
+        }
 
         Ok(())
     }
@@ -370,6 +378,8 @@ impl DbHandle {
 
         let mut batch = rocksdb::WriteBatch::default();
 
+        let mut db_height = self.status.db_height.load(Ordering::Relaxed);
+
         for (_, (blocks, logs)) in block_ranges
             .into_iter()
             .zip(block_batches.into_iter().zip(log_batches.into_iter()))
@@ -384,6 +394,8 @@ impl DbHandle {
 
                     batch.put_cf(tx_cf, tx_key, &val);
                 }
+
+                db_height = cmp::max(db_height, block.number.0 + 1);
             }
 
             for log in logs {
@@ -394,6 +406,18 @@ impl DbHandle {
         }
 
         self.inner.write(batch).map_err(Error::Db)?;
+
+        let db_tail = self
+            .inner
+            .iterator_cf(block_cf, rocksdb::IteratorMode::Start)
+            .next()
+            .transpose()
+            .map_err(Error::Db)?
+            .map(|(key, _)| block_num_from_key(&key))
+            .unwrap_or(0);
+
+        self.status.db_tail.store(db_tail, Ordering::Relaxed);
+        self.status.db_height.store(db_height, Ordering::Relaxed);
 
         Ok(())
     }

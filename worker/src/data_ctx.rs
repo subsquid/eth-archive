@@ -186,7 +186,7 @@ impl DataCtx {
 
                 let res = res?;
 
-                if !serialize_task.send((res, block_range)) {
+                if !serialize_task.send((res, block_range)).await {
                     break;
                 }
             }
@@ -263,7 +263,7 @@ impl DataCtx {
 
             let res = res?;
 
-            if !serialize_task.send((res, block_range)) {
+            if !serialize_task.send((res, block_range)).await {
                 break;
             }
         }
@@ -313,7 +313,7 @@ impl DataCtx {
                 to: end,
             };
 
-            if !serialize_task.send((res, block_range)) {
+            if !serialize_task.send((res, block_range)).await {
                 break;
             }
         }

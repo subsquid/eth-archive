@@ -83,8 +83,8 @@ impl SerializeTask {
         self.join_handle.await.map_err(Error::TaskJoinError)
     }
 
-    pub fn send(&self, msg: (QueryResult, BlockRange)) -> bool {
-        self.tx.blocking_send(msg).is_ok()
+    pub async fn send(&self, msg: (QueryResult, BlockRange)) -> bool {
+        self.tx.send(msg).await.is_ok()
     }
 
     pub fn is_closed(&self) -> bool {
