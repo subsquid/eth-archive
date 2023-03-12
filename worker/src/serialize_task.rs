@@ -21,6 +21,7 @@ impl SerializeTask {
     pub fn new(
         from_block: u32,
         size_limit: usize,
+        time_limit: u128,
         archive_height: Option<u32>,
         field_selection: FieldSelection,
     ) -> Self {
@@ -40,6 +41,10 @@ impl SerializeTask {
 
             while let Some((res, range)) = rx.recv().await {
                 next_block = range.to;
+
+                if query_start.elapsed().as_millis() >= time_limit {
+                    break;
+                }
 
                 if res.is_empty() {
                     continue;
