@@ -3,7 +3,8 @@ use super::ParquetQuery;
 use crate::parquet_metadata::{combine_block_num_tx_idx, hash, TransactionRowGroupMetadata};
 use crate::types::{MiniQuery, MiniTransactionSelection};
 use crate::{Error, Result};
-use arrow2::array::{self, Array, UInt32Array, UInt64Array};
+use arrow2::array::{self, UInt32Array, UInt64Array};
+use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::types::ResponseTransaction;
@@ -114,25 +115,20 @@ pub fn query_transactions(
         )
         .map_err(Error::ReadParquet)?;
 
-        for columns in columns {
-            let columns = columns
-                .into_iter()
-                .zip(fields.iter())
-                .map(|(col, field)| {
-                    let col = col.map_err(Error::ReadParquet)?;
-                    Ok((field.name.to_owned(), col))
-                })
-                .collect::<Result<HashMap<_, _>>>()?;
+        let columns = columns
+            .into_iter()
+            .zip(fields.iter())
+            .map(|(col, field)| (field.name.to_owned(), col))
+            .collect::<HashMap<_, _>>();
 
-            process_cols(
-                &query.mini_query,
-                tx_queries,
-                tx_ids,
-                columns,
-                &mut blocks,
-                &mut transactions,
-            );
-        }
+        process_cols(
+            &query.mini_query,
+            tx_queries,
+            tx_ids,
+            columns,
+            &mut blocks,
+            &mut transactions,
+        );
     }
 
     Ok((transactions, blocks))
@@ -142,7 +138,7 @@ fn process_cols(
     query: &MiniQuery,
     tx_queries: &[MiniTransactionSelection],
     tx_ids: &BTreeSet<(u32, u32)>,
-    columns: HashMap<String, Box<dyn Array>>,
+    mut columns: HashMap<String, parquet::read::ArrayIter<'static>>,
     blocks: &mut BTreeSet<u32>,
     transactions: &mut BTreeMap<(u32, u32), ResponseTransaction>,
 ) {

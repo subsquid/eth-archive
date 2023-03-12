@@ -2,10 +2,12 @@
 macro_rules! define_cols {
     ($columns:expr, $($name:ident, $arrow_type:ident),*) => {
         $(
-            let $name = $columns.get(stringify!($name)).map(|arr| {
-                arr.as_any()
-                    .downcast_ref::<$arrow_type>()
-                    .unwrap()
+            let $name = $columns.remove(stringify!($name)).map(|arrays| {
+                let arrays = arrays.into_iter().map(|a| a.unwrap()).collect::<Vec<_>>();
+                let arrs = arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>();
+                let array = concatenate(arrs.as_slice()).unwrap();
+
+                array.as_any().downcast_ref::<$arrow_type>().unwrap().clone()
             });
         )*
     };
@@ -13,16 +15,18 @@ macro_rules! define_cols {
 
 macro_rules! map_from_arrow {
     ($src_field:ident, $map_type:expr, $idx:expr) => {
-        $src_field.map(|arr| arr.get($idx).unwrap()).map($map_type)
+        $src_field
+            .as_ref()
+            .map(|arr| $map_type(arr.get($idx).unwrap()))
     };
 }
 
 macro_rules! map_from_arrow_opt {
     ($src_field:ident, $map_type:expr, $idx:expr) => {
-        match $src_field.map(|arr| arr.get($idx)) {
-            Some(Some(val)) => Some($map_type(val)),
-            _ => None,
-        }
+        $src_field
+            .as_ref()
+            .map(|arr| arr.get($idx).map($map_type))
+            .flatten()
     };
 }
 

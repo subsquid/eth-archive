@@ -3,13 +3,14 @@ use super::ParquetQuery;
 use crate::parquet_metadata::BlockRowGroupMetadata;
 use crate::types::MiniQuery;
 use crate::{Error, Result};
-use arrow2::array::{self, Array, UInt32Array, UInt64Array};
+use arrow2::array::{self, UInt32Array, UInt64Array};
+use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
 };
 use eth_archive_core::types::ResponseBlock;
-use eth_archive_ingester::schema::log_schema;
+use eth_archive_ingester::schema::block_schema;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::{fs, io};
@@ -48,7 +49,7 @@ pub fn query_blocks(
 
     let selected_fields = query.mini_query.field_selection.block.as_fields();
 
-    let fields: Vec<_> = log_schema()
+    let fields: Vec<_> = block_schema()
         .fields
         .into_iter()
         .filter(|field| selected_fields.contains(field.name.as_str()))
@@ -73,18 +74,13 @@ pub fn query_blocks(
         )
         .map_err(Error::ReadParquet)?;
 
-        for columns in columns {
-            let columns = columns
-                .into_iter()
-                .zip(fields.iter())
-                .map(|(col, field)| {
-                    let col = col.map_err(Error::ReadParquet)?;
-                    Ok((field.name.to_owned(), col))
-                })
-                .collect::<Result<HashMap<_, _>>>()?;
+        let columns = columns
+            .into_iter()
+            .zip(fields.iter())
+            .map(|(col, field)| (field.name.to_owned(), col))
+            .collect::<HashMap<_, _>>();
 
-            process_cols(&query.mini_query, block_nums, columns, &mut blocks);
-        }
+        process_cols(&query.mini_query, block_nums, columns, &mut blocks);
     }
 
     Ok(blocks)
@@ -93,7 +89,7 @@ pub fn query_blocks(
 fn process_cols(
     query: &MiniQuery,
     block_nums: &Option<BTreeSet<u32>>,
-    columns: HashMap<String, Box<dyn Array>>,
+    mut columns: HashMap<String, parquet::read::ArrayIter<'static>>,
     blocks: &mut BTreeMap<u32, ResponseBlock>,
 ) {
     #[rustfmt::skip]

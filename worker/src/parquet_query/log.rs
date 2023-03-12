@@ -4,7 +4,8 @@ use crate::parquet_metadata::{hash, LogRowGroupMetadata};
 use crate::types::{LogQueryResult, MiniLogSelection, MiniQuery};
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
-use arrow2::array::{self, Array, BooleanArray, UInt32Array};
+use arrow2::array::{self, BooleanArray, UInt32Array};
+use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::types::ResponseLog;
@@ -99,18 +100,13 @@ pub fn query_logs(
         )
         .map_err(Error::ReadParquet)?;
 
-        for columns in columns {
-            let columns = columns
-                .into_iter()
-                .zip(fields.iter())
-                .map(|(col, field)| {
-                    let col = col.map_err(Error::ReadParquet)?;
-                    Ok((field.name.to_owned(), col))
-                })
-                .collect::<Result<HashMap<_, _>>>()?;
+        let columns = columns
+            .into_iter()
+            .zip(fields.iter())
+            .map(|(col, field)| (field.name.to_owned(), col))
+            .collect::<HashMap<_, _>>();
 
-            process_cols(&query.mini_query, log_queries, columns, &mut query_result);
-        }
+        process_cols(&query.mini_query, log_queries, columns, &mut query_result);
     }
 
     Ok(query_result)
@@ -119,7 +115,7 @@ pub fn query_logs(
 fn process_cols(
     query: &MiniQuery,
     log_queries: &[MiniLogSelection],
-    columns: HashMap<String, Box<dyn Array>>,
+    mut columns: HashMap<String, parquet::read::ArrayIter<'static>>,
     query_result: &mut LogQueryResult,
 ) {
     #[rustfmt::skip]
@@ -148,23 +144,23 @@ fn process_cols(
             block_number: map_from_arrow!(block_number, Index, i),
             data: map_from_arrow!(data, Bytes::new, i),
             log_index: map_from_arrow!(log_index, Index, i),
-            removed: removed.and_then(|arr| arr.get(i)),
+            removed: removed.as_ref().and_then(|arr| arr.get(i)),
             topics: {
                 let mut topics = ArrayVec::new();
 
-                if let Some(Some(topic)) = topic0.map(|arr| arr.get(i)) {
+                if let Some(Some(topic)) = topic0.as_ref().map(|arr| arr.get(i)) {
                     topics.push(Bytes32::new(topic));
                 }
 
-                if let Some(Some(topic)) = topic1.map(|arr| arr.get(i)) {
+                if let Some(Some(topic)) = topic1.as_ref().map(|arr| arr.get(i)) {
                     topics.push(Bytes32::new(topic));
                 }
 
-                if let Some(Some(topic)) = topic2.map(|arr| arr.get(i)) {
+                if let Some(Some(topic)) = topic2.as_ref().map(|arr| arr.get(i)) {
                     topics.push(Bytes32::new(topic));
                 }
 
-                if let Some(Some(topic)) = topic3.map(|arr| arr.get(i)) {
+                if let Some(Some(topic)) = topic3.as_ref().map(|arr| arr.get(i)) {
                     topics.push(Bytes32::new(topic));
                 }
 
