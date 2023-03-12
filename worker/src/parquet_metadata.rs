@@ -90,27 +90,23 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             let mut addrs = HashSet::new();
             let mut topic0_set = HashSet::new();
 
-            for columns in columns {
-                let columns = vec![columns];
+            #[rustfmt::skip]
+            define_cols!(
+                columns,
+                address, BinaryArray,
+                topic0, BinaryArray
+            );
 
-                #[rustfmt::skip]
-                define_cols!(
-                    columns,
-                    address, BinaryArray,
-                    topic0, BinaryArray
-                );
+            let len = address.len();
 
-                let len = address.len();
+            for i in 0..len {
+                let address = address.get(i).unwrap();
+                let addr_hash = hash(address);
+                addrs.insert(addr_hash);
+                addrs_global.insert(addr_hash);
 
-                for i in 0..len {
-                    let address = address.get(i).unwrap();
-                    let addr_hash = hash(address);
-                    addrs.insert(addr_hash);
-                    addrs_global.insert(addr_hash);
-
-                    if let Some(topic) = topic0.get(i) {
-                        topic0_set.insert(hash(topic));
-                    }
+                if let Some(topic) = topic0.get(i) {
+                    topic0_set.insert(hash(topic));
                 }
             }
 
@@ -159,39 +155,35 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             let mut source_addrs = HashSet::new();
             let mut dest_addrs = HashSet::new();
 
-            for columns in columns {
-                let columns = vec![columns];
+            #[rustfmt::skip]
+            define_cols!(
+                columns,
+                source, BinaryArray,
+                dest, BinaryArray,
+                block_number, UInt32Array,
+                transaction_index, UInt32Array
+            );
 
-                #[rustfmt::skip]
-                define_cols!(
-                    columns,
-                    source, BinaryArray,
-                    dest, BinaryArray,
-                    block_number, UInt32Array,
-                    transaction_index, UInt32Array
+            let len = block_number.len();
+
+            for i in 0..len {
+                if let Some(source) = source.get(i) {
+                    let h = hash(source);
+                    source_addrs.insert(h);
+                    addrs_global.insert(h);
+                }
+                if let Some(dest) = dest.get(i) {
+                    let h = hash(dest);
+                    dest_addrs.insert(h);
+                    addrs_global.insert(h);
+                }
+                let blk_num_tx_idx = combine_block_num_tx_idx(
+                    block_number.get(i).unwrap(),
+                    transaction_index.get(i).unwrap(),
                 );
 
-                let len = block_number.len();
-
-                for i in 0..len {
-                    if let Some(source) = source.get(i) {
-                        let h = hash(source);
-                        source_addrs.insert(h);
-                        addrs_global.insert(h);
-                    }
-                    if let Some(dest) = dest.get(i) {
-                        let h = hash(dest);
-                        dest_addrs.insert(h);
-                        addrs_global.insert(h);
-                    }
-                    let blk_num_tx_idx = combine_block_num_tx_idx(
-                        block_number.get(i).unwrap(),
-                        transaction_index.get(i).unwrap(),
-                    );
-
-                    max_blk_num_tx_idx = cmp::max(max_blk_num_tx_idx, blk_num_tx_idx);
-                    min_blk_num_tx_idx = cmp::min(min_blk_num_tx_idx, blk_num_tx_idx);
-                }
+                max_blk_num_tx_idx = cmp::max(max_blk_num_tx_idx, blk_num_tx_idx);
+                min_blk_num_tx_idx = cmp::min(min_blk_num_tx_idx, blk_num_tx_idx);
             }
 
             tx_rg_meta.push(TransactionRowGroupMetadata {
@@ -223,7 +215,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             let columns = parquet::read::read_columns_many(
                 &mut file,
                 row_group_meta,
-                vec![Field::new("block_number", DataType::UInt32, false)],
+                vec![Field::new("number", DataType::UInt32, false)],
                 None,
                 None,
                 None,
@@ -233,22 +225,18 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             let mut max_block_number = 0;
             let mut min_block_number = 0;
 
-            for columns in columns {
-                let columns = vec![columns];
+            #[rustfmt::skip]
+            define_cols!(
+                columns,
+                number, UInt32Array
+            );
 
-                #[rustfmt::skip]
-                define_cols!(
-                    columns,
-                    block_number, UInt32Array
-                );
+            let len = number.len();
 
-                let len = block_number.len();
-
-                for i in 0..len {
-                    let blk_num = block_number.get(i).unwrap();
-                    max_block_number = cmp::max(max_block_number, blk_num);
-                    min_block_number = cmp::min(min_block_number, blk_num);
-                }
+            for i in 0..len {
+                let blk_num = number.get(i).unwrap();
+                max_block_number = cmp::max(max_block_number, blk_num);
+                min_block_number = cmp::min(min_block_number, blk_num);
             }
 
             block_rg_meta.push(BlockRowGroupMetadata {
