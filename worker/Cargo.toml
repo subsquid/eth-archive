@@ -20,10 +20,12 @@ futures = "0.3"
 mimalloc = { workspace = true }
 crossbeam-channel = "0.5"
 derive_more = "0.99"
-xorf = { version = "0.8", features = ["serde"] }
 rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
 arrow2 = { workspace = true }
 hyper = { workspace = true }
+rand = "0.8"
+roaring = { version = "0.10", features = ["serde"] }
+xorf = { version = "0.8", features = ["serde"] }
 
 eth-archive-core = { path = "../core" }
 eth-archive-ingester = { path = "../ingester" }

@@ -1,15 +1,17 @@
+use crate::bloom::Bloom;
 use crate::{Error, Result};
 use arrow2::array::{self, UInt32Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::datatypes::{DataType, Field};
 use arrow2::io::parquet;
 use eth_archive_core::define_cols;
+use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::hash::{hash, HashSet};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::{cmp, fs, io};
-use xorf::{BinaryFuse16, BinaryFuse8};
+use xorf::BinaryFuse8;
 
 type BinaryArray = array::BinaryArray<i32>;
 
@@ -22,14 +24,14 @@ pub struct ParquetMetadata {
 
 #[derive(Serialize, Deserialize)]
 pub struct LogRowGroupMetadata {
-    pub address_filter: BinaryFuse16,
-    pub topic0_filter: BinaryFuse16,
+    pub address_filter: BinaryFuse8,
+    pub topic0_filter: BinaryFuse8,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct TransactionRowGroupMetadata {
-    pub source_filter: BinaryFuse16,
-    pub dest_filter: BinaryFuse16,
+    pub source_filter: BinaryFuse8,
+    pub dest_filter: BinaryFuse8,
     pub max_blk_num_tx_idx: u64,
     pub min_blk_num_tx_idx: u64,
 }
@@ -46,14 +48,14 @@ pub struct CollectMetadataAndParquetIdx<'a> {
 }
 
 impl<'a> CollectMetadataAndParquetIdx<'a> {
-    pub fn collect(self) -> Result<(ParquetMetadata, BinaryFuse8)> {
+    pub fn collect(self) -> Result<(ParquetMetadata, Bloom<Address>)> {
         let mut addrs = HashSet::new();
 
         let log = self.collect_log_meta(&mut addrs)?;
         let tx = self.collect_tx_meta(&mut addrs)?;
         let block = self.collect_block_meta()?;
 
-        let filter = BinaryFuse8::try_from(&addrs.into_iter().collect::<Vec<_>>()).unwrap();
+        let filter = Bloom::new(&addrs, 0.001, 128_000);
 
         let metadata = ParquetMetadata { log, tx, block };
 
@@ -62,7 +64,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
 
     fn collect_log_meta(
         &self,
-        addrs_global: &mut HashSet<u64>,
+        addrs_global: &mut HashSet<Address>,
     ) -> Result<Vec<LogRowGroupMetadata>> {
         let mut path = self.data_path.to_owned();
         path.push(self.dir_name.to_string());
@@ -103,7 +105,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                 let address = address.get(i).unwrap();
                 let addr_hash = hash(address);
                 addrs.insert(addr_hash);
-                addrs_global.insert(addr_hash);
+                addrs_global.insert(Address::new(address));
 
                 if let Some(topic) = topic0.get(i) {
                     topic0_set.insert(hash(topic));
@@ -111,9 +113,9 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             }
 
             log_rg_meta.push(LogRowGroupMetadata {
-                address_filter: BinaryFuse16::try_from(&addrs.into_iter().collect::<Vec<_>>())
+                address_filter: BinaryFuse8::try_from(&addrs.into_iter().collect::<Vec<_>>())
                     .unwrap(),
-                topic0_filter: BinaryFuse16::try_from(&topic0_set.into_iter().collect::<Vec<_>>())
+                topic0_filter: BinaryFuse8::try_from(&topic0_set.into_iter().collect::<Vec<_>>())
                     .unwrap(),
             });
         }
@@ -123,7 +125,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
 
     fn collect_tx_meta(
         &self,
-        addrs_global: &mut HashSet<u64>,
+        addrs_global: &mut HashSet<Address>,
     ) -> Result<Vec<TransactionRowGroupMetadata>> {
         let mut path = self.data_path.to_owned();
         path.push(self.dir_name.to_string());
@@ -170,12 +172,12 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
                 if let Some(source) = source.get(i) {
                     let h = hash(source);
                     source_addrs.insert(h);
-                    addrs_global.insert(h);
+                    addrs_global.insert(Address::new(source));
                 }
                 if let Some(dest) = dest.get(i) {
                     let h = hash(dest);
                     dest_addrs.insert(h);
-                    addrs_global.insert(h);
+                    addrs_global.insert(Address::new(dest));
                 }
                 let blk_num_tx_idx = combine_block_num_tx_idx(
                     block_number.get(i).unwrap(),
@@ -187,11 +189,9 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             }
 
             tx_rg_meta.push(TransactionRowGroupMetadata {
-                source_filter: BinaryFuse16::try_from(
-                    &source_addrs.into_iter().collect::<Vec<_>>(),
-                )
-                .unwrap(),
-                dest_filter: BinaryFuse16::try_from(&dest_addrs.into_iter().collect::<Vec<_>>())
+                source_filter: BinaryFuse8::try_from(&source_addrs.into_iter().collect::<Vec<_>>())
+                    .unwrap(),
+                dest_filter: BinaryFuse8::try_from(&dest_addrs.into_iter().collect::<Vec<_>>())
                     .unwrap(),
                 max_blk_num_tx_idx,
                 min_blk_num_tx_idx,
