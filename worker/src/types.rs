@@ -1,3 +1,4 @@
+use crate::bloom::Bloom;
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Index, Sighash};
@@ -6,7 +7,6 @@ use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction, T
 use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::collections::{BTreeMap, BTreeSet};
-use xorf::{BinaryFuse8, Filter};
 
 #[derive(Clone)]
 pub struct MiniQuery {
@@ -55,7 +55,7 @@ impl MiniQuery {
         )
     }
 
-    pub fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
+    pub fn pruned_log_selection(&self, parquet_idx: &Bloom<Address>) -> Vec<MiniLogSelection> {
         self.logs
             .iter()
             .filter_map(|log_selection| {
@@ -71,7 +71,7 @@ impl MiniQuery {
                 let address = address
                     .iter()
                     .filter_map(|(addr, &h)| {
-                        if parquet_idx.contains(&h) {
+                        if parquet_idx.contains(addr) {
                             Some((addr.clone(), h))
                         } else {
                             None
@@ -91,7 +91,10 @@ impl MiniQuery {
             .collect::<Vec<_>>()
     }
 
-    pub fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
+    pub fn pruned_tx_selection(
+        &self,
+        parquet_idx: &Bloom<Address>,
+    ) -> Vec<MiniTransactionSelection> {
         self.transactions
             .iter()
             .filter_map(|tx_selection| {
@@ -110,7 +113,7 @@ impl MiniQuery {
                 let source = source
                     .iter()
                     .filter_map(|(addr, &h)| {
-                        if parquet_idx.contains(&h) {
+                        if parquet_idx.contains(addr) {
                             Some((addr.clone(), h))
                         } else {
                             None
@@ -121,7 +124,7 @@ impl MiniQuery {
                 let dest = dest
                     .iter()
                     .filter_map(|(addr, &h)| {
-                        if parquet_idx.contains(&h) {
+                        if parquet_idx.contains(addr) {
                             Some((addr.clone(), h))
                         } else {
                             None
@@ -225,8 +228,8 @@ impl MiniTransactionSelection {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Query {
-    from_block: u32,
-    to_block: Option<u32>,
+    pub from_block: u32,
+    pub to_block: Option<u32>,
     #[serde(default)]
     logs: Vec<LogSelection>,
     #[serde(default)]
