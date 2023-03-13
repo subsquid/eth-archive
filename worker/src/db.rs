@@ -425,6 +425,10 @@ impl DbHandle {
 
         self.status.db_tail.store(db_tail, Ordering::Relaxed);
         self.status.db_height.store(db_height, Ordering::Relaxed);
+        let height = self.height();
+        if height > 0 {
+            self.metrics.record_write_height(height - 1);
+        }
 
         Ok(())
     }
