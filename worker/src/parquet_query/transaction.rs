@@ -7,7 +7,7 @@ use arrow2::array::{self, UInt32Array, UInt64Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
-use eth_archive_core::hash::{hash, HashMap};
+use eth_archive_core::hash::HashMap;
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
 use std::collections::{BTreeMap, BTreeSet};
@@ -41,7 +41,7 @@ pub fn prune_tx_queries_per_rg(
             let source: Vec<_> = tx_selection
                 .source
                 .iter()
-                .filter(|src| rg_meta.source_filter.contains(&hash(src.as_slice())))
+                .filter(|(_, h)| rg_meta.source_filter.contains(h))
                 .cloned()
                 .collect();
 
@@ -52,7 +52,7 @@ pub fn prune_tx_queries_per_rg(
             let dest: Vec<_> = tx_selection
                 .dest
                 .iter()
-                .filter(|dst| rg_meta.dest_filter.contains(&hash(dst.as_slice())))
+                .filter(|(_, h)| rg_meta.dest_filter.contains(h))
                 .cloned()
                 .collect();
 

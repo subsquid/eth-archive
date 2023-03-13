@@ -6,9 +6,8 @@ use crate::field_selection::FieldSelection;
 use crate::parquet_query::ParquetQuery;
 use crate::parquet_watcher::ParquetWatcher;
 use crate::serialize_task::SerializeTask;
-use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, QueryResult};
+use crate::types::{MiniQuery, Query, QueryResult};
 use crate::{Error, Result};
-use eth_archive_core::hash::hash;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
 use eth_archive_core::retry::Retry;
@@ -18,7 +17,6 @@ use std::cmp;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use xorf::{BinaryFuse8, Filter};
 
 pub struct DataCtx {
     config: Config,
@@ -339,110 +337,5 @@ impl FieldSelection {
         self.log.topics = true;
 
         self
-    }
-}
-
-impl Query {
-    fn field_selection(&self) -> FieldSelection {
-        self.logs
-            .iter()
-            .map(|log| log.field_selection)
-            .chain(self.transactions.iter().map(|tx| tx.field_selection))
-            .fold(Default::default(), |a, b| a | b)
-    }
-
-    fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
-        self.logs
-            .iter()
-            .filter_map(|log_selection| {
-                let address = &log_selection.address;
-
-                if address.is_empty() {
-                    return Some(MiniLogSelection {
-                        address: Vec::new(),
-                        topics: log_selection.topics.clone(),
-                    });
-                }
-
-                let address = address
-                    .iter()
-                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                if !address.is_empty() {
-                    Some(MiniLogSelection {
-                        address,
-                        topics: log_selection.topics.clone(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
-    fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
-        self.transactions
-            .iter()
-            .filter_map(|tx_selection| {
-                let source = &tx_selection.source;
-                let dest = &tx_selection.dest;
-
-                if source.is_empty() && dest.is_empty() {
-                    return Some(MiniTransactionSelection {
-                        source: Vec::new(),
-                        dest: Vec::new(),
-                        sighash: tx_selection.sighash.clone(),
-                        status: tx_selection.status,
-                    });
-                }
-
-                let source = source
-                    .iter()
-                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                let dest = dest
-                    .iter()
-                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                if source.is_empty() && dest.is_empty() {
-                    None
-                } else {
-                    Some(MiniTransactionSelection {
-                        source,
-                        dest,
-                        sighash: tx_selection.sighash.clone(),
-                        status: tx_selection.status,
-                    })
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
-    fn log_selection(&self) -> Vec<MiniLogSelection> {
-        self.logs
-            .iter()
-            .map(|log| MiniLogSelection {
-                address: log.address.clone(),
-                topics: log.topics.clone(),
-            })
-            .collect()
-    }
-
-    fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
-        self.transactions
-            .iter()
-            .map(|transaction| MiniTransactionSelection {
-                source: transaction.source.clone(),
-                dest: transaction.dest.clone(),
-                sighash: transaction.sighash.clone(),
-                status: transaction.status,
-            })
-            .collect()
     }
 }

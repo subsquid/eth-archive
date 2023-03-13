@@ -8,7 +8,7 @@ use arrow2::array::{self, BooleanArray, UInt32Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
-use eth_archive_core::hash::{hash, HashMap};
+use eth_archive_core::hash::HashMap;
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,7 +28,7 @@ pub fn prune_log_queries_per_rg(
             let address: Vec<_> = log_selection
                 .address
                 .iter()
-                .filter(|addr| rg_meta.address_filter.contains(&hash(addr.as_slice())))
+                .filter(|(_, h)| rg_meta.address_filter.contains(h))
                 .cloned()
                 .collect();
 
@@ -36,26 +36,39 @@ pub fn prune_log_queries_per_rg(
                 return None;
             }
 
-            let mut new_selection = MiniLogSelection {
-                address,
-                topics: log_selection.topics.clone(),
-            };
-
-            if let Some(topic0) = log_selection.topics.get(0) {
-                let pruned_topic0: Vec<_> = topic0
+            if let Some(topic0_hash) = &log_selection.topic0_hash {
+                let pruned_topic0 = topic0_hash
                     .iter()
-                    .filter(|v| rg_meta.topic0_filter.contains(&hash(v.as_slice())))
-                    .cloned()
-                    .collect();
+                    .zip(log_selection.topics[0].iter())
+                    .filter_map(|(h, v)| {
+                        if rg_meta.topic0_filter.contains(h) {
+                            Some((h, v.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
 
-                if !topic0.is_empty() && pruned_topic0.is_empty() {
+                if pruned_topic0.is_empty() {
                     return None;
                 }
 
-                new_selection.topics[0] = pruned_topic0;
-            }
+                let topic0_hash = Some(pruned_topic0.iter().map(|t| *t.0).collect());
+                let mut topics = log_selection.topics.clone();
+                topics[0] = pruned_topic0.into_iter().map(|t| t.1).collect();
 
-            Some(new_selection)
+                Some(MiniLogSelection {
+                    address,
+                    topic0_hash,
+                    topics,
+                })
+            } else {
+                Some(MiniLogSelection {
+                    address,
+                    topics: log_selection.topics.clone(),
+                    topic0_hash: log_selection.topic0_hash.clone(),
+                })
+            }
         })
         .collect()
 }
