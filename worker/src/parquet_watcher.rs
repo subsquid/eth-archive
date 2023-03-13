@@ -45,7 +45,9 @@ impl ParquetWatcher {
                     next_start = dir_name.range.to;
                 }
 
-                db_writer.register_parquet_folders(to_register).await;
+                if !to_register.is_empty() {
+                    db_writer.register_parquet_folders(to_register).await;
+                }
 
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }
