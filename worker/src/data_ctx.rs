@@ -3,11 +3,10 @@ use crate::db::DbHandle;
 use crate::db_writer::DbWriter;
 use crate::downloader::Downloader;
 use crate::field_selection::FieldSelection;
-use crate::parquet_metadata::hash;
 use crate::parquet_query::ParquetQuery;
 use crate::parquet_watcher::ParquetWatcher;
 use crate::serialize_task::SerializeTask;
-use crate::types::{MiniLogSelection, MiniQuery, MiniTransactionSelection, Query, QueryResult};
+use crate::types::{MiniQuery, Query, QueryResult};
 use crate::{Error, Result};
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::rayon_async;
@@ -18,7 +17,6 @@ use std::cmp;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use xorf::{BinaryFuse8, Filter};
 
 pub struct DataCtx {
     config: Config,
@@ -111,23 +109,20 @@ impl DataCtx {
     }
 
     async fn query_impl(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
-        let mut query = query;
-        // to_block is supposed to be inclusive in api but exclusive in implementation
-        // so we add one to it here
-        query.to_block = query.to_block.map(|a| a + 1);
-        let query = query;
-
         if let Some(to_block) = query.to_block {
-            if query.from_block >= to_block {
+            if query.from_block > to_block {
                 return Err(Error::InvalidBlockRange);
             }
         }
+
+        let archive_height = self.db.height();
+        let query = rayon_async::spawn(move || query.optimize(archive_height)).await;
 
         if query.logs.is_empty() && query.transactions.is_empty() {
             return Err(Error::EmptyQuery);
         }
 
-        let field_selection = query.field_selection();
+        let field_selection = query.field_selection;
 
         let serialize_task = SerializeTask::new(
             query.from_block,
@@ -164,13 +159,13 @@ impl DataCtx {
     async fn parquet_query(
         &self,
         serialize_task: &SerializeTask,
-        query: &Query,
+        query: &MiniQuery,
         field_selection: FieldSelection,
     ) -> Result<()> {
         let mut parquet_idxs = self
             .db
             .clone()
-            .iter_parquet_idxs(query.from_block, query.to_block)
+            .iter_parquet_idxs(query.from_block, Some(query.to_block))
             .await;
 
         let concurrency = self.config.max_parquet_query_concurrency.get();
@@ -193,10 +188,7 @@ impl DataCtx {
             }
 
             let from_block = cmp::max(dir_name.range.from, query.from_block);
-            let to_block = match query.to_block {
-                Some(to_block) => cmp::min(dir_name.range.to, to_block),
-                None => dir_name.range.to,
-            };
+            let to_block = cmp::min(dir_name.range.to, query.to_block);
 
             let block_range = BlockRange {
                 from: from_block,
@@ -276,7 +268,7 @@ impl DataCtx {
         &self,
         from_block: u32,
         serialize_task: &SerializeTask,
-        query: &Query,
+        query: &MiniQuery,
         field_selection: FieldSelection,
     ) -> Result<()> {
         let archive_height = self.db.clone().height();
@@ -285,10 +277,7 @@ impl DataCtx {
             return Ok(());
         }
 
-        let to_block = match query.to_block {
-            Some(to_block) => cmp::min(archive_height, to_block),
-            None => archive_height,
-        };
+        let to_block = cmp::min(archive_height, query.to_block);
 
         let step = usize::try_from(self.config.db_query_batch_size).unwrap();
         for start in (from_block..to_block).step_by(step) {
@@ -297,8 +286,8 @@ impl DataCtx {
             let mini_query = MiniQuery {
                 from_block: start,
                 to_block: end,
-                logs: query.log_selection(),
-                transactions: query.tx_selection(),
+                logs: query.logs.clone(),
+                transactions: query.transactions.clone(),
                 field_selection,
                 include_all_blocks: query.include_all_blocks,
             };
@@ -339,110 +328,5 @@ impl FieldSelection {
         self.log.topics = true;
 
         self
-    }
-}
-
-impl Query {
-    fn field_selection(&self) -> FieldSelection {
-        self.logs
-            .iter()
-            .map(|log| log.field_selection)
-            .chain(self.transactions.iter().map(|tx| tx.field_selection))
-            .fold(Default::default(), |a, b| a | b)
-    }
-
-    fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
-        self.logs
-            .iter()
-            .filter_map(|log_selection| {
-                let address = &log_selection.address;
-
-                if address.is_empty() {
-                    return Some(MiniLogSelection {
-                        address: Vec::new(),
-                        topics: log_selection.topics.clone(),
-                    });
-                }
-
-                let address = address
-                    .iter()
-                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                if !address.is_empty() {
-                    Some(MiniLogSelection {
-                        address,
-                        topics: log_selection.topics.clone(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
-    fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
-        self.transactions
-            .iter()
-            .filter_map(|tx_selection| {
-                let source = &tx_selection.source;
-                let dest = &tx_selection.dest;
-
-                if source.is_empty() && dest.is_empty() {
-                    return Some(MiniTransactionSelection {
-                        source: Vec::new(),
-                        dest: Vec::new(),
-                        sighash: tx_selection.sighash.clone(),
-                        status: tx_selection.status,
-                    });
-                }
-
-                let source = source
-                    .iter()
-                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                let dest = dest
-                    .iter()
-                    .filter(|addr| parquet_idx.contains(&hash(addr.as_slice())))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                if source.is_empty() && dest.is_empty() {
-                    None
-                } else {
-                    Some(MiniTransactionSelection {
-                        source,
-                        dest,
-                        sighash: tx_selection.sighash.clone(),
-                        status: tx_selection.status,
-                    })
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
-    fn log_selection(&self) -> Vec<MiniLogSelection> {
-        self.logs
-            .iter()
-            .map(|log| MiniLogSelection {
-                address: log.address.clone(),
-                topics: log.topics.clone(),
-            })
-            .collect()
-    }
-
-    fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
-        self.transactions
-            .iter()
-            .map(|transaction| MiniTransactionSelection {
-                source: transaction.source.clone(),
-                dest: transaction.dest.clone(),
-                sighash: transaction.sighash.clone(),
-                status: transaction.status,
-            })
-            .collect()
     }
 }

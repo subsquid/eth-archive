@@ -1,6 +1,8 @@
+use crate::bloom::Bloom;
 use crate::parquet_metadata::ParquetMetadata;
 use crate::types::{LogQueryResult, MiniQuery, QueryResult};
 use crate::{Error, Result};
+use eth_archive_core::deserialize::Address;
 use eth_archive_core::dir_name::DirName;
 use eth_archive_core::ingest_metrics::IngestMetrics;
 use eth_archive_core::types::{
@@ -14,9 +16,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{cmp, iter};
 use tokio::sync::mpsc;
-use xorf::BinaryFuse8;
 
-type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, BinaryFuse8)>> + Send + 'a>;
+type ParquetIdxIter<'a> = Box<dyn Iterator<Item = Result<(DirName, Bloom<Address>)>> + Send + 'a>;
 
 pub struct DbHandle {
     inner: rocksdb::DB,
@@ -43,7 +44,7 @@ impl DbHandle {
 
         block_opts.set_block_size(32 * 1024);
         block_opts.set_format_version(5);
-        block_opts.set_ribbon_filter(10.0);
+        block_opts.set_bloom_filter(10.0, true);
 
         let mut opts = rocksdb::Options::default();
 
@@ -53,7 +54,6 @@ impl DbHandle {
         opts.set_bytes_per_sync(1048576);
         opts.set_max_open_files(10000);
         opts.set_block_based_table_factory(&block_opts);
-        opts.set_allow_mmap_reads(true);
         opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
         opts.set_level_compaction_dynamic_level_bytes(true);
 
@@ -97,7 +97,7 @@ impl DbHandle {
         self: Arc<Self>,
         from: u32,
         to: Option<u32>,
-    ) -> mpsc::Receiver<Result<(DirName, BinaryFuse8)>> {
+    ) -> mpsc::Receiver<Result<(DirName, Bloom<Address>)>> {
         let (tx, rx): (_, _) = mpsc::channel(1);
 
         tokio::task::spawn_blocking(move || {
@@ -320,7 +320,7 @@ impl DbHandle {
     pub fn register_parquet_folder(
         &self,
         dir_name: DirName,
-        idx: &BinaryFuse8,
+        idx: &Bloom<Address>,
         metadata: &ParquetMetadata,
     ) -> Result<()> {
         let parquet_idx_cf = self.inner.cf_handle(cf_name::PARQUET_IDX).unwrap();
