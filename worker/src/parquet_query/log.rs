@@ -25,49 +25,48 @@ pub fn prune_log_queries_per_rg(
     log_selections
         .iter()
         .filter_map(|log_selection| {
-            let address: Vec<_> = log_selection
+            let address = log_selection
                 .address
                 .iter()
-                .filter(|(_, h)| rg_meta.address_filter.contains(h))
-                .cloned()
-                .collect();
+                .filter_map(|(addr, &h)| {
+                    if rg_meta.address_filter.contains(&h) {
+                        Some((addr.clone(), h))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<HashMap<_, _>>();
 
             if !log_selection.address.is_empty() && address.is_empty() {
                 return None;
             }
 
-            if let Some(topic0_hash) = &log_selection.topic0_hash {
-                let pruned_topic0 = topic0_hash
-                    .iter()
-                    .zip(log_selection.topics[0].iter())
-                    .filter_map(|(h, v)| {
-                        if rg_meta.topic0_filter.contains(h) {
-                            Some((h, v.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
+            match log_selection.topics.get(0) {
+                Some(topic0) if !topic0.is_empty() => {
+                    let pruned_topic0 = topic0
+                        .iter()
+                        .filter_map(|(t, &h)| {
+                            if rg_meta.topic0_filter.contains(&h) {
+                                Some((t.clone(), h))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<HashMap<_, _>>();
 
-                if pruned_topic0.is_empty() {
-                    return None;
+                    if pruned_topic0.is_empty() {
+                        return None;
+                    }
+
+                    let mut topics = log_selection.topics.clone();
+                    topics[0] = pruned_topic0;
+
+                    Some(MiniLogSelection { address, topics })
                 }
-
-                let topic0_hash = Some(pruned_topic0.iter().map(|t| *t.0).collect());
-                let mut topics = log_selection.topics.clone();
-                topics[0] = pruned_topic0.into_iter().map(|t| t.1).collect();
-
-                Some(MiniLogSelection {
-                    address,
-                    topic0_hash,
-                    topics,
-                })
-            } else {
-                Some(MiniLogSelection {
+                _ => Some(MiniLogSelection {
                     address,
                     topics: log_selection.topics.clone(),
-                    topic0_hash: log_selection.topic0_hash.clone(),
-                })
+                }),
             }
         })
         .collect()

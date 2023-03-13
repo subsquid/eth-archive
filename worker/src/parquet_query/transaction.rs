@@ -38,22 +38,32 @@ pub fn prune_tx_queries_per_rg(
                 return Some(tx_selection.clone());
             }
 
-            let source: Vec<_> = tx_selection
+            let source: HashMap<_, _> = tx_selection
                 .source
                 .iter()
-                .filter(|(_, h)| rg_meta.source_filter.contains(h))
-                .cloned()
+                .filter_map(|(addr, &h)| {
+                    if rg_meta.source_filter.contains(&h) {
+                        Some((addr.clone(), h))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
             if source.is_empty() {
                 return None;
             }
 
-            let dest: Vec<_> = tx_selection
+            let dest: HashMap<_, _> = tx_selection
                 .dest
                 .iter()
-                .filter(|(_, h)| rg_meta.dest_filter.contains(h))
-                .cloned()
+                .filter_map(|(addr, &h)| {
+                    if rg_meta.dest_filter.contains(&h) {
+                        Some((addr.clone(), h))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
             if dest.is_empty() {

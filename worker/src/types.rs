@@ -4,9 +4,9 @@ use eth_archive_core::deserialize::{Address, Bytes32, Index, Sighash};
 use eth_archive_core::hash::{hash, HashMap};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use serde::{Deserialize, Serialize};
+use std::cmp;
 use std::collections::{BTreeMap, BTreeSet};
 use xorf::{BinaryFuse8, Filter};
-use std::cmp;
 
 #[derive(Clone)]
 pub struct MiniQuery {
@@ -296,7 +296,12 @@ impl Query {
                 topics: log
                     .topics
                     .iter()
-                    .map(|topic| topic.iter().map(|t| (t.clone(), hash(t.as_slice()))).collect())
+                    .map(|topic| {
+                        topic
+                            .iter()
+                            .map(|t| (t.clone(), hash(t.as_slice())))
+                            .collect()
+                    })
                     .collect(),
             })
             .collect()
