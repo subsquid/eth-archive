@@ -5,8 +5,8 @@ use arrow2::datatypes::{DataType, Field};
 use arrow2::io::parquet;
 use eth_archive_core::define_cols;
 use eth_archive_core::dir_name::DirName;
+use eth_archive_core::hash::{hash, HashSet};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::path::Path;
 use std::{cmp, fs, io};
 use xorf::{BinaryFuse16, BinaryFuse8};
@@ -247,10 +247,6 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
 
         Ok(block_rg_meta)
     }
-}
-
-pub fn hash(input: &[u8]) -> u64 {
-    xxhash_rust::xxh3::xxh3_64(input)
 }
 
 pub fn combine_block_num_tx_idx(block_num: u32, tx_idx: u32) -> u64 {

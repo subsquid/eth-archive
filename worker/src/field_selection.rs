@@ -1,8 +1,8 @@
+use eth_archive_core::hash::HashSet;
 use eth_archive_core::types::{
     Block, Log, ResponseBlock, ResponseLog, ResponseTransaction, Transaction,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 macro_rules! to_fields {
     ($self:expr, $fields:expr, $field:ident) => {

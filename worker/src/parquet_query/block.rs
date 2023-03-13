@@ -9,9 +9,10 @@ use arrow2::io::parquet;
 use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
 };
+use eth_archive_core::hash::HashMap;
 use eth_archive_core::types::ResponseBlock;
 use eth_archive_ingester::schema::block_schema;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fs, io};
 

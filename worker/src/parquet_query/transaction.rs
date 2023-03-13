@@ -1,15 +1,16 @@
 use super::util::{define_cols, map_from_arrow, map_from_arrow_opt};
 use super::ParquetQuery;
-use crate::parquet_metadata::{combine_block_num_tx_idx, hash, TransactionRowGroupMetadata};
+use crate::parquet_metadata::{combine_block_num_tx_idx, TransactionRowGroupMetadata};
 use crate::types::{MiniQuery, MiniTransactionSelection};
 use crate::{Error, Result};
 use arrow2::array::{self, UInt32Array, UInt64Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
+use eth_archive_core::hash::{hash, HashMap};
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fs, io};
 use xorf::Filter;
