@@ -109,12 +109,14 @@ impl DataCtx {
     }
 
     async fn query_impl(self: Arc<Self>, query: Query) -> Result<Vec<u8>> {
+        if let Some(to_block) = query.to_block {
+            if query.from_block > to_block {
+                return Err(Error::InvalidBlockRange);
+            }
+        }
+
         let archive_height = self.db.height();
         let query = rayon_async::spawn(move || query.optimize(archive_height)).await;
-
-        if query.from_block >= query.to_block {
-            return Err(Error::InvalidBlockRange);
-        }
 
         if query.logs.is_empty() && query.transactions.is_empty() {
             return Err(Error::EmptyQuery);
