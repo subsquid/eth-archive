@@ -30,7 +30,7 @@ pub struct Config {
     #[clap(long, default_value_t = NonZeroUsize::new(32).unwrap())]
     pub max_concurrent_queries: NonZeroUsize,
     /// Maximum number of threads per query to use to query parquet folders
-    #[clap(long, default_value_t = NonZeroUsize::new(16).unwrap())]
+    #[clap(long, default_value_t = NonZeroUsize::new(4).unwrap())]
     pub max_parquet_query_concurrency: NonZeroUsize,
     /// Response time limit in milliseconds.
     /// The query will stop and found data will be returned
