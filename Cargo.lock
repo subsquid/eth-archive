@@ -944,6 +944,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -1012,7 +1013,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "xorf",
- "xxhash-rust",
 ]
 
 [[package]]

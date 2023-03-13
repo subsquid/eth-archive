@@ -4,6 +4,7 @@ pub mod dir_name;
 pub mod error;
 pub mod eth_client;
 pub mod eth_request;
+pub mod hash;
 pub mod ingest_metrics;
 pub mod local_sync;
 pub mod parquet_source;

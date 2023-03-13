@@ -21,7 +21,6 @@ mimalloc = { workspace = true }
 crossbeam-channel = "0.5"
 derive_more = "0.99"
 xorf = { version = "0.8", features = ["serde"] }
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
 rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
 arrow2 = { workspace = true }
 hyper = { workspace = true }

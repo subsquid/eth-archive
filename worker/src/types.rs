@@ -1,10 +1,14 @@
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Index, Sighash};
+use eth_archive_core::hash::{hash, HashMap};
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use serde::{Deserialize, Serialize};
+use std::cmp;
 use std::collections::{BTreeMap, BTreeSet};
+use xorf::{BinaryFuse8, Filter};
 
+#[derive(Clone)]
 pub struct MiniQuery {
     pub from_block: u32,
     pub to_block: u32,
@@ -16,66 +20,16 @@ pub struct MiniQuery {
 
 #[derive(Clone)]
 pub struct MiniLogSelection {
-    pub address: Vec<Address>,
-    pub topics: ArrayVec<Vec<Bytes32>, 4>,
+    pub address: HashMap<Address, u64>,
+    pub topics: ArrayVec<HashMap<Bytes32, u64>, 4>,
 }
 
 #[derive(Clone)]
 pub struct MiniTransactionSelection {
-    pub source: Vec<Address>,
-    pub dest: Vec<Address>,
+    pub source: HashMap<Address, u64>,
+    pub dest: HashMap<Address, u64>,
     pub sighash: Vec<Sighash>,
     pub status: Option<u32>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Query {
-    pub from_block: u32,
-    pub to_block: Option<u32>,
-    #[serde(default)]
-    pub logs: Vec<LogSelection>,
-    #[serde(default)]
-    pub transactions: Vec<TransactionSelection>,
-    #[serde(default)]
-    pub include_all_blocks: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct LogSelection {
-    #[serde(default)]
-    pub address: Vec<Address>,
-    pub topics: ArrayVec<Vec<Bytes32>, 4>,
-    pub field_selection: FieldSelection,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TransactionSelection {
-    #[serde(rename = "from")]
-    #[serde(default)]
-    pub source: Vec<Address>,
-    #[serde(rename = "to", alias = "address")]
-    #[serde(default)]
-    pub dest: Vec<Address>,
-    #[serde(default)]
-    pub sighash: Vec<Sighash>,
-    pub status: Option<u32>,
-    pub field_selection: FieldSelection,
-}
-
-#[derive(Default)]
-pub struct QueryResult {
-    pub logs: BTreeMap<(u32, u32), ResponseLog>,
-    pub transactions: BTreeMap<(u32, u32), ResponseTransaction>,
-    pub blocks: BTreeMap<u32, ResponseBlock>,
-}
-
-impl QueryResult {
-    pub fn is_empty(&self) -> bool {
-        self.logs.is_empty() && self.transactions.is_empty() && self.blocks.is_empty()
-    }
 }
 
 #[derive(Default)]
@@ -100,6 +54,94 @@ impl MiniQuery {
             tx.status,
         )
     }
+
+    pub fn pruned_log_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniLogSelection> {
+        self.logs
+            .iter()
+            .filter_map(|log_selection| {
+                let address = &log_selection.address;
+
+                if address.is_empty() {
+                    return Some(MiniLogSelection {
+                        address: HashMap::default(),
+                        topics: log_selection.topics.clone(),
+                    });
+                }
+
+                let address = address
+                    .iter()
+                    .filter_map(|(addr, &h)| {
+                        if parquet_idx.contains(&h) {
+                            Some((addr.clone(), h))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<HashMap<Address, u64>>();
+
+                if !address.is_empty() {
+                    Some(MiniLogSelection {
+                        address,
+                        topics: log_selection.topics.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn pruned_tx_selection(&self, parquet_idx: &BinaryFuse8) -> Vec<MiniTransactionSelection> {
+        self.transactions
+            .iter()
+            .filter_map(|tx_selection| {
+                let source = &tx_selection.source;
+                let dest = &tx_selection.dest;
+
+                if source.is_empty() && dest.is_empty() {
+                    return Some(MiniTransactionSelection {
+                        source: HashMap::default(),
+                        dest: HashMap::default(),
+                        sighash: tx_selection.sighash.clone(),
+                        status: tx_selection.status,
+                    });
+                }
+
+                let source = source
+                    .iter()
+                    .filter_map(|(addr, &h)| {
+                        if parquet_idx.contains(&h) {
+                            Some((addr.clone(), h))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                let dest = dest
+                    .iter()
+                    .filter_map(|(addr, &h)| {
+                        if parquet_idx.contains(&h) {
+                            Some((addr.clone(), h))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                if source.is_empty() && dest.is_empty() {
+                    None
+                } else {
+                    Some(MiniTransactionSelection {
+                        source,
+                        dest,
+                        sighash: tx_selection.sighash.clone(),
+                        status: tx_selection.status,
+                    })
+                }
+            })
+            .collect::<Vec<_>>()
+    }
 }
 
 impl MiniLogSelection {
@@ -114,12 +156,12 @@ impl MiniLogSelection {
     }
 
     fn matches_addr(&self, filter_addr: &Address) -> bool {
-        self.address.is_empty() || self.address.iter().any(|addr| addr == filter_addr)
+        self.address.is_empty() || self.address.contains_key(filter_addr)
     }
 
     fn matches_topics(&self, topics: &[Bytes32]) -> bool {
         for (topic, log_topic) in self.topics.iter().zip(topics.iter()) {
-            if !topic.is_empty() && !topic.iter().any(|topic| log_topic == topic) {
+            if !topic.is_empty() && !topic.contains_key(log_topic) {
                 return false;
             }
         }
@@ -151,7 +193,7 @@ impl MiniTransactionSelection {
             None => return false,
         };
 
-        self.dest.iter().any(|addr| addr == tx_addr)
+        self.dest.contains_key(tx_addr)
     }
 
     fn matches_source(&self, source: &Option<Address>) -> bool {
@@ -160,7 +202,7 @@ impl MiniTransactionSelection {
             None => return false,
         };
 
-        self.source.iter().any(|addr| addr == tx_addr)
+        self.source.contains_key(tx_addr)
     }
 
     fn matches_sighash(&self, sighash: &Option<Sighash>) -> bool {
@@ -177,5 +219,124 @@ impl MiniTransactionSelection {
             (Some(status), Some(tx_status)) => status == tx_status.0,
             _ => true,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Query {
+    from_block: u32,
+    to_block: Option<u32>,
+    #[serde(default)]
+    logs: Vec<LogSelection>,
+    #[serde(default)]
+    transactions: Vec<TransactionSelection>,
+    #[serde(default)]
+    include_all_blocks: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LogSelection {
+    #[serde(default)]
+    address: Vec<Address>,
+    topics: ArrayVec<Vec<Bytes32>, 4>,
+    field_selection: FieldSelection,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionSelection {
+    #[serde(rename = "from")]
+    #[serde(default)]
+    source: Vec<Address>,
+    #[serde(rename = "to", alias = "address")]
+    #[serde(default)]
+    dest: Vec<Address>,
+    #[serde(default)]
+    sighash: Vec<Sighash>,
+    status: Option<u32>,
+    field_selection: FieldSelection,
+}
+
+impl Query {
+    pub fn optimize(&self, archive_height: u32) -> MiniQuery {
+        let to_block = match self.to_block {
+            Some(to_block) => cmp::min(archive_height, to_block),
+            None => archive_height,
+        };
+
+        MiniQuery {
+            from_block: self.from_block,
+            to_block,
+            logs: self.log_selection(),
+            transactions: self.tx_selection(),
+            field_selection: self.field_selection(),
+            include_all_blocks: self.include_all_blocks,
+        }
+    }
+
+    fn field_selection(&self) -> FieldSelection {
+        self.logs
+            .iter()
+            .map(|log| log.field_selection)
+            .chain(self.transactions.iter().map(|tx| tx.field_selection))
+            .fold(Default::default(), |a, b| a | b)
+    }
+
+    fn log_selection(&self) -> Vec<MiniLogSelection> {
+        self.logs
+            .iter()
+            .map(|log| MiniLogSelection {
+                address: log
+                    .address
+                    .iter()
+                    .map(|addr| (addr.clone(), hash(addr.as_slice())))
+                    .collect(),
+                topics: log
+                    .topics
+                    .iter()
+                    .map(|topic| {
+                        topic
+                            .iter()
+                            .map(|t| (t.clone(), hash(t.as_slice())))
+                            .collect()
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
+
+    fn tx_selection(&self) -> Vec<MiniTransactionSelection> {
+        self.transactions
+            .iter()
+            .map(|transaction| MiniTransactionSelection {
+                source: transaction
+                    .source
+                    .iter()
+                    .map(|addr| (addr.clone(), hash(addr.as_slice())))
+                    .collect(),
+                dest: transaction
+                    .dest
+                    .iter()
+                    .map(|addr| (addr.clone(), hash(addr.as_slice())))
+                    .collect(),
+                sighash: transaction.sighash.clone(),
+                status: transaction.status,
+            })
+            .collect()
+    }
+}
+
+#[derive(Default)]
+pub struct QueryResult {
+    pub logs: BTreeMap<(u32, u32), ResponseLog>,
+    pub transactions: BTreeMap<(u32, u32), ResponseTransaction>,
+    pub blocks: BTreeMap<u32, ResponseBlock>,
+}
+
+impl QueryResult {
+    pub fn is_empty(&self) -> bool {
+        self.logs.is_empty() && self.transactions.is_empty() && self.blocks.is_empty()
     }
 }

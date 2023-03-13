@@ -3,9 +3,9 @@ use crate::metrics::Metrics;
 use crate::types::{MaybeBatch, RpcRequest, RpcResponse};
 use crate::{Error, Result};
 use eth_archive_core::eth_client::TARGET_ENDPOINT_HEADER_NAME;
+use eth_archive_core::hash::HashMap;
 use eth_archive_core::retry::Retry;
 use hyper::header::HeaderMap;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -192,7 +192,7 @@ impl Limiter {
         Self {
             time: Instant::now(),
             reqs_total: 0,
-            reqs: HashMap::new(),
+            reqs: HashMap::default(),
             rps_limit,
             metrics,
         }

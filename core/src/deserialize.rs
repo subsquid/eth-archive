@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::result::Result as StdResult;
 
-#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq)]
+#[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq, Hash)]
 pub struct Bytes32(pub Box<[u8; 32]>);
 
 #[derive(Debug, Clone, derive_more::Deref, derive_more::From, PartialEq, Eq, Hash)]

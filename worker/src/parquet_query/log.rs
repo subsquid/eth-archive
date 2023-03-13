@@ -1,6 +1,6 @@
 use super::util::{define_cols, map_from_arrow};
 use super::ParquetQuery;
-use crate::parquet_metadata::{hash, LogRowGroupMetadata};
+use crate::parquet_metadata::LogRowGroupMetadata;
 use crate::types::{LogQueryResult, MiniLogSelection, MiniQuery};
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
@@ -8,9 +8,10 @@ use arrow2::array::{self, BooleanArray, UInt32Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
+use eth_archive_core::hash::HashMap;
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fs, io};
 use xorf::Filter;
@@ -24,37 +25,49 @@ pub fn prune_log_queries_per_rg(
     log_selections
         .iter()
         .filter_map(|log_selection| {
-            let address: Vec<_> = log_selection
+            let address = log_selection
                 .address
                 .iter()
-                .filter(|addr| rg_meta.address_filter.contains(&hash(addr.as_slice())))
-                .cloned()
-                .collect();
+                .filter_map(|(addr, &h)| {
+                    if rg_meta.address_filter.contains(&h) {
+                        Some((addr.clone(), h))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<HashMap<_, _>>();
 
             if !log_selection.address.is_empty() && address.is_empty() {
                 return None;
             }
 
-            let mut new_selection = MiniLogSelection {
-                address,
-                topics: log_selection.topics.clone(),
-            };
+            match log_selection.topics.get(0) {
+                Some(topic0) if !topic0.is_empty() => {
+                    let pruned_topic0 = topic0
+                        .iter()
+                        .filter_map(|(t, &h)| {
+                            if rg_meta.topic0_filter.contains(&h) {
+                                Some((t.clone(), h))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<HashMap<_, _>>();
 
-            if let Some(topic0) = log_selection.topics.get(0) {
-                let pruned_topic0: Vec<_> = topic0
-                    .iter()
-                    .filter(|v| rg_meta.topic0_filter.contains(&hash(v.as_slice())))
-                    .cloned()
-                    .collect();
+                    if pruned_topic0.is_empty() {
+                        return None;
+                    }
 
-                if !topic0.is_empty() && pruned_topic0.is_empty() {
-                    return None;
+                    let mut topics = log_selection.topics.clone();
+                    topics[0] = pruned_topic0;
+
+                    Some(MiniLogSelection { address, topics })
                 }
-
-                new_selection.topics[0] = pruned_topic0;
+                _ => Some(MiniLogSelection {
+                    address,
+                    topics: log_selection.topics.clone(),
+                }),
             }
-
-            Some(new_selection)
         })
         .collect()
 }

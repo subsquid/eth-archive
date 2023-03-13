@@ -1,15 +1,16 @@
 use super::util::{define_cols, map_from_arrow, map_from_arrow_opt};
 use super::ParquetQuery;
-use crate::parquet_metadata::{combine_block_num_tx_idx, hash, TransactionRowGroupMetadata};
+use crate::parquet_metadata::{combine_block_num_tx_idx, TransactionRowGroupMetadata};
 use crate::types::{MiniQuery, MiniTransactionSelection};
 use crate::{Error, Result};
 use arrow2::array::{self, UInt32Array, UInt64Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
+use eth_archive_core::hash::HashMap;
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fs, io};
 use xorf::Filter;
@@ -37,22 +38,32 @@ pub fn prune_tx_queries_per_rg(
                 return Some(tx_selection.clone());
             }
 
-            let source: Vec<_> = tx_selection
+            let source: HashMap<_, _> = tx_selection
                 .source
                 .iter()
-                .filter(|src| rg_meta.source_filter.contains(&hash(src.as_slice())))
-                .cloned()
+                .filter_map(|(addr, &h)| {
+                    if rg_meta.source_filter.contains(&h) {
+                        Some((addr.clone(), h))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
             if source.is_empty() {
                 return None;
             }
 
-            let dest: Vec<_> = tx_selection
+            let dest: HashMap<_, _> = tx_selection
                 .dest
                 .iter()
-                .filter(|dst| rg_meta.dest_filter.contains(&hash(dst.as_slice())))
-                .cloned()
+                .filter_map(|(addr, &h)| {
+                    if rg_meta.dest_filter.contains(&h) {
+                        Some((addr.clone(), h))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
             if dest.is_empty() {
