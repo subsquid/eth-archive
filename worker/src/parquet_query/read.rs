@@ -5,7 +5,6 @@ use arrow2::datatypes::Field;
 use arrow2::io::parquet;
 use arrow2::io::parquet::read::ArrayIter;
 use eth_archive_core::hash::HashMap;
-use eth_archive_core::rayon_async;
 use futures::future::BoxFuture;
 use rayon::prelude::*;
 use std::path::PathBuf;
@@ -81,7 +80,7 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                     };
 
                     let mut num_rows = rg_meta.num_rows();
-                    rayon_async::spawn(move || {
+                    tokio::task::spawn_blocking(move || {
                         while num_rows > 0 {
                             num_rows = num_rows.saturating_sub(CHUNK_SIZE);
                             let chunk =
@@ -101,7 +100,8 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                             tx.send(chunk).ok();
                         }
                     })
-                    .await;
+                    .await
+                    .unwrap();
                 });
             }
         }

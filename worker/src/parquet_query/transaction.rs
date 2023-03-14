@@ -7,7 +7,6 @@ use crate::Result;
 use arrow2::array::{self, Array, UInt32Array, UInt64Array};
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::hash::{HashMap, HashSet};
-use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
 use std::collections::{BTreeMap, BTreeSet};
@@ -104,7 +103,7 @@ pub async fn query_transactions(
     .read()
     .await?;
 
-    rayon_async::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let mut blocks = blocks;
         let mut transactions = BTreeMap::new();
         while let Ok(res) = chunk_rx.recv() {
@@ -123,6 +122,7 @@ pub async fn query_transactions(
         Ok((transactions, blocks))
     })
     .await
+    .unwrap()
 }
 
 fn process_cols(

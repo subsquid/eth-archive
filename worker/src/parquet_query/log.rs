@@ -8,7 +8,6 @@ use arrayvec::ArrayVec;
 use arrow2::array::{self, Array, BooleanArray, UInt32Array};
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::hash::{HashMap, HashSet};
-use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
 use std::collections::{BTreeMap, BTreeSet};
@@ -89,7 +88,7 @@ pub async fn query_logs(
     .read()
     .await?;
 
-    rayon_async::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let mut query_result = LogQueryResult {
             logs: BTreeMap::new(),
             transactions: BTreeSet::new(),
@@ -104,6 +103,7 @@ pub async fn query_logs(
         Ok(query_result)
     })
     .await
+    .unwrap()
 }
 
 fn process_cols(
