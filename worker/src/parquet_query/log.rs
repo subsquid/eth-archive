@@ -4,8 +4,9 @@ use crate::parquet_metadata::LogRowGroupMetadata;
 use crate::types::{LogQueryResult, MiniLogSelection, MiniQuery};
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
-use arrow2::array::{self, BooleanArray, UInt32Array};
+use arrow2::array::{self, BooleanArray, UInt32Array, Array};
 use arrow2::compute::concatenate::concatenate;
+use arrow2::datatypes::Schema;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::hash::{HashMap, HashSet};
@@ -87,22 +88,40 @@ pub fn query_logs(
         blocks: BTreeSet::new(),
     };
 
-    for (rg_meta, log_queries) in metadata.row_groups.iter().zip(pruned_queries_per_rg.iter()) {
-        if log_queries.is_empty() {
-            continue;
-        }
+    let row_groups = metadata
+        .row_groups
+        .into_iter()
+        .zip(pruned_queries_per_rg.iter())
+        .filter_map(|(rg_meta, log_queries)| {
+            if log_queries.is_empty() {
+                None
+            } else {
+                Some(rg_meta)
+            }
+        })
+        .collect();
 
-        let columns = parquet::read::read_columns_many(
-            &mut reader,
-            rg_meta,
-            fields.clone(),
-            None,
-            None,
-            None,
-        )
-        .map_err(Error::ReadParquet)?;
+    let mut reader = parquet::read::FileReader::new(
+        reader,
+        row_groups,
+        Schema {
+            fields: fields.clone(),
+            metadata: Default::default(),
+        },
+        None,
+        None,
+        None,
+    );
 
-        let columns = columns
+    let pruned_queries_per_rg = pruned_queries_per_rg
+        .iter()
+        .filter(|log_queries| !log_queries.is_empty());
+
+    for (chunk, log_queries) in reader.zip(pruned_queries_per_rg) {
+        let chunk = chunk.map_err(Error::ReadParquet)?;
+
+        let columns = chunk
+            .into_arrays()
             .into_iter()
             .zip(fields.iter())
             .map(|(col, field)| (field.name.to_owned(), col))
@@ -117,7 +136,7 @@ pub fn query_logs(
 fn process_cols(
     query: &MiniQuery,
     log_queries: &[MiniLogSelection],
-    mut columns: HashMap<String, parquet::read::ArrayIter<'static>>,
+    mut columns: HashMap<String, Box<dyn Array>>,
     query_result: &mut LogQueryResult,
 ) {
     #[rustfmt::skip]
