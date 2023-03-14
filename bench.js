@@ -120,12 +120,12 @@ while(true) {
   req.fromBlock = nextBlock;
 }
 
-console.log(`Finished sync in ${endTime - startTime} milliseconds`);
+console.log(`Finished sync in ${total} milliseconds`);
 
 async function getResp() {
 	while(true) {
 		try {
-		const resp = await fetch("https://eth-mainnet-test-v1-stage1.archive.subsquid.io/query", {
+		const resp = await fetch("http://localhost:8080/query", {
     method: "POST",
     headers: {
         "Content-Type": "application/json",
