@@ -18,13 +18,14 @@ rmp-serde = "1.1"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 futures = "0.3"
 mimalloc = { workspace = true }
-crossbeam-channel = "0.5"
+crossbeam = "0.8"
 derive_more = "0.99"
 rocksdb = { version = "0.20", default-features = false, features = ["lz4"] }
 arrow2 = { workspace = true }
 hyper = { workspace = true }
 rand = "0.8"
 roaring = { version = "0.10", features = ["serde"] }
+tokio-util = { version = "0.7", features = ["compat"] }
 
 eth-archive-core = { path = "../core" }
 eth-archive-ingester = { path = "../ingester" }

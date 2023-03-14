@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 mod block;
 mod log;
+mod read;
 mod transaction;
 mod util;
 
@@ -77,9 +78,7 @@ impl ParquetQuery {
             return Ok(LogQueryResult::default());
         }
 
-        tokio::task::spawn_blocking(move || log::query_logs(self, pruned_queries_per_rg))
-            .await
-            .unwrap()
+        log::query_logs(self, pruned_queries_per_rg).await
     }
 
     async fn query_transactions(
@@ -113,11 +112,7 @@ impl ParquetQuery {
             return Ok((BTreeMap::new(), blocks));
         }
 
-        tokio::task::spawn_blocking(move || {
-            transaction::query_transactions(self, pruned_tx_queries_per_rg, blocks)
-        })
-        .await
-        .unwrap()
+        transaction::query_transactions(self, pruned_tx_queries_per_rg, blocks).await
     }
 
     async fn query_blocks(
@@ -147,8 +142,6 @@ impl ParquetQuery {
             return Ok(BTreeMap::new());
         }
 
-        tokio::task::spawn_blocking(move || block::query_blocks(self, pruned_blocks_per_rg))
-            .await
-            .unwrap()
+        block::query_blocks(self, pruned_blocks_per_rg).await
     }
 }

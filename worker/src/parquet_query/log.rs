@@ -1,18 +1,17 @@
+use super::read::ReadParquet;
 use super::util::{define_cols, map_from_arrow};
 use super::ParquetQuery;
 use crate::parquet_metadata::LogRowGroupMetadata;
 use crate::types::{LogQueryResult, MiniLogSelection, MiniQuery};
-use crate::{Error, Result};
+use crate::Result;
 use arrayvec::ArrayVec;
 use arrow2::array::{self, Array, BooleanArray, UInt32Array};
-use arrow2::datatypes::Schema;
-use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::hash::{HashMap, HashSet};
+use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::sync::Arc;
 
 type BinaryArray = array::BinaryArray<i32>;
@@ -61,16 +60,13 @@ pub fn prune_log_queries_per_rg(
         .collect()
 }
 
-pub fn query_logs(
+pub async fn query_logs(
     query: Arc<ParquetQuery>,
     pruned_queries_per_rg: Vec<Vec<MiniLogSelection>>,
 ) -> Result<LogQueryResult> {
     let mut path = query.data_path.clone();
     path.push(query.dir_name.to_string());
     path.push("log.parquet");
-    let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
-
-    let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
     let selected_fields = query.mini_query.field_selection.log.as_fields();
 
@@ -80,52 +76,34 @@ pub fn query_logs(
         .filter(|field| selected_fields.contains(field.name.as_str()))
         .collect();
 
-    let mut row_groups = Vec::new();
-    let mut queries = Vec::new();
-
-    for (rg_meta, log_queries) in metadata
-        .row_groups
-        .into_iter()
-        .zip(pruned_queries_per_rg.iter())
-    {
-        if !log_queries.is_empty() {
-            row_groups.push(rg_meta);
-            queries.push(log_queries);
-        }
-    }
-
-    let reader = parquet::read::FileReader::new(
-        file,
-        row_groups,
-        Schema {
-            fields: fields.clone(),
-            metadata: Default::default(),
-        },
-        None,
-        None,
-        None,
-    );
-
-    let mut query_result = LogQueryResult {
-        logs: BTreeMap::new(),
-        transactions: BTreeSet::new(),
-        blocks: BTreeSet::new(),
+    let rg_filter = |i| {
+        let val: &Vec<MiniLogSelection> = &pruned_queries_per_rg[i];
+        !val.is_empty()
     };
 
-    for (chunk, log_queries) in reader.zip(queries) {
-        let chunk = chunk.map_err(Error::ReadParquet)?;
-
-        let columns = chunk
-            .into_arrays()
-            .into_iter()
-            .zip(fields.iter())
-            .map(|(col, field)| (field.name.to_owned(), col))
-            .collect::<HashMap<_, _>>();
-
-        process_cols(&query.mini_query, log_queries, columns, &mut query_result);
+    let chunk_rx = ReadParquet {
+        path,
+        rg_filter,
+        fields,
     }
+    .read()
+    .await?;
 
-    Ok(query_result)
+    rayon_async::spawn(move || {
+        let mut query_result = LogQueryResult {
+            logs: BTreeMap::new(),
+            transactions: BTreeSet::new(),
+            blocks: BTreeSet::new(),
+        };
+        while let Ok(res) = chunk_rx.recv() {
+            let (i, columns) = res?;
+            let log_queries = &pruned_queries_per_rg[i];
+            process_cols(&query.mini_query, log_queries, columns, &mut query_result);
+        }
+
+        Ok(query_result)
+    })
+    .await
 }
 
 fn process_cols(

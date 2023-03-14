@@ -1,17 +1,16 @@
+use super::read::ReadParquet;
 use super::util::{define_cols, map_from_arrow, map_from_arrow_opt};
 use super::ParquetQuery;
 use crate::parquet_metadata::{combine_block_num_tx_idx, TransactionRowGroupMetadata};
 use crate::types::{MiniQuery, MiniTransactionSelection};
-use crate::{Error, Result};
+use crate::Result;
 use arrow2::array::{self, Array, UInt32Array, UInt64Array};
-use arrow2::datatypes::Schema;
-use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::hash::{HashMap, HashSet};
+use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::sync::Arc;
 
 type BinaryArray = array::BinaryArray<i32>;
@@ -74,7 +73,7 @@ pub fn prune_tx_queries_per_rg(
 type TxIds = BTreeSet<(u32, u32)>;
 type Txs = BTreeMap<(u32, u32), ResponseTransaction>;
 
-pub fn query_transactions(
+pub async fn query_transactions(
     query: Arc<ParquetQuery>,
     pruned_queries_per_rg: Vec<(Vec<MiniTransactionSelection>, TxIds)>,
     blocks: BTreeSet<u32>,
@@ -82,9 +81,6 @@ pub fn query_transactions(
     let mut path = query.data_path.clone();
     path.push(query.dir_name.to_string());
     path.push("tx.parquet");
-    let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
-
-    let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
     let selected_fields = query.mini_query.field_selection.transaction.as_fields();
 
@@ -94,56 +90,39 @@ pub fn query_transactions(
         .filter(|field| selected_fields.contains(field.name.as_str()))
         .collect();
 
-    let mut row_groups = Vec::new();
-    let mut queries = Vec::new();
+    let rg_filter = |i| {
+        let (tx_queries, tx_ids): &(Vec<MiniTransactionSelection>, TxIds) =
+            &pruned_queries_per_rg[i];
+        !tx_queries.is_empty() || !tx_ids.is_empty()
+    };
 
-    for (rg_meta, (tx_queries, tx_ids)) in metadata
-        .row_groups
-        .into_iter()
-        .zip(pruned_queries_per_rg.iter())
-    {
-        if !tx_queries.is_empty() || !tx_ids.is_empty() {
-            row_groups.push(rg_meta);
-            queries.push((tx_queries, tx_ids));
+    let chunk_rx = ReadParquet {
+        path,
+        rg_filter,
+        fields,
+    }
+    .read()
+    .await?;
+
+    rayon_async::spawn(move || {
+        let mut blocks = blocks;
+        let mut transactions = BTreeMap::new();
+        while let Ok(res) = chunk_rx.recv() {
+            let (i, columns) = res?;
+            let queries = &pruned_queries_per_rg[i];
+            process_cols(
+                &query.mini_query,
+                &queries.0,
+                &queries.1,
+                columns,
+                &mut blocks,
+                &mut transactions,
+            );
         }
-    }
 
-    let reader = parquet::read::FileReader::new(
-        file,
-        row_groups,
-        Schema {
-            fields: fields.clone(),
-            metadata: Default::default(),
-        },
-        None,
-        None,
-        None,
-    );
-
-    let mut blocks = blocks;
-    let mut transactions = BTreeMap::new();
-
-    for (chunk, (tx_queries, tx_ids)) in reader.zip(queries) {
-        let chunk = chunk.map_err(Error::ReadParquet)?;
-
-        let columns = chunk
-            .into_arrays()
-            .into_iter()
-            .zip(fields.iter())
-            .map(|(col, field)| (field.name.to_owned(), col))
-            .collect::<HashMap<_, _>>();
-
-        process_cols(
-            &query.mini_query,
-            tx_queries,
-            tx_ids,
-            columns,
-            &mut blocks,
-            &mut transactions,
-        );
-    }
-
-    Ok((transactions, blocks))
+        Ok((transactions, blocks))
+    })
+    .await
 }
 
 fn process_cols(

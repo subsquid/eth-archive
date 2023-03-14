@@ -1,19 +1,18 @@
+use super::read::ReadParquet;
 use super::util::{define_cols, map_from_arrow, map_from_arrow_opt};
 use super::ParquetQuery;
 use crate::parquet_metadata::BlockRowGroupMetadata;
 use crate::types::MiniQuery;
-use crate::{Error, Result};
+use crate::Result;
 use arrow2::array::{self, Array, UInt32Array, UInt64Array};
-use arrow2::datatypes::Schema;
-use arrow2::io::parquet;
 use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
 };
 use eth_archive_core::hash::HashMap;
+use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseBlock;
 use eth_archive_ingester::schema::block_schema;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::sync::Arc;
 
 type BinaryArray = array::BinaryArray<i32>;
@@ -36,16 +35,13 @@ pub fn prune_blocks_per_rg(
     })
 }
 
-pub fn query_blocks(
+pub async fn query_blocks(
     query: Arc<ParquetQuery>,
     pruned_blocks_per_rg: Vec<Option<BTreeSet<u32>>>,
 ) -> Result<BTreeMap<u32, ResponseBlock>> {
     let mut path = query.data_path.clone();
     path.push(query.dir_name.to_string());
     path.push("block.parquet");
-    let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
-
-    let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
     let selected_fields = query.mini_query.field_selection.block.as_fields();
 
@@ -55,52 +51,34 @@ pub fn query_blocks(
         .filter(|field| selected_fields.contains(field.name.as_str()))
         .collect();
 
-    let mut row_groups = Vec::new();
-    let mut queries = Vec::new();
+    let rg_filter = |i| {
+        let val: &Option<BTreeSet<u32>> = &pruned_blocks_per_rg[i];
+        if let Some(block_nums) = val {
+            !block_nums.is_empty()
+        } else {
+            true
+        }
+    };
 
-    for (rg_meta, block_nums) in metadata
-        .row_groups
-        .into_iter()
-        .zip(pruned_blocks_per_rg.iter())
-    {
-        if let Some(block_nums) = &block_nums {
-            if block_nums.is_empty() {
-                continue;
-            }
+    let chunk_rx = ReadParquet {
+        path,
+        rg_filter,
+        fields,
+    }
+    .read()
+    .await?;
+
+    rayon_async::spawn(move || {
+        let mut blocks = BTreeMap::new();
+        while let Ok(res) = chunk_rx.recv() {
+            let (i, columns) = res?;
+            let block_nums = &pruned_blocks_per_rg[i];
+            process_cols(&query.mini_query, block_nums, columns, &mut blocks);
         }
 
-        row_groups.push(rg_meta);
-        queries.push(block_nums);
-    }
-
-    let reader = parquet::read::FileReader::new(
-        file,
-        row_groups,
-        Schema {
-            fields: fields.clone(),
-            metadata: Default::default(),
-        },
-        None,
-        None,
-        None,
-    );
-
-    let mut blocks = BTreeMap::new();
-
-    for (chunk, block_nums) in reader.zip(queries) {
-        let chunk = chunk.map_err(Error::ReadParquet)?;
-
-        let columns = chunk
-            .into_arrays()
-            .into_iter()
-            .zip(fields.iter())
-            .map(|(col, field)| (field.name.to_owned(), col))
-            .collect::<HashMap<_, _>>();
-
-        process_cols(&query.mini_query, block_nums, columns, &mut blocks);
-    }
-
-    Ok(blocks)
+        Ok(blocks)
+    })
+    .await
 }
 
 fn process_cols(
