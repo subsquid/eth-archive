@@ -4,8 +4,7 @@ use crate::parquet_metadata::LogRowGroupMetadata;
 use crate::types::{LogQueryResult, MiniLogSelection, MiniQuery};
 use crate::{Error, Result};
 use arrayvec::ArrayVec;
-use arrow2::array::{self, BooleanArray, UInt32Array, Array};
-use arrow2::compute::concatenate::concatenate;
+use arrow2::array::{self, Array, BooleanArray, UInt32Array};
 use arrow2::datatypes::Schema;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
@@ -82,26 +81,21 @@ pub fn query_logs(
         .filter(|field| selected_fields.contains(field.name.as_str()))
         .collect();
 
-    let mut query_result = LogQueryResult {
-        logs: BTreeMap::new(),
-        transactions: BTreeSet::new(),
-        blocks: BTreeSet::new(),
-    };
+    let mut row_groups = Vec::new();
+    let mut queries = Vec::new();
 
-    let row_groups = metadata
+    for (rg_meta, log_queries) in metadata
         .row_groups
         .into_iter()
         .zip(pruned_queries_per_rg.iter())
-        .filter_map(|(rg_meta, log_queries)| {
-            if log_queries.is_empty() {
-                None
-            } else {
-                Some(rg_meta)
-            }
-        })
-        .collect();
+    {
+        if !log_queries.is_empty() {
+            row_groups.push(rg_meta);
+            queries.push(log_queries);
+        }
+    }
 
-    let mut reader = parquet::read::FileReader::new(
+    let reader = parquet::read::FileReader::new(
         reader,
         row_groups,
         Schema {
@@ -113,11 +107,13 @@ pub fn query_logs(
         None,
     );
 
-    let pruned_queries_per_rg = pruned_queries_per_rg
-        .iter()
-        .filter(|log_queries| !log_queries.is_empty());
+    let mut query_result = LogQueryResult {
+        logs: BTreeMap::new(),
+        transactions: BTreeSet::new(),
+        blocks: BTreeSet::new(),
+    };
 
-    for (chunk, log_queries) in reader.zip(pruned_queries_per_rg) {
+    for (chunk, log_queries) in reader.zip(queries) {
         let chunk = chunk.map_err(Error::ReadParquet)?;
 
         let columns = chunk

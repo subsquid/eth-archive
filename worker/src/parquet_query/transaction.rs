@@ -3,8 +3,8 @@ use super::ParquetQuery;
 use crate::parquet_metadata::{combine_block_num_tx_idx, TransactionRowGroupMetadata};
 use crate::types::{MiniQuery, MiniTransactionSelection};
 use crate::{Error, Result};
-use arrow2::array::{self, UInt32Array, UInt64Array};
-use arrow2::compute::concatenate::concatenate;
+use arrow2::array::{self, Array, UInt32Array, UInt64Array};
+use arrow2::datatypes::Schema;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::hash::{HashMap, HashSet};
@@ -95,27 +95,40 @@ pub fn query_transactions(
         .filter(|field| selected_fields.contains(field.name.as_str()))
         .collect();
 
+    let mut row_groups = Vec::new();
+    let mut queries = Vec::new();
+
+    for (rg_meta, (tx_queries, tx_ids)) in metadata
+        .row_groups
+        .into_iter()
+        .zip(pruned_queries_per_rg.iter())
+    {
+        if !tx_queries.is_empty() || !tx_ids.is_empty() {
+            row_groups.push(rg_meta);
+            queries.push((tx_queries, tx_ids));
+        }
+    }
+
+    let reader = parquet::read::FileReader::new(
+        reader,
+        row_groups,
+        Schema {
+            fields: fields.clone(),
+            metadata: Default::default(),
+        },
+        None,
+        None,
+        None,
+    );
+
     let mut blocks = blocks;
     let mut transactions = BTreeMap::new();
 
-    for (rg_meta, (tx_queries, tx_ids)) in
-        metadata.row_groups.iter().zip(pruned_queries_per_rg.iter())
-    {
-        if tx_queries.is_empty() && tx_ids.is_empty() {
-            continue;
-        }
+    for (chunk, (tx_queries, tx_ids)) in reader.zip(queries) {
+        let chunk = chunk.map_err(Error::ReadParquet)?;
 
-        let columns = parquet::read::read_columns_many(
-            &mut reader,
-            rg_meta,
-            fields.clone(),
-            None,
-            None,
-            None,
-        )
-        .map_err(Error::ReadParquet)?;
-
-        let columns = columns
+        let columns = chunk
+            .into_arrays()
             .into_iter()
             .zip(fields.iter())
             .map(|(col, field)| (field.name.to_owned(), col))
@@ -138,7 +151,7 @@ fn process_cols(
     query: &MiniQuery,
     tx_queries: &[MiniTransactionSelection],
     tx_ids: &BTreeSet<(u32, u32)>,
-    mut columns: HashMap<String, parquet::read::ArrayIter<'static>>,
+    mut columns: HashMap<String, Box<dyn Array>>,
     blocks: &mut BTreeSet<u32>,
     transactions: &mut BTreeMap<(u32, u32), ResponseTransaction>,
 ) {
