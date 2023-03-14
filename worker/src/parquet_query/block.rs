@@ -3,8 +3,8 @@ use super::ParquetQuery;
 use crate::parquet_metadata::BlockRowGroupMetadata;
 use crate::types::MiniQuery;
 use crate::{Error, Result};
-use arrow2::array::{self, UInt32Array, UInt64Array};
-use arrow2::compute::concatenate::concatenate;
+use arrow2::array::{self, Array, UInt32Array, UInt64Array};
+use arrow2::datatypes::Schema;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
@@ -56,26 +56,43 @@ pub fn query_blocks(
         .filter(|field| selected_fields.contains(field.name.as_str()))
         .collect();
 
-    let mut blocks = BTreeMap::new();
+    let mut row_groups = Vec::new();
+    let mut queries = Vec::new();
 
-    for (rg_meta, block_nums) in metadata.row_groups.iter().zip(pruned_blocks_per_rg.iter()) {
-        if let Some(block_nums) = block_nums {
+    for (rg_meta, block_nums) in metadata
+        .row_groups
+        .into_iter()
+        .zip(pruned_blocks_per_rg.iter())
+    {
+        if let Some(block_nums) = &block_nums {
             if block_nums.is_empty() {
                 continue;
             }
         }
 
-        let columns = parquet::read::read_columns_many(
-            &mut reader,
-            rg_meta,
-            fields.clone(),
-            None,
-            None,
-            None,
-        )
-        .map_err(Error::ReadParquet)?;
+        row_groups.push(rg_meta);
+        queries.push(block_nums);
+    }
 
-        let columns = columns
+    let reader = parquet::read::FileReader::new(
+        reader,
+        row_groups,
+        Schema {
+            fields: fields.clone(),
+            metadata: Default::default(),
+        },
+        None,
+        None,
+        None,
+    );
+
+    let mut blocks = BTreeMap::new();
+
+    for (chunk, block_nums) in reader.zip(queries) {
+        let chunk = chunk.map_err(Error::ReadParquet)?;
+
+        let columns = chunk
+            .into_arrays()
             .into_iter()
             .zip(fields.iter())
             .map(|(col, field)| (field.name.to_owned(), col))
@@ -90,7 +107,7 @@ pub fn query_blocks(
 fn process_cols(
     query: &MiniQuery,
     block_nums: &Option<BTreeSet<u32>>,
-    mut columns: HashMap<String, parquet::read::ArrayIter<'static>>,
+    mut columns: HashMap<String, Box<dyn Array>>,
     blocks: &mut BTreeMap<u32, ResponseBlock>,
 ) {
     #[rustfmt::skip]

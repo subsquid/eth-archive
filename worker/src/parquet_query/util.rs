@@ -2,12 +2,8 @@
 macro_rules! define_cols {
     ($columns:expr, $($name:ident, $arrow_type:ident),*) => {
         $(
-            let $name = $columns.remove(stringify!($name)).map(|arrays| {
-                let arrays = arrays.into_iter().map(|a| a.unwrap()).collect::<Vec<_>>();
-                let arrs = arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>();
-                let array = concatenate(arrs.as_slice()).unwrap();
-
-                array.as_any().downcast_ref::<$arrow_type>().unwrap().clone()
+            let $name = $columns.remove(stringify!($name)).map(|arr| {
+                arr.as_any().downcast_ref::<$arrow_type>().unwrap().clone()
             });
         )*
     };

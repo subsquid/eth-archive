@@ -100,28 +100,18 @@ let req = {
 	]
 };
 
-const endTime = performance.now();
+let total = 0;
 
 while(true) {
-  const start = performance.now();
+  const respBody = await getResp();
   
-  const resp = await fetch("http://localhost:8080/query", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json",
-      },
-    body: JSON.stringify(req)
-  });
+  const { archiveHeight, nextBlock, totalTime } = respBody;
   
-  const end = performance.now();
-  
-  const respBody = await resp.json();
-  
-  const { archiveHeight, nextBlock } = respBody;
-  
-  console.log(`scanned ${nextBlock - req.fromBlock} blocks in ${end - start} ms`);
+  console.log(`scanned ${nextBlock - req.fromBlock} blocks in ${totalTime} ms`);
   
   console.log(`nextBlock: ${nextBlock}`);
+
+  total += totalTime;
   
   if (archiveHeight <= nextBlock) {
     break;
@@ -130,6 +120,24 @@ while(true) {
   req.fromBlock = nextBlock;
 }
 
-const startTime = performance.now();
+console.log(`Finished sync in ${total} milliseconds`);
 
-console.log(`Finished sync in ${endTime - startTime} milliseconds`);
+async function getResp() {
+	while(true) {
+		try {
+		const resp = await fetch("http://localhost:8080/query", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+      },
+    body: JSON.stringify(req),
+    signal: AbortSignal.timeout(15000)
+  });
+
+		return await resp.json();
+	} catch (e) {
+		console.error(e);
+		console.log(JSON.stringify(req, null, 2));
+	}
+	}
+}
