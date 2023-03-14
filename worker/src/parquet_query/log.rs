@@ -12,8 +12,8 @@ use eth_archive_core::hash::{HashMap, HashSet};
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::sync::Arc;
-use std::{fs, io};
 
 type BinaryArray = array::BinaryArray<i32>;
 
@@ -68,10 +68,9 @@ pub fn query_logs(
     let mut path = query.data_path.clone();
     path.push(query.dir_name.to_string());
     path.push("log.parquet");
-    let file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
-    let mut reader = io::BufReader::new(file);
+    let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
 
-    let metadata = parquet::read::read_metadata(&mut reader).map_err(Error::ReadParquet)?;
+    let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
     let selected_fields = query.mini_query.field_selection.log.as_fields();
 
@@ -96,7 +95,7 @@ pub fn query_logs(
     }
 
     let reader = parquet::read::FileReader::new(
-        reader,
+        file,
         row_groups,
         Schema {
             fields: fields.clone(),

@@ -13,8 +13,8 @@ use eth_archive_core::hash::HashMap;
 use eth_archive_core::types::ResponseBlock;
 use eth_archive_ingester::schema::block_schema;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::sync::Arc;
-use std::{fs, io};
 
 type BinaryArray = array::BinaryArray<i32>;
 
@@ -43,10 +43,9 @@ pub fn query_blocks(
     let mut path = query.data_path.clone();
     path.push(query.dir_name.to_string());
     path.push("block.parquet");
-    let file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
-    let mut reader = io::BufReader::new(file);
+    let mut file = fs::File::open(&path).map_err(Error::OpenParquetFile)?;
 
-    let metadata = parquet::read::read_metadata(&mut reader).map_err(Error::ReadParquet)?;
+    let metadata = parquet::read::read_metadata(&mut file).map_err(Error::ReadParquet)?;
 
     let selected_fields = query.mini_query.field_selection.block.as_fields();
 
@@ -75,7 +74,7 @@ pub fn query_blocks(
     }
 
     let reader = parquet::read::FileReader::new(
-        reader,
+        file,
         row_groups,
         Schema {
             fields: fields.clone(),
