@@ -2,7 +2,7 @@ use crate::bloom::Bloom;
 use crate::field_selection::FieldSelection;
 use arrayvec::ArrayVec;
 use eth_archive_core::deserialize::{Address, Bytes32, Index, Sighash};
-use eth_archive_core::hash::{hash, HashMap};
+use eth_archive_core::hash::HashSet;
 use eth_archive_core::types::{ResponseBlock, ResponseLog, ResponseTransaction, Transaction};
 use serde::{Deserialize, Serialize};
 use std::cmp;
@@ -20,14 +20,14 @@ pub struct MiniQuery {
 
 #[derive(Clone)]
 pub struct MiniLogSelection {
-    pub address: HashMap<Address, u64>,
-    pub topics: ArrayVec<HashMap<Bytes32, u64>, 4>,
+    pub address: HashSet<Address>,
+    pub topics: ArrayVec<HashSet<Bytes32>, 4>,
 }
 
 #[derive(Clone)]
 pub struct MiniTransactionSelection {
-    pub source: HashMap<Address, u64>,
-    pub dest: HashMap<Address, u64>,
+    pub source: HashSet<Address>,
+    pub dest: HashSet<Address>,
     pub sighash: Vec<Sighash>,
     pub status: Option<u32>,
 }
@@ -63,21 +63,16 @@ impl MiniQuery {
 
                 if address.is_empty() {
                     return Some(MiniLogSelection {
-                        address: HashMap::default(),
+                        address: HashSet::default(),
                         topics: log_selection.topics.clone(),
                     });
                 }
 
                 let address = address
                     .iter()
-                    .filter_map(|(addr, &h)| {
-                        if parquet_idx.contains(addr) {
-                            Some((addr.clone(), h))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<HashMap<Address, u64>>();
+                    .filter(|addr| parquet_idx.contains(addr))
+                    .cloned()
+                    .collect::<HashSet<_>>();
 
                 if !address.is_empty() {
                     Some(MiniLogSelection {
@@ -103,8 +98,8 @@ impl MiniQuery {
 
                 if source.is_empty() && dest.is_empty() {
                     return Some(MiniTransactionSelection {
-                        source: HashMap::default(),
-                        dest: HashMap::default(),
+                        source: HashSet::default(),
+                        dest: HashSet::default(),
                         sighash: tx_selection.sighash.clone(),
                         status: tx_selection.status,
                     });
@@ -112,25 +107,15 @@ impl MiniQuery {
 
                 let source = source
                     .iter()
-                    .filter_map(|(addr, &h)| {
-                        if parquet_idx.contains(addr) {
-                            Some((addr.clone(), h))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<HashMap<_, _>>();
+                    .filter(|addr| parquet_idx.contains(addr))
+                    .cloned()
+                    .collect::<HashSet<_>>();
 
                 let dest = dest
                     .iter()
-                    .filter_map(|(addr, &h)| {
-                        if parquet_idx.contains(addr) {
-                            Some((addr.clone(), h))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<HashMap<_, _>>();
+                    .filter(|addr| parquet_idx.contains(addr))
+                    .cloned()
+                    .collect::<HashSet<_>>();
 
                 if source.is_empty() && dest.is_empty() {
                     None
@@ -159,12 +144,12 @@ impl MiniLogSelection {
     }
 
     fn matches_addr(&self, filter_addr: &Address) -> bool {
-        self.address.is_empty() || self.address.contains_key(filter_addr)
+        self.address.is_empty() || self.address.contains(filter_addr)
     }
 
     fn matches_topics(&self, topics: &[Bytes32]) -> bool {
         for (topic, log_topic) in self.topics.iter().zip(topics.iter()) {
-            if !topic.is_empty() && !topic.contains_key(log_topic) {
+            if !topic.is_empty() && !topic.contains(log_topic) {
                 return false;
             }
         }
@@ -196,7 +181,7 @@ impl MiniTransactionSelection {
             None => return false,
         };
 
-        self.dest.contains_key(tx_addr)
+        self.dest.contains(tx_addr)
     }
 
     fn matches_source(&self, source: &Option<Address>) -> bool {
@@ -205,7 +190,7 @@ impl MiniTransactionSelection {
             None => return false,
         };
 
-        self.source.contains_key(tx_addr)
+        self.source.contains(tx_addr)
     }
 
     fn matches_sighash(&self, sighash: &Option<Sighash>) -> bool {
@@ -291,20 +276,11 @@ impl Query {
         self.logs
             .iter()
             .map(|log| MiniLogSelection {
-                address: log
-                    .address
-                    .iter()
-                    .map(|addr| (addr.clone(), hash(addr.as_slice())))
-                    .collect(),
+                address: log.address.iter().cloned().collect(),
                 topics: log
                     .topics
                     .iter()
-                    .map(|topic| {
-                        topic
-                            .iter()
-                            .map(|t| (t.clone(), hash(t.as_slice())))
-                            .collect()
-                    })
+                    .map(|topic| topic.iter().cloned().collect())
                     .collect(),
             })
             .collect()
@@ -314,16 +290,8 @@ impl Query {
         self.transactions
             .iter()
             .map(|transaction| MiniTransactionSelection {
-                source: transaction
-                    .source
-                    .iter()
-                    .map(|addr| (addr.clone(), hash(addr.as_slice())))
-                    .collect(),
-                dest: transaction
-                    .dest
-                    .iter()
-                    .map(|addr| (addr.clone(), hash(addr.as_slice())))
-                    .collect(),
+                source: transaction.source.iter().cloned().collect(),
+                dest: transaction.dest.iter().cloned().collect(),
                 sighash: transaction.sighash.clone(),
                 status: transaction.status,
             })

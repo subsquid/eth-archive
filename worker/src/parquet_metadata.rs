@@ -5,13 +5,15 @@ use arrow2::compute::concatenate::concatenate;
 use arrow2::datatypes::{DataType, Field};
 use arrow2::io::parquet;
 use eth_archive_core::define_cols;
-use eth_archive_core::deserialize::Address;
+use eth_archive_core::deserialize::{Address, Bytes32};
 use eth_archive_core::dir_name::DirName;
-use eth_archive_core::hash::{hash, HashSet};
+use eth_archive_core::hash::HashSet;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::{cmp, fs, io};
-use xorf::BinaryFuse8;
+
+const BLOOM_FP_RATE: f64 = 0.001;
+const BLOOM_MAX_BITS: usize = 128_000; //16KB
 
 type BinaryArray = array::BinaryArray<i32>;
 
@@ -24,14 +26,14 @@ pub struct ParquetMetadata {
 
 #[derive(Serialize, Deserialize)]
 pub struct LogRowGroupMetadata {
-    pub address_filter: BinaryFuse8,
-    pub topic0_filter: BinaryFuse8,
+    pub address_filter: Bloom<Address>,
+    pub topic0_filter: Bloom<Bytes32>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct TransactionRowGroupMetadata {
-    pub source_filter: BinaryFuse8,
-    pub dest_filter: BinaryFuse8,
+    pub source_filter: Bloom<Address>,
+    pub dest_filter: Bloom<Address>,
     pub max_blk_num_tx_idx: u64,
     pub min_blk_num_tx_idx: u64,
 }
@@ -55,7 +57,7 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
         let tx = self.collect_tx_meta(&mut addrs)?;
         let block = self.collect_block_meta()?;
 
-        let filter = Bloom::new(&addrs, 0.001, 128_000);
+        let filter = Bloom::new(&addrs, BLOOM_FP_RATE, BLOOM_MAX_BITS);
 
         let metadata = ParquetMetadata { log, tx, block };
 
@@ -103,20 +105,17 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
 
             for i in 0..len {
                 let address = address.get(i).unwrap();
-                let addr_hash = hash(address);
-                addrs.insert(addr_hash);
+                addrs.insert(Address::new(address));
                 addrs_global.insert(Address::new(address));
 
                 if let Some(topic) = topic0.get(i) {
-                    topic0_set.insert(hash(topic));
+                    topic0_set.insert(Bytes32::new(topic));
                 }
             }
 
             log_rg_meta.push(LogRowGroupMetadata {
-                address_filter: BinaryFuse8::try_from(&addrs.into_iter().collect::<Vec<_>>())
-                    .unwrap(),
-                topic0_filter: BinaryFuse8::try_from(&topic0_set.into_iter().collect::<Vec<_>>())
-                    .unwrap(),
+                address_filter: Bloom::new(&addrs, BLOOM_FP_RATE, BLOOM_MAX_BITS),
+                topic0_filter: Bloom::new(&topic0_set, BLOOM_FP_RATE, BLOOM_MAX_BITS),
             });
         }
 
@@ -170,13 +169,11 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
 
             for i in 0..len {
                 if let Some(source) = source.get(i) {
-                    let h = hash(source);
-                    source_addrs.insert(h);
+                    source_addrs.insert(Address::new(source));
                     addrs_global.insert(Address::new(source));
                 }
                 if let Some(dest) = dest.get(i) {
-                    let h = hash(dest);
-                    dest_addrs.insert(h);
+                    dest_addrs.insert(Address::new(dest));
                     addrs_global.insert(Address::new(dest));
                 }
                 let blk_num_tx_idx = combine_block_num_tx_idx(
@@ -189,10 +186,8 @@ impl<'a> CollectMetadataAndParquetIdx<'a> {
             }
 
             tx_rg_meta.push(TransactionRowGroupMetadata {
-                source_filter: BinaryFuse8::try_from(&source_addrs.into_iter().collect::<Vec<_>>())
-                    .unwrap(),
-                dest_filter: BinaryFuse8::try_from(&dest_addrs.into_iter().collect::<Vec<_>>())
-                    .unwrap(),
+                source_filter: Bloom::new(&source_addrs, BLOOM_FP_RATE, BLOOM_MAX_BITS),
+                dest_filter: Bloom::new(&dest_addrs, BLOOM_FP_RATE, BLOOM_MAX_BITS),
                 max_blk_num_tx_idx,
                 min_blk_num_tx_idx,
             });
