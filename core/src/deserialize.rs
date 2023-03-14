@@ -50,6 +50,12 @@ impl AsRef<[u8]> for Address {
     }
 }
 
+impl AsRef<[u8]> for Bytes32 {
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
 impl ToHexPrefixed for &Address {
     fn to_hex_prefixed(self) -> String {
         ToHexPrefixed::to_hex_prefixed(*self.0)

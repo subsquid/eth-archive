@@ -7,13 +7,12 @@ use arrow2::array::{self, UInt32Array, UInt64Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
-use eth_archive_core::hash::HashMap;
+use eth_archive_core::hash::{HashMap, HashSet};
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fs, io};
-use xorf::Filter;
 
 type BinaryArray = array::BinaryArray<i32>;
 
@@ -31,40 +30,30 @@ pub fn prune_tx_queries_per_rg(
         })
         .collect();
 
-    let log_selections = tx_selections
+    let tx_selections = tx_selections
         .iter()
         .filter_map(|tx_selection| {
             if tx_selection.source.is_empty() && tx_selection.dest.is_empty() {
                 return Some(tx_selection.clone());
             }
 
-            let source: HashMap<_, _> = tx_selection
+            let source = tx_selection
                 .source
                 .iter()
-                .filter_map(|(addr, &h)| {
-                    if rg_meta.source_filter.contains(&h) {
-                        Some((addr.clone(), h))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+                .filter(|addr| rg_meta.source_filter.contains(addr))
+                .cloned()
+                .collect::<HashSet<_>>();
 
             if source.is_empty() {
                 return None;
             }
 
-            let dest: HashMap<_, _> = tx_selection
+            let dest = tx_selection
                 .dest
                 .iter()
-                .filter_map(|(addr, &h)| {
-                    if rg_meta.dest_filter.contains(&h) {
-                        Some((addr.clone(), h))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+                .filter(|addr| rg_meta.dest_filter.contains(addr))
+                .cloned()
+                .collect::<HashSet<_>>();
 
             if dest.is_empty() {
                 return None;
@@ -79,7 +68,7 @@ pub fn prune_tx_queries_per_rg(
         })
         .collect();
 
-    (log_selections, transactions)
+    (tx_selections, transactions)
 }
 
 type TxIds = BTreeSet<(u32, u32)>;

@@ -8,13 +8,12 @@ use arrow2::array::{self, BooleanArray, UInt32Array};
 use arrow2::compute::concatenate::concatenate;
 use arrow2::io::parquet;
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
-use eth_archive_core::hash::HashMap;
+use eth_archive_core::hash::{HashMap, HashSet};
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fs, io};
-use xorf::Filter;
 
 type BinaryArray = array::BinaryArray<i32>;
 
@@ -28,14 +27,9 @@ pub fn prune_log_queries_per_rg(
             let address = log_selection
                 .address
                 .iter()
-                .filter_map(|(addr, &h)| {
-                    if rg_meta.address_filter.contains(&h) {
-                        Some((addr.clone(), h))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<HashMap<_, _>>();
+                .filter(|addr| rg_meta.address_filter.contains(addr))
+                .cloned()
+                .collect::<HashSet<_>>();
 
             if !log_selection.address.is_empty() && address.is_empty() {
                 return None;
@@ -45,14 +39,9 @@ pub fn prune_log_queries_per_rg(
                 Some(topic0) if !topic0.is_empty() => {
                     let pruned_topic0 = topic0
                         .iter()
-                        .filter_map(|(t, &h)| {
-                            if rg_meta.topic0_filter.contains(&h) {
-                                Some((t.clone(), h))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<HashMap<_, _>>();
+                        .filter(|topic| rg_meta.topic0_filter.contains(topic))
+                        .cloned()
+                        .collect::<HashSet<_>>();
 
                     if pruned_topic0.is_empty() {
                         return None;

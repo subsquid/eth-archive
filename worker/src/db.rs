@@ -42,7 +42,7 @@ impl DbHandle {
     fn new_impl(path: PathBuf, metrics: Arc<IngestMetrics>) -> Result<DbHandle> {
         let mut block_opts = rocksdb::BlockBasedOptions::default();
 
-        block_opts.set_block_size(32 * 1024);
+        block_opts.set_block_size(1024 * 1024);
         block_opts.set_format_version(5);
         block_opts.set_bloom_filter(10.0, true);
 
