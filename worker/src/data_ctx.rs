@@ -243,7 +243,6 @@ impl DataCtx {
                     }
                     .run()
                     .await;
-
                     tx.send((res, block_range)).ok();
                 });
             }
@@ -309,24 +308,5 @@ impl DataCtx {
         }
 
         Ok(())
-    }
-}
-
-impl FieldSelection {
-    fn with_join_columns(mut self) -> Self {
-        self.block.number = true;
-        self.transaction.hash = true;
-        self.transaction.block_number = true;
-        self.transaction.transaction_index = true;
-        self.transaction.dest = true;
-        self.transaction.source = true;
-        self.transaction.status = true;
-        self.log.block_number = true;
-        self.log.log_index = true;
-        self.log.transaction_index = true;
-        self.log.address = true;
-        self.log.topics = true;
-
-        self
     }
 }

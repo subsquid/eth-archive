@@ -95,7 +95,7 @@ pub async fn query_transactions(
         !tx_queries.is_empty() || !tx_ids.is_empty()
     };
 
-    let chunk_rx = ReadParquet {
+    let mut chunk_rx = ReadParquet {
         path,
         rg_filter,
         fields,
@@ -103,26 +103,22 @@ pub async fn query_transactions(
     .read()
     .await?;
 
-    tokio::task::spawn_blocking(move || {
-        let mut blocks = blocks;
-        let mut transactions = BTreeMap::new();
-        while let Ok(res) = chunk_rx.recv() {
-            let (i, columns) = res?;
-            let queries = &pruned_queries_per_rg[i];
-            process_cols(
-                &query.mini_query,
-                &queries.0,
-                &queries.1,
-                columns,
-                &mut blocks,
-                &mut transactions,
-            );
-        }
+    let mut blocks = blocks;
+    let mut transactions = BTreeMap::new();
+    while let Some(res) = chunk_rx.recv().await {
+        let (i, columns) = res?;
+        let queries = &pruned_queries_per_rg[i];
+        process_cols(
+            &query.mini_query,
+            &queries.0,
+            &queries.1,
+            columns,
+            &mut blocks,
+            &mut transactions,
+        );
+    }
 
-        Ok((transactions, blocks))
-    })
-    .await
-    .unwrap()
+    Ok((transactions, blocks))
 }
 
 fn process_cols(

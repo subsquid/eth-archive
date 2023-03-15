@@ -80,7 +80,7 @@ pub async fn query_logs(
         !val.is_empty()
     };
 
-    let chunk_rx = ReadParquet {
+    let mut chunk_rx = ReadParquet {
         path,
         rg_filter,
         fields,
@@ -88,22 +88,18 @@ pub async fn query_logs(
     .read()
     .await?;
 
-    tokio::task::spawn_blocking(move || {
-        let mut query_result = LogQueryResult {
-            logs: BTreeMap::new(),
-            transactions: BTreeSet::new(),
-            blocks: BTreeSet::new(),
-        };
-        while let Ok(res) = chunk_rx.recv() {
-            let (i, columns) = res?;
-            let log_queries = &pruned_queries_per_rg[i];
-            process_cols(&query.mini_query, log_queries, columns, &mut query_result);
-        }
+    let mut query_result = LogQueryResult {
+        logs: BTreeMap::new(),
+        transactions: BTreeSet::new(),
+        blocks: BTreeSet::new(),
+    };
+    while let Some(res) = chunk_rx.recv().await {
+        let (i, columns) = res?;
+        let log_queries = &pruned_queries_per_rg[i];
+        process_cols(&query.mini_query, log_queries, columns, &mut query_result);
+    }
 
-        Ok(query_result)
-    })
-    .await
-    .unwrap()
+    Ok(query_result)
 }
 
 fn process_cols(

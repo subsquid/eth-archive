@@ -5,11 +5,13 @@ use arrow2::datatypes::Field;
 use arrow2::io::parquet;
 use arrow2::io::parquet::read::ArrayIter;
 use eth_archive_core::hash::HashMap;
+use eth_archive_core::rayon_async;
 use futures::future::BoxFuture;
 use rayon::prelude::*;
 use std::path::PathBuf;
 use tokio::fs::File;
 use tokio::io::BufReader;
+use tokio::sync::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct ReadParquet<F: Fn(usize) -> bool> {
@@ -45,13 +47,12 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                 .map_err(Error::ReadParquet)?
         };
 
-        let (tx, rx) = crossbeam::channel::unbounded();
-
+        let (tx, rx) = mpsc::channel(metadata.row_groups.len());
         for (i, rg_meta) in metadata.row_groups.into_iter().enumerate() {
             if (self.rg_filter)(i) {
                 let fields = self.fields.clone();
-                let tx = tx.clone();
                 let path = self.path.clone();
+                let tx = tx.clone();
                 tokio::task::spawn(async move {
                     let open_reader = move || {
                         let path = path.clone();
@@ -74,13 +75,14 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                     {
                         Ok(columns) => columns,
                         Err(e) => {
-                            tx.send(Err(e)).ok();
+                            tx.send(Err(e)).await.ok();
                             return;
                         }
                     };
 
                     let mut num_rows = rg_meta.num_rows();
-                    tokio::task::spawn_blocking(move || {
+                    let chunks = rayon_async::spawn(move || {
+                        let mut chunks = Vec::new();
                         while num_rows > 0 {
                             num_rows = num_rows.saturating_sub(CHUNK_SIZE);
                             let chunk =
@@ -97,11 +99,15 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                                 (i, c)
                             });
 
-                            tx.send(chunk).ok();
+                            chunks.push(chunk);
                         }
+
+                        chunks
                     })
-                    .await
-                    .unwrap();
+                    .await;
+                    for chunk in chunks {
+                        tx.send(chunk).await.ok();
+                    }
                 });
             }
         }
@@ -110,5 +116,5 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
     }
 }
 
-type ChunkReceiver = crossbeam::channel::Receiver<ChunkRes>;
+type ChunkReceiver = mpsc::Receiver<ChunkRes>;
 type ChunkRes = Result<(usize, HashMap<String, Box<dyn Array>>)>;

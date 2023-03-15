@@ -1,6 +1,6 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
-RUST_LOG = "info,aws_config=off"
+RUST_LOG = "debug,aws_config=off,hyper=off,h2=off"
 
 [tasks.ingester]
 workspace = false
