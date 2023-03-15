@@ -23,6 +23,10 @@
 - `makers ingester-s3`
 - `makers worker-s3`
 
+## Architecture
+
+<img src="https://user-images.githubusercontent.com/8627422/225257301-a1ff18bb-57ee-4e7a-960e-62ac83afda7d.png" width="75%">
+
 ## API Docs
 
 

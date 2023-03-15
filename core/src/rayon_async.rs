@@ -7,7 +7,7 @@ where
 {
     let (tx, rx) = oneshot::channel();
 
-    rayon::spawn(move || {
+    std::thread::spawn(move || {
         let res = func();
         tx.send(res).ok().unwrap();
     });

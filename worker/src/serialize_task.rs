@@ -1,7 +1,6 @@
 use crate::field_selection::FieldSelection;
 use crate::types::QueryResult;
 use crate::{Error, Result};
-use eth_archive_core::rayon_async;
 use eth_archive_core::types::{BlockRange, ResponseBlock, ResponseLog, ResponseTransaction};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -50,10 +49,11 @@ impl SerializeTask {
                     continue;
                 }
 
-                bytes = rayon_async::spawn(move || {
+                bytes = tokio::task::spawn_blocking(move || {
                     process_query_result(bytes, res, is_first, field_selection)
                 })
-                .await;
+                .await
+                .unwrap();
 
                 is_first = false;
 
