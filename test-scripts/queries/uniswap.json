@@ -1,0 +1,33 @@
+{
+  "fromBlock": 0,
+  "transactions": [],
+  "logs": [
+  	{
+  		"address": [
+  			"0xc36442b4a4522e871399cd717abdd847ab11fe88"
+  		],
+  		"topics": [
+  			["0x17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31"]
+  		],
+  		"fieldSelection": {
+			"block": {
+				"number": true,
+				"hash": true,
+				"parentHash": true
+			},
+			"log": {
+				"address": true,
+				"topics": true,
+				"data": true,
+				"transaction": true
+			},
+			"transaction": {
+				"from": true,
+				"to": true,
+				"gasPrice": true,
+				"gas": true
+			}
+		}
+  	}
+  ]
+}
