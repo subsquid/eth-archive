@@ -26,10 +26,6 @@ pub struct DataCtx {
 
 impl DataCtx {
     pub async fn new(config: Config, ingest_metrics: Arc<IngestMetrics>) -> Result<Self> {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(2)
-            .build_global()
-            .unwrap();
         let db = DbHandle::new(&config.db_path, ingest_metrics.clone()).await?;
         let db = Arc::new(db);
 
@@ -312,24 +308,5 @@ impl DataCtx {
         }
 
         Ok(())
-    }
-}
-
-impl FieldSelection {
-    fn with_join_columns(mut self) -> Self {
-        self.block.number = true;
-        self.transaction.hash = true;
-        self.transaction.block_number = true;
-        self.transaction.transaction_index = true;
-        self.transaction.dest = true;
-        self.transaction.source = true;
-        self.transaction.status = true;
-        self.log.block_number = true;
-        self.log.log_index = true;
-        self.log.transaction_index = true;
-        self.log.address = true;
-        self.log.topics = true;
-
-        self
     }
 }

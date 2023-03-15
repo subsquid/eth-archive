@@ -103,7 +103,8 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                         }
 
                         chunks
-                    }).await;
+                    })
+                    .await;
                     for chunk in chunks {
                         tx.send(chunk).await.ok();
                     }

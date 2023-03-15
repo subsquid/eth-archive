@@ -9,7 +9,6 @@ use eth_archive_core::deserialize::{
     Address, BigUnsigned, BloomFilterBytes, Bytes, Bytes32, Index,
 };
 use eth_archive_core::hash::HashMap;
-use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseBlock;
 use eth_archive_ingester::schema::block_schema;
 use std::collections::{BTreeMap, BTreeSet};

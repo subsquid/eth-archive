@@ -8,7 +8,6 @@ use arrayvec::ArrayVec;
 use arrow2::array::{self, Array, BooleanArray, UInt32Array};
 use eth_archive_core::deserialize::{Address, Bytes, Bytes32, Index};
 use eth_archive_core::hash::{HashMap, HashSet};
-use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseLog;
 use eth_archive_ingester::schema::log_schema;
 use std::collections::{BTreeMap, BTreeSet};
@@ -95,11 +94,9 @@ pub async fn query_logs(
         blocks: BTreeSet::new(),
     };
     while let Some(res) = chunk_rx.recv().await {
-        dbg!();
         let (i, columns) = res?;
         let log_queries = &pruned_queries_per_rg[i];
         process_cols(&query.mini_query, log_queries, columns, &mut query_result);
-        dbg!();
     }
 
     Ok(query_result)

@@ -7,7 +7,6 @@ use crate::Result;
 use arrow2::array::{self, Array, UInt32Array, UInt64Array};
 use eth_archive_core::deserialize::{Address, BigUnsigned, Bytes, Bytes32, Index, Sighash};
 use eth_archive_core::hash::{HashMap, HashSet};
-use eth_archive_core::rayon_async;
 use eth_archive_core::types::ResponseTransaction;
 use eth_archive_ingester::schema::tx_schema;
 use std::collections::{BTreeMap, BTreeSet};
