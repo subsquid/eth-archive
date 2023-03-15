@@ -9,7 +9,7 @@ where
 
     rayon::spawn(move || {
         let res = func();
-        tx.send(res).ok().unwrap();
+        tx.send(res).ok();
     });
 
     rx.await.unwrap()

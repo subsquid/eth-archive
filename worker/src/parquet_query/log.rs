@@ -89,26 +89,20 @@ pub async fn query_logs(
     .read()
     .await?;
 
-    tokio::task::spawn_blocking(move || {
-        let mut query_result = LogQueryResult {
-            logs: BTreeMap::new(),
-            transactions: BTreeSet::new(),
-            blocks: BTreeSet::new(),
-        };
+    let mut query_result = LogQueryResult {
+        logs: BTreeMap::new(),
+        transactions: BTreeSet::new(),
+        blocks: BTreeSet::new(),
+    };
+    while let Some(res) = chunk_rx.recv().await {
         dbg!();
-        while let Some(res) = chunk_rx.blocking_recv() {
-            dbg!();
-            let (i, columns) = res?;
-            let log_queries = &pruned_queries_per_rg[i];
-            process_cols(&query.mini_query, log_queries, columns, &mut query_result);
-            dbg!();
-        }
+        let (i, columns) = res?;
+        let log_queries = &pruned_queries_per_rg[i];
+        process_cols(&query.mini_query, log_queries, columns, &mut query_result);
         dbg!();
+    }
 
-        Ok(query_result)
-    })
-    .await
-    .unwrap()
+    Ok(query_result)
 }
 
 fn process_cols(

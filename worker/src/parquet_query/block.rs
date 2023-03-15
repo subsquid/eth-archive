@@ -68,22 +68,14 @@ pub async fn query_blocks(
     .read()
     .await?;
 
-    tokio::task::spawn_blocking(move || {
-        let mut blocks = BTreeMap::new();
-        dbg!();
-        while let Some(res) = chunk_rx.blocking_recv() {
-            dbg!();
-            let (i, columns) = res?;
-            let block_nums = &pruned_blocks_per_rg[i];
-            process_cols(&query.mini_query, block_nums, columns, &mut blocks);
-            dbg!();
-        }
-        dbg!();
+    let mut blocks = BTreeMap::new();
+    while let Some(res) = chunk_rx.recv().await {
+        let (i, columns) = res?;
+        let block_nums = &pruned_blocks_per_rg[i];
+        process_cols(&query.mini_query, block_nums, columns, &mut blocks);
+    }
 
-        Ok(blocks)
-    })
-    .await
-    .unwrap()
+    Ok(blocks)
 }
 
 fn process_cols(

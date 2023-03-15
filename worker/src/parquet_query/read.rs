@@ -51,8 +51,8 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
         for (i, rg_meta) in metadata.row_groups.into_iter().enumerate() {
             if (self.rg_filter)(i) {
                 let fields = self.fields.clone();
-                let tx = tx.clone();
                 let path = self.path.clone();
+                let tx = tx.clone();
                 tokio::task::spawn(async move {
                     let open_reader = move || {
                         let path = path.clone();
@@ -81,7 +81,8 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                     };
 
                     let mut num_rows = rg_meta.num_rows();
-                    rayon_async::spawn(move || {
+                    let chunks = rayon_async::spawn(move || {
+                        let mut chunks = Vec::new();
                         while num_rows > 0 {
                             num_rows = num_rows.saturating_sub(CHUNK_SIZE);
                             let chunk =
@@ -98,10 +99,14 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                                 (i, c)
                             });
 
-                            tx.blocking_send(chunk).ok();
+                            chunks.push(chunk);
                         }
-                    })
-                    .await;
+
+                        chunks
+                    }).await;
+                    for chunk in chunks {
+                        tx.send(chunk).await.ok();
+                    }
                 });
             }
         }
