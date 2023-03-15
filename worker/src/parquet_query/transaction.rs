@@ -96,7 +96,7 @@ pub async fn query_transactions(
         !tx_queries.is_empty() || !tx_ids.is_empty()
     };
 
-    let chunk_rx = ReadParquet {
+    let mut chunk_rx = ReadParquet {
         path,
         rg_filter,
         fields,
@@ -104,10 +104,12 @@ pub async fn query_transactions(
     .read()
     .await?;
 
-    rayon_async::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let mut blocks = blocks;
         let mut transactions = BTreeMap::new();
-        while let Ok(res) = chunk_rx.recv() {
+        dbg!();
+        while let Some(res) = chunk_rx.blocking_recv() {
+            dbg!();
             let (i, columns) = res?;
             let queries = &pruned_queries_per_rg[i];
             process_cols(
@@ -118,11 +120,14 @@ pub async fn query_transactions(
                 &mut blocks,
                 &mut transactions,
             );
+            dbg!();
         }
+        dbg!();
 
         Ok((transactions, blocks))
     })
     .await
+    .unwrap()
 }
 
 fn process_cols(

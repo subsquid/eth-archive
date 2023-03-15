@@ -60,7 +60,7 @@ pub async fn query_blocks(
         }
     };
 
-    let chunk_rx = ReadParquet {
+    let mut chunk_rx = ReadParquet {
         path,
         rg_filter,
         fields,
@@ -68,17 +68,22 @@ pub async fn query_blocks(
     .read()
     .await?;
 
-    rayon_async::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let mut blocks = BTreeMap::new();
-        while let Ok(res) = chunk_rx.recv() {
+        dbg!();
+        while let Some(res) = chunk_rx.blocking_recv() {
+            dbg!();
             let (i, columns) = res?;
             let block_nums = &pruned_blocks_per_rg[i];
             process_cols(&query.mini_query, block_nums, columns, &mut blocks);
+            dbg!();
         }
+        dbg!();
 
         Ok(blocks)
     })
     .await
+    .unwrap()
 }
 
 fn process_cols(

@@ -11,6 +11,7 @@ use rayon::prelude::*;
 use std::path::PathBuf;
 use tokio::fs::File;
 use tokio::io::BufReader;
+use tokio::sync::mpsc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 pub struct ReadParquet<F: Fn(usize) -> bool> {
@@ -46,8 +47,7 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                 .map_err(Error::ReadParquet)?
         };
 
-        let (tx, rx) = crossbeam::channel::unbounded();
-
+        let (tx, rx) = mpsc::channel(metadata.row_groups.len());
         for (i, rg_meta) in metadata.row_groups.into_iter().enumerate() {
             if (self.rg_filter)(i) {
                 let fields = self.fields.clone();
@@ -75,7 +75,7 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                     {
                         Ok(columns) => columns,
                         Err(e) => {
-                            tx.send(Err(e)).ok();
+                            tx.send(Err(e)).await.ok();
                             return;
                         }
                     };
@@ -98,7 +98,7 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
                                 (i, c)
                             });
 
-                            tx.send(chunk).ok();
+                            tx.blocking_send(chunk).ok();
                         }
                     })
                     .await;
@@ -110,5 +110,5 @@ impl<F: Fn(usize) -> bool> ReadParquet<F> {
     }
 }
 
-type ChunkReceiver = crossbeam::channel::Receiver<ChunkRes>;
+type ChunkReceiver = mpsc::Receiver<ChunkRes>;
 type ChunkRes = Result<(usize, HashMap<String, Box<dyn Array>>)>;

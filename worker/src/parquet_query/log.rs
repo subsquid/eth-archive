@@ -81,7 +81,7 @@ pub async fn query_logs(
         !val.is_empty()
     };
 
-    let chunk_rx = ReadParquet {
+    let mut chunk_rx = ReadParquet {
         path,
         rg_filter,
         fields,
@@ -89,21 +89,26 @@ pub async fn query_logs(
     .read()
     .await?;
 
-    rayon_async::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let mut query_result = LogQueryResult {
             logs: BTreeMap::new(),
             transactions: BTreeSet::new(),
             blocks: BTreeSet::new(),
         };
-        while let Ok(res) = chunk_rx.recv() {
+        dbg!();
+        while let Some(res) = chunk_rx.blocking_recv() {
+            dbg!();
             let (i, columns) = res?;
             let log_queries = &pruned_queries_per_rg[i];
             process_cols(&query.mini_query, log_queries, columns, &mut query_result);
+            dbg!();
         }
+        dbg!();
 
         Ok(query_result)
     })
     .await
+    .unwrap()
 }
 
 fn process_cols(

@@ -85,7 +85,8 @@ impl SerializeTask {
     pub async fn join(self) -> Result<Vec<u8>> {
         mem::drop(self.tx);
 
-        self.join_handle.await.map_err(Error::TaskJoinError)
+        let res = self.join_handle.await.map_err(Error::TaskJoinError);
+        res
     }
 
     pub async fn send(&self, msg: (QueryResult, BlockRange)) -> bool {

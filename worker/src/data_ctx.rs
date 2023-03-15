@@ -26,6 +26,10 @@ pub struct DataCtx {
 
 impl DataCtx {
     pub async fn new(config: Config, ingest_metrics: Arc<IngestMetrics>) -> Result<Self> {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build_global()
+            .unwrap();
         let db = DbHandle::new(&config.db_path, ingest_metrics.clone()).await?;
         let db = Arc::new(db);
 
@@ -243,7 +247,6 @@ impl DataCtx {
                     }
                     .run()
                     .await;
-
                     tx.send((res, block_range)).ok();
                 });
             }
