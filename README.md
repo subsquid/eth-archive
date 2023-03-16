@@ -23,6 +23,141 @@
 - `makers ingester-s3`
 - `makers worker-s3`
 
+#### CLI
+<details>
+
+<summary>Ingester</summary>
+  
+```
+Usage: eth-archive-ingester.exe [OPTIONS] --data-path <DATA_PATH> --request-timeout-secs <REQUEST_TIMEOUT_SECS> --connect-timeout-ms <CONNECT_TIMEOUT_MS> --block-batch-size <BLOCK_BATCH_SIZE> --http-req-concurrency <HTTP_REQ_CONCURRENCY> --best-block-offset <BEST_BLOCK_OFFSET> --max-blocks-per-file <MAX_BLOCKS_PER_FILE> --max-txs-per-file <MAX_TXS_PER_FILE> --max-logs-per-file <MAX_LOGS_PER_FILE> --max-row-groups-per-file <MAX_ROW_GROUPS_PER_FILE>
+
+Options:
+      --data-path <DATA_PATH>
+          Path to store parquet files
+      --request-timeout-secs <REQUEST_TIMEOUT_SECS>
+          Http request timeout in seconds
+      --connect-timeout-ms <CONNECT_TIMEOUT_MS>
+          Http connect timeout in milliseconds
+      --block-batch-size <BLOCK_BATCH_SIZE>
+          Number of blocks a single get block batch request will cover
+      --http-req-concurrency <HTTP_REQ_CONCURRENCY>
+          Number of concurrent requests to make
+      --best-block-offset <BEST_BLOCK_OFFSET>
+          Offset from tip of the chain (to avoid rollbacks)
+      --rpc-urls <RPC_URLS>
+
+      --get-receipts
+          Get transaction receipts. This fills the transaction.status field. Requires eth_getBlockReceipts to be available on the RPC API
+      --wait-between-rounds <WAIT_BETWEEN_ROUNDS>
+          Wait this amount of seconds between rounds
+      --max-rpc-endpoint-best-block-diff <MAX_RPC_ENDPOINT_BEST_BLOCK_DIFF>
+          An rpc endpoint is considered behind and excluded if max_best_block - rpc_endpoint.best_block > max_rpc_endpoint_best_block_diff [default: 5]
+      --target-rpc-endpoint <TARGET_RPC_ENDPOINT>
+          The real target rpc endpoint. This is useful when using the rpc_proxy
+      --num-tries <NUM_TRIES>
+
+      --secs-between-tries <SECS_BETWEEN_TRIES>
+          [default: 3]
+      --max-blocks-per-file <MAX_BLOCKS_PER_FILE>
+          Maximum number of blocks per parquet file
+      --max-txs-per-file <MAX_TXS_PER_FILE>
+          Maximum number of transactions per file
+      --max-logs-per-file <MAX_LOGS_PER_FILE>
+          Maximum number of logs per parquet file
+      --max-row-groups-per-file <MAX_ROW_GROUPS_PER_FILE>
+          Maximum number of row groups per parquet file
+      --parquet-page-size <PARQUET_PAGE_SIZE>
+          Page size for parquet files in bytes. Defaults to 1MB
+      --max-pending-folder-writes <MAX_PENDING_FOLDER_WRITES>
+          Maximum number of pending folder writes. This effects maximum memory consumption [default: 8]
+      --folder-write-concurrency <FOLDER_WRITE_CONCURRENCY>
+          [default: 8]
+      --metrics-addr <METRICS_ADDR>
+          Address to serve prometheus metrics from [default: 127.0.0.1:8181]
+      --s3-src-bucket <S3_SRC_BUCKET>
+          S3 bucket name to initial sync from
+      --s3-src-format-ver <S3_SRC_FORMAT_VER>
+          Source data format version
+      --local-src-path <LOCAL_SRC_PATH>
+          Local file system path to sync from
+      --local-src-format-ver <LOCAL_SRC_FORMAT_VER>
+          Local source data format version
+      --s3-endpoint <S3_ENDPOINT>
+
+      --s3-bucket-name <S3_BUCKET_NAME>
+
+      --s3-bucket-region <S3_BUCKET_REGION>
+
+      --s3-sync-interval-secs <S3_SYNC_INTERVAL_SECS>
+
+      --s3-concurrency <S3_CONCURRENCY>
+```
+  
+</details>
+ 
+<details>
+
+<summary>Worker</summary>
+  
+```
+Usage: eth-archive-worker.exe [OPTIONS] --db-path <DB_PATH> --request-timeout-secs <REQUEST_TIMEOUT_SECS> --connect-timeout-ms <CONNECT_TIMEOUT_MS> --block-batch-size <BLOCK_BATCH_SIZE> --http-req-concurrency <HTTP_REQ_CONCURRENCY> --best-block-offset <BEST_BLOCK_OFFSET> --max-resp-body-size <MAX_RESP_BODY_SIZE> --resp-time-limit <RESP_TIME_LIMIT>
+
+Options:
+      --db-path <DB_PATH>
+          Database path
+      --data-path <DATA_PATH>
+          Path to read parquet files from
+      --request-timeout-secs <REQUEST_TIMEOUT_SECS>
+          Http request timeout in seconds
+      --connect-timeout-ms <CONNECT_TIMEOUT_MS>
+          Http connect timeout in milliseconds
+      --block-batch-size <BLOCK_BATCH_SIZE>
+          Number of blocks a single get block batch request will cover
+      --http-req-concurrency <HTTP_REQ_CONCURRENCY>
+          Number of concurrent requests to make
+      --best-block-offset <BEST_BLOCK_OFFSET>
+          Offset from tip of the chain (to avoid rollbacks)
+      --rpc-urls <RPC_URLS>
+
+      --get-receipts
+          Get transaction receipts. This fills the transaction.status field. Requires eth_getBlockReceipts to be available on the RPC API
+      --wait-between-rounds <WAIT_BETWEEN_ROUNDS>
+          Wait this amount of seconds between rounds
+      --max-rpc-endpoint-best-block-diff <MAX_RPC_ENDPOINT_BEST_BLOCK_DIFF>
+          An rpc endpoint is considered behind and excluded if max_best_block - rpc_endpoint.best_block > max_rpc_endpoint_best_block_diff [default: 5]
+      --target-rpc-endpoint <TARGET_RPC_ENDPOINT>
+          The real target rpc endpoint. This is useful when using the rpc_proxy
+      --num-tries <NUM_TRIES>
+
+      --secs-between-tries <SECS_BETWEEN_TRIES>
+          [default: 3]
+      --server-addr <SERVER_ADDR>
+          Address to be used for running the server [default: 127.0.0.1:8080]
+      --initial-hot-block-range <INITIAL_HOT_BLOCK_RANGE>
+          Initial hot block range. If None, hot blocks will start from 0
+      --max-resp-body-size <MAX_RESP_BODY_SIZE>
+          Query stops as soon as the response body size in megabytes reaches this number. Response body might be bigger than this amount of MBs
+      --max-concurrent-queries <MAX_CONCURRENT_QUERIES>
+          Maximum number of concurrent queries [default: 32]
+      --max-parquet-query-concurrency <MAX_PARQUET_QUERY_CONCURRENCY>
+          Maximum number of threads per query to use to query parquet folders [default: 8]
+      --resp-time-limit <RESP_TIME_LIMIT>
+          Response time limit in milliseconds. The query will stop and found data will be returned if the request takes more than this amount of time to handle
+      --db-query-batch-size <DB_QUERY_BATCH_SIZE>
+          Size of each database query. Database queries are batched because we don't want to query the entire db at once [default: 200]
+      --s3-endpoint <S3_ENDPOINT>
+
+      --s3-bucket-name <S3_BUCKET_NAME>
+
+      --s3-bucket-region <S3_BUCKET_REGION>
+
+      --s3-sync-interval-secs <S3_SYNC_INTERVAL_SECS>
+
+      --s3-concurrency <S3_CONCURRENCY>
+```
+  
+</details>
+
 ## Architecture
 
 <img src="https://user-images.githubusercontent.com/8627422/225257301-a1ff18bb-57ee-4e7a-960e-62ac83afda7d.png" width="75%">
