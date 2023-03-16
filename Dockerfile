@@ -1,8 +1,6 @@
-FROM debian:bullseye AS builder
+FROM rustlang/rust:nightly-bullseye-slim AS builder
 ARG component
 RUN apt-get update && apt-get upgrade -y && apt-get -y install build-essential llvm clang cmake liburing1 liburing-dev curl pkg-config
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /eth
 COPY ./ .
 RUN cargo build --features rocksdb-unix --release --bin "eth-archive-${component}"
