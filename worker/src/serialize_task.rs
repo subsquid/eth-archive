@@ -154,7 +154,7 @@ fn process_query_result(
         bytes.push(b',');
     }
 
-    serde_json::to_writer(&mut bytes, &data).unwrap();
+    simd_json::to_writer(&mut bytes, &data).unwrap();
 
     bytes
 }

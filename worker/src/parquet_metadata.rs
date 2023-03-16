@@ -13,7 +13,7 @@ use std::path::Path;
 use std::{cmp, fs, io};
 
 const BLOOM_FP_RATE: f64 = 0.001;
-const BLOOM_MAX_BITS: usize = 128_000; //16KB
+const BLOOM_MAX_BITS: usize = 256_000; //32KB
 
 type BinaryArray = array::BinaryArray<i32>;
 

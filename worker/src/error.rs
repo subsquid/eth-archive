@@ -52,7 +52,7 @@ pub enum Error {
     #[error("max number of queries are running.")]
     MaxNumberOfQueriesReached,
     #[error("invalid request body:\n{0:?}")]
-    InvalidRequestBody(Option<serde_json::Error>),
+    InvalidRequestBody(Option<simd_json::Error>),
     #[error("failed to create missing directories:\n{0}")]
     CreateMissingDirectories(io::Error),
     #[error("failed to get best block:\n{0}")]

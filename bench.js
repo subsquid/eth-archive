@@ -230,11 +230,15 @@ async function getResp(endpoint) {
 }
 
 async function runAll() {
-	let total1 = await run("https://eth.archive.subsquid.io/query");
+	//let total1 = await run("https://eth.archive.subsquid.io/query");
 
-	let total2 = await run("https://eth-mainnet-test-v1-stage1.archive.subsquid.io/query");
+	//let total2 = await run("https://eth-mainnet-test-v1-stage1.archive.subsquid.io/query");
 
-	console.log(`Total1 = ${total1}, Total2 = ${total2}`);
+	//console.log(`Total1 = ${total1}, Total2 = ${total2}`);
+	
+	let total = await run("http://127.0.0.1:8080/query");
+	
+	console.log(`Total = ${total}`);
 }
 
 runAll();

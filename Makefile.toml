@@ -34,7 +34,7 @@ args = [
 	"--best-block-offset", "10",
 	"--rpc-urls", "https://rpc.ankr.com/eth",
 	"--initial-hot-block-range", "1",
-	"--max-resp-body-size", "30",
+	"--max-resp-body-size", "48",
 	"--resp-time-limit", "5000",
 ]
 

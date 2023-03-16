@@ -84,9 +84,9 @@ async fn metrics_handler(app_data: AppData) -> Result<Response<Body>> {
 async fn height_handler(app_data: AppData) -> Result<Response<Body>> {
     let height = app_data.data_ctx.inclusive_height();
 
-    let json = serde_json::json!({ "height": height });
+    let json = simd_json::json!({ "height": height });
 
-    let json = serde_json::to_string(&json).unwrap();
+    let json = simd_json::to_string(&json).unwrap();
 
     Ok(Response::builder()
         .status(StatusCode::OK)
@@ -96,12 +96,13 @@ async fn height_handler(app_data: AppData) -> Result<Response<Body>> {
 }
 
 async fn query_handler(app_data: AppData, req: Request<Body>) -> Result<Response<Body>> {
-    let req = hyper::body::to_bytes(req.into_body())
+    let mut req = hyper::body::to_bytes(req.into_body())
         .await
-        .map_err(|_| Error::InvalidRequestBody(None))?;
+        .map_err(|_| Error::InvalidRequestBody(None))?
+        .to_vec();
 
     let query: Query =
-        serde_json::from_slice(req.as_ref()).map_err(|e| Error::InvalidRequestBody(Some(e)))?;
+        simd_json::from_slice(&mut req).map_err(|e| Error::InvalidRequestBody(Some(e)))?;
 
     let res = app_data.data_ctx.clone().query(query).await?;
 
