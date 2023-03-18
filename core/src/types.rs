@@ -46,8 +46,8 @@ pub struct Transaction {
     pub y_parity: Option<Index>,
     pub chain_id: Option<Index>,
     pub v: Option<BigUnsigned>,
-    pub r: Bytes,
-    pub s: Bytes,
+    pub r: Option<Bytes>,
+    pub s: Option<Bytes>,
     #[serde(rename = "from")]
     pub source: Option<Address>,
     pub block_hash: Bytes32,
