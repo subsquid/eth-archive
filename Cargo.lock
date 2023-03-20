@@ -1912,9 +1912,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "prefix-hex"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3b765bdee4f947c49356ac04884a3a929a03464c3325ec11c76e5a9ddf78101"
+checksum = "d9653998c1c55e1705580cf92d156b57094bbae6c83482d406f2223439cd354a"
 dependencies = [
  "hex",
 ]
