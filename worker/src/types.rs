@@ -59,7 +59,7 @@ impl MiniQuery {
 
             (match_all_addr
                 || selection.matches_dest(&tx.dest)
-                || selection.matches_source(&tx.source))
+                && selection.matches_source(&tx.source))
                 && selection.matches_sighash(&tx.input)
                 && selection.matches_status(tx.status)
         })
@@ -138,7 +138,7 @@ impl MiniTransactionSelection {
                 let inner_expr = col("tx_source").is_in(series);
 
                 expr = match expr {
-                    Some(expr) => Some(expr.or(inner_expr)),
+                    Some(expr) => Some(expr.and(inner_expr)),
                     None => Some(inner_expr),
                 };
             }
@@ -178,32 +178,34 @@ impl MiniTransactionSelection {
 
     pub fn matches_dest(&self, dest: &Option<Address>) -> bool {
         if let Some(address) = &self.dest {
-            let tx_addr = match dest.as_ref() {
-                Some(addr) => addr,
-                None => return false,
-            };
-
-            if address.iter().any(|addr| addr == tx_addr) {
-                return true;
+            if address.is_empty() {
+                return true
+            } else {
+                let tx_addr = match &dest {
+                    Some(addr) => addr,
+                    None => return false,
+                };
+                return address.iter().any(|addr| addr == tx_addr)
             }
         }
 
-        false
+        true
     }
 
     pub fn matches_source(&self, source: &Option<Address>) -> bool {
         if let Some(address) = &self.source {
-            let tx_addr = match source.as_ref() {
-                Some(addr) => addr,
-                None => return false,
-            };
-
-            if address.iter().any(|addr| addr == tx_addr) {
-                return true;
+            if address.is_empty() {
+                return true
+            } else {
+                let tx_addr = match &source {
+                    Some(addr) => addr,
+                    None => return false,
+                };
+                return address.iter().any(|addr| addr == tx_addr)
             }
         }
 
-        false
+        true
     }
 
     pub fn matches_sighash(&self, input: &Bytes) -> bool {

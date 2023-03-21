@@ -306,12 +306,25 @@ impl DataCtx {
 
                                 match (source, dest) {
                                     (None, None) => None,
-                                    (source, dest) => Some(MiniTransactionSelection {
-                                        source,
-                                        dest,
-                                        sighash: tx_selection.sighash.clone(),
-                                        status: tx_selection.status,
-                                    }),
+                                    (source, dest) => {
+                                        if source.is_none() || dest.is_none() {
+                                            if let (Some(dest_selection), Some(source_selection)) = (&tx_selection.dest, &tx_selection.source) {
+                                                if source.is_some() && !dest_selection.is_empty() {
+                                                    return None
+                                                }
+                                                if dest.is_some() && !source_selection.is_empty() {
+                                                    return None
+                                                }
+                                            }
+                                        }
+
+                                        Some(MiniTransactionSelection {
+                                            source,
+                                            dest,
+                                            sighash: tx_selection.sighash.clone(),
+                                            status: tx_selection.status,
+                                        })
+                                    },
                                 }
                             })
                             .collect::<Vec<_>>()
