@@ -7,7 +7,6 @@ use polars::export::arrow::array::{self, BooleanArray, UInt32Array, UInt64Array}
 use polars::export::arrow::compute::cast::cast;
 use polars::export::arrow::compute::concatenate::concatenate;
 use polars::export::arrow::datatypes::{DataType, Field};
-use polars::prelude::ArrowGetItem;
 use std::collections::BTreeMap;
 
 type BinaryArray = array::BinaryArray<i64>;
@@ -139,8 +138,8 @@ impl ParquetSource for Ver0_1_0 {
                     y_parity: map_from_arrow_opt!(tx_y_parity, Index, i),
                     chain_id: map_from_arrow_opt!(tx_chain_id, Index, i),
                     v: map_from_arrow_opt!(tx_v, BigUnsigned, i),
-                    r: map_from_arrow!(tx_r, Bytes::new, i),
-                    s: map_from_arrow!(tx_s, Bytes::new, i),
+                    r: map_from_arrow_opt!(tx_r, Bytes::new, i),
+                    s: map_from_arrow_opt!(tx_s, Bytes::new, i),
                     source: map_from_arrow_opt!(tx_source, Address::new, i),
                     block_hash: map_from_arrow!(tx_block_hash, Bytes32::new, i),
                     block_number: map_from_arrow!(tx_block_number, Index, i),

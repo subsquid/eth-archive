@@ -294,8 +294,8 @@ impl Transactions {
         self.y_parity.push(elem.y_parity.map(|n| n.0));
         self.chain_id.push(elem.chain_id.map(|n| n.0));
         self.v.push(elem.v.map(|n| n.0));
-        self.r.push(Some(elem.r.0));
-        self.s.push(Some(elem.s.0));
+        self.r.push(elem.r.map(|n| n.0));
+        self.s.push(elem.s.map(|n| n.0));
         self.source.push(elem.source.map(|n| n.to_vec()));
         self.block_hash.push(Some(elem.block_hash.to_vec()));
         self.block_number.push(Some(elem.block_number.0));

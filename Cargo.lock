@@ -247,12 +247,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
-
-[[package]]
 name = "array-init-cursor"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -313,7 +307,7 @@ dependencies = [
 [[package]]
 name = "arrow2"
 version = "0.16.0"
-source = "git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22#bbeb28ac4384930d342ee8b3152de93fc89dca31"
+source = "git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17#96b8bdf7565fa7167fbab5904e25e8937ce8436c"
 dependencies = [
  "ahash 0.8.3",
  "arrow-format",
@@ -395,6 +389,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "atoi"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28d99ec8bfea296261ca1af174f24225171fea9664ba9003cbebee704810528"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -1494,6 +1497,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
+name = "fast-float"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95765f67b4b18863968b4a1bd5bb576f732b29a4a28c7cd84c09fa3e2875f33c"
+
+[[package]]
 name = "fastrand"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1902,6 +1911,12 @@ name = "itoa"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
+
+[[package]]
+name = "itoap"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9028f49264629065d057f340a86acb84867925865f73bbf8d47b4d149a7e88b8"
 
 [[package]]
 name = "jobserver"
@@ -2473,7 +2488,7 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "getrandom",
  "polars-core",
@@ -2487,9 +2502,9 @@ dependencies = [
 [[package]]
 name = "polars-arrow"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "hashbrown 0.13.2",
  "num-traits",
  "polars-error",
@@ -2499,16 +2514,16 @@ dependencies = [
 [[package]]
 name = "polars-core"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "ahash 0.8.3",
- "anyhow",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "bitflags",
  "chrono",
  "comfy-table",
  "hashbrown 0.13.2",
  "indexmap",
+ "itoap",
  "num-traits",
  "once_cell",
  "polars-arrow",
@@ -2528,10 +2543,9 @@ dependencies = [
 [[package]]
 name = "polars-error"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
- "anyhow",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "regex",
  "thiserror",
 ]
@@ -2539,14 +2553,14 @@ dependencies = [
 [[package]]
 name = "polars-io"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "ahash 0.8.3",
- "anyhow",
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "bytes",
  "chrono",
  "dirs",
+ "fast-float",
  "lexical",
  "lexical-core",
  "memchr",
@@ -2565,7 +2579,7 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "ahash 0.8.3",
  "bitflags",
@@ -2579,24 +2593,26 @@ dependencies = [
  "polars-time",
  "polars-utils",
  "rayon",
+ "smartstring",
 ]
 
 [[package]]
 name = "polars-ops"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "memchr",
  "polars-arrow",
  "polars-core",
  "polars-utils",
+ "smartstring",
 ]
 
 [[package]]
 name = "polars-pipe"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "crossbeam-channel",
  "enum_dispatch",
@@ -2607,6 +2623,7 @@ dependencies = [
  "polars-io",
  "polars-ops",
  "polars-plan",
+ "polars-row",
  "polars-utils",
  "rayon",
  "smartstring",
@@ -2615,9 +2632,10 @@ dependencies = [
 [[package]]
 name = "polars-plan"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "ahash 0.8.3",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "once_cell",
  "polars-arrow",
  "polars-core",
@@ -2626,14 +2644,15 @@ dependencies = [
  "polars-time",
  "polars-utils",
  "rayon",
+ "smartstring",
 ]
 
 [[package]]
 name = "polars-row"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
- "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-02-22)",
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
  "polars-error",
  "polars-utils",
 ]
@@ -2641,10 +2660,11 @@ dependencies = [
 [[package]]
 name = "polars-time"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
+ "arrow2 0.16.0 (git+https://github.com/ritchie46/arrow2?branch=polars_2023-03-17)",
+ "atoi",
  "chrono",
- "lexical",
  "now",
  "once_cell",
  "polars-arrow",
@@ -2652,15 +2672,17 @@ dependencies = [
  "polars-ops",
  "polars-utils",
  "regex",
+ "smartstring",
 ]
 
 [[package]]
 name = "polars-utils"
 version = "0.27.2"
-source = "git+https://github.com/ozgrakkurt/polars?branch=parquet-binary-min-max#45db56e682d267eb59e11ec079f8c0ba88c926c7"
+source = "git+https://github.com/pola-rs/polars#960843e51a2edf02742196be00e9cb870868e4d0"
 dependencies = [
  "once_cell",
  "rayon",
+ "smartstring",
  "sysinfo",
 ]
 
@@ -3342,9 +3364,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.27.8"
+version = "0.28.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a902e9050fca0a5d6877550b769abd2bd1ce8c04634b941dbe2809735e1a1e33"
+checksum = "f69e0d827cce279e61c2f3399eb789271a8f136d8245edef70f06e3c9601a670"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",

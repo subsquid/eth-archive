@@ -28,8 +28,7 @@ roaring = { version = "0.10", features = ["serde"] }
 eth-archive-core = { path = "../core" }
 
 [dependencies.polars]
-git = "https://github.com/ozgrakkurt/polars"
-branch = "parquet-binary-min-max"
+git = "https://github.com/pola-rs/polars"
 features = [ "performant", "lazy", "is_in", "dtype-full", "parquet", "cse" ]
 
 [dependencies.rocksdb]
