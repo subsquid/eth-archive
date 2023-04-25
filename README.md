@@ -23,6 +23,12 @@
 - `makers ingester-s3`
 - `makers worker-s3`
 
+#### Helm charts
+
+Reference Helm charts for the worker and the ingester services can be found in the `charts` folder.
+
+
+
 #### CLI
 <details>
 

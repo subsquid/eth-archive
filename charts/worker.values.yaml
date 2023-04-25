@@ -1,0 +1,39 @@
+bucket:
+  accessKey: 
+  secretKey: 
+
+parquet:
+  pvc:
+    size: 10Gi
+
+ingest:
+  blockBatchSize: 10
+  httpReqConcurrency: 100
+  getReceipts:
+  retryCount:
+  waitBetweenRounds:
+  maxRpcEndpointBestBlockDiff:
+
+s3:
+  syncIntervalSecs: 300
+  syncConcurrency: 32
+
+worker:
+  image: subsquid/eth-archive-worker:0.15.1
+  logLevel: "info,aws_config=off"
+  initialHotBlockRange: "100000"
+  maxRespBodySize: "8"
+  queryConcurrency: 4
+  db:
+    size: 25Gi
+  ingress:
+    host: ""
+    aliases: []
+  deploymentSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "0.1"
+        memory: "256M"
+      limits:
+        memory: "32G"

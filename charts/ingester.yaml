@@ -1,0 +1,100 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ingester
+spec:
+  selector:
+    matchLabels:
+      app: ingester
+  serviceName: ingester
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ingester
+        ingester: {{ .Release.Name }}
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      terminationGracePeriodSeconds: 20
+      restartPolicy: Always
+      containers:
+        - name: ingester
+          image: {{.Values.ingester.image}}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: RUST_LOG
+              value: {{.Values.ingester.logLevel}}
+            - name: AWS_ACCESS_KEY_ID
+              value: {{.Values.bucket.accessKey}}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{.Values.bucket.secretKey}}
+          resources:
+            requests:
+              cpu: "{{.Values.ingester.statefulSetSpec.resources.requests.cpu}}"
+              memory: "{{.Values.ingester.statefulSetSpec.resources.requests.memory}}"
+            limits:
+              memory: "{{.Values.ingester.statefulSetSpec.resources.limits.memory}}"
+          command: [
+            "/eth/eth-archive-ingester",
+            "--metrics-addr", "0.0.0.0:8080",
+            "--data-path", "/data/parquet/files",
+            "--request-timeout-secs", "300",
+            "--connect-timeout-ms", "1000",
+            "--block-batch-size", "{{.Values.ingest.blockBatchSize}}",
+            {{- if .Values.ingest.maxRpcEndpointBestBlockDiff}}
+            "--max-rpc-endpoint-best-block-diff", "{{.Values.ingest.maxRpcEndpointBestBlockDiff}}",
+            {{- end }}
+            {{- if .Values.ingest.retryCount}}
+            "--num-tries", "{{.Values.ingest.retryCount}}",
+            {{- end }}
+            {{- if .Values.ingest.getReceipts }}
+            "--get-receipts",
+            {{- end }}
+            {{- if .Values.ingest.waitBetweenRounds }}
+            "--wait-between-rounds", "{{.Values.ingest.waitBetweenRounds}}",
+            {{- end }}
+            "--http-req-concurrency", "{{.Values.ingest.httpReqConcurrency}}",
+            "--best-block-offset", "{{.Values.ingest.bestBlockOffset}}",
+            {{- range .Values.ingest.rpcEndpoints }}
+            "--rpc-urls", "{{ . }}",
+            {{- end }}
+            {{- if .Values.ingester.parquetPageSize }}
+            "--parquet-page-size", "{{.Values.ingester.parquetPageSize}}",
+            {{- end }}
+            "--max-blocks-per-file", "{{.Values.ingester.maxBlocksPerFile}}",
+            "--max-txs-per-file", "{{.Values.ingester.maxTxsPerFile}}",
+            "--max-logs-per-file", "{{.Values.ingester.maxLogsPerFile}}",
+            "--max-row-groups-per-file", "{{.Values.ingester.maxRowGroupsPerFile}}",
+            "--s3-endpoint", "https://s3.filebase.com",
+            "--s3-bucket-name", "{{.Values.bucket.name}}",
+            "--s3-bucket-region", "us-east-1",
+            "--s3-sync-interval-secs", "{{.Values.s3.syncIntervalSecs}}",
+            "--s3-concurrency", "32",
+            {{- if .Values.s3.srcBucket }}
+            "--s3-src-bucket", "{{.Values.s3.srcBucket}}",
+            {{- end }}
+            {{- if .Values.s3.srcFormatVer }}
+            "--s3-src-format-ver", "{{.Values.s3.srcFormatVer}}",
+            {{- end }}
+            "--max-pending-folder-writes", "{{.Values.ingester.maxPendingFolderWrites}}",
+            "--folder-write-concurrency", "{{.Values.ingester.folderWriteConcurrency}}",
+          ]
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /metrics
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /metrics
+          volumeMounts:
+            - mountPath: /data
+              name: parquet
+      volumes:
+        - name: parquet
+          persistentVolumeClaim:
+            claimName: ingester-parquet-data

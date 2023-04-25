@@ -1,0 +1,37 @@
+bucket:
+  accessKey: 
+  secretKey: 
+
+parquet:
+  pvc:
+    size: 10Gi
+
+ingest:
+  blockBatchSize: 10
+  httpReqConcurrency: 100
+  getReceipts:
+  retryCount:
+  waitBetweenRounds:
+  maxRpcEndpointBestBlockDiff:
+  rpcEndpoints: []
+
+s3:
+  syncIntervalSecs: 300
+
+ingester:
+  image: subsquid/eth-archive-ingester:0.15.1
+  logLevel: "info,aws_config=off"
+  maxBlocksPerFile: 100000
+  maxTxsPerFile: 100000
+  maxLogsPerFile: 100000
+  maxRowGroupsPerFile: 16
+  folderWriteConcurrency: 32
+  maxPendingFolderWrites: 2
+  parquetPageSize:
+  statefulSetSpec:
+    resources:
+      requests:
+        cpu: "0.1"
+        memory: "256M"
+      limits:
+        memory: "26G" # We have 8 cores and 26Gb on custom custom-8-26624 node
