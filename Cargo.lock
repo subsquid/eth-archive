@@ -56,8 +56,8 @@ dependencies = [
 
 [[package]]
 name = "arrow2"
-version = "0.16.0"
-source = "git+https://github.com/jorgecarleitao/arrow2#db87f71f3f673b240de80d5a7592d45c0beae805"
+version = "0.17.0"
+source = "git+https://github.com/jorgecarleitao/arrow2#bf1a3ceffc4599f5ea31144f121c735d20007b7f"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -72,7 +72,7 @@ dependencies = [
  "futures",
  "getrandom",
  "hash_hasher",
- "hashbrown",
+ "hashbrown 0.13.2",
  "itertools",
  "lexical-core",
  "multiversion",
@@ -1255,6 +1255,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+
+[[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1386,7 +1392,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -1702,22 +1708,24 @@ dependencies = [
 
 [[package]]
 name = "multiversion"
-version = "0.6.1"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "025c962a3dd3cc5e0e520aa9c612201d127dcdf28616974961a649dca64f5373"
+checksum = "e6a87eede2251ca235e5573086d01d2ab6b59dfaea54c2be10f9320980f7e8f7"
 dependencies = [
  "multiversion-macros",
+ "target-features",
 ]
 
 [[package]]
 name = "multiversion-macros"
-version = "0.6.1"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8a3e2bde382ebf960c1f3e79689fa5941625fe9bf694a1cb64af3e85faff3af"
+checksum = "1af1abf82261d780d114014eff4b555e47d823f3b84f893c4388572b40e089fb"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+ "target-features",
 ]
 
 [[package]]
@@ -2483,6 +2491,12 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "target-features"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24840de800c1707d75c800893dbd727a5e1501ce921944e602f0698167491e36"
 
 [[package]]
 name = "termcolor"
