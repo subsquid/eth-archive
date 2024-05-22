@@ -1,5 +1,8 @@
 # eth-archive
 
+> [!CAUTION]
+> V1 Subsquid Archives are deprecated. Use [Subsquid Network](https://docs.subsquid.io/subsquid-network/) instead.
+
 ## Usage
 
 ### Requirements
